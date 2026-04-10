@@ -6,6 +6,8 @@ from pathlib import Path
 import sqlite3
 
 from application.adaptive_review import AdaptiveReviewService
+from application.defense_service import DefenseService
+from application.defense_ui_data import DefenseEvaluationResult, DefenseProcessingResult, DefenseWorkspaceSnapshot
 from application.import_service import DocumentImportService, TicketCandidate
 from application.scoring import MicroSkillScoringService
 from application.settings import OllamaSettings
@@ -14,7 +16,7 @@ from application.ui_data import ImportExecutionResult, StatisticsSnapshot, Ticke
 from application.ui_query_service import UiQueryService
 from domain.knowledge import Exam, ExerciseType, ReviewMode, Section, TicketMasteryProfile
 from domain.models import DocumentData, SubjectData
-from infrastructure.db import KnowledgeRepository
+from infrastructure.db import DefenseRepository, KnowledgeRepository
 from infrastructure.importers.common import normalize_import_title
 from infrastructure.ollama import OllamaService
 from infrastructure.ollama.service import OllamaDiagnostics
@@ -26,6 +28,8 @@ class AppFacade:
     connection: sqlite3.Connection
     settings_store: SettingsStore
     repository: KnowledgeRepository = field(init=False)
+    defense_repository: DefenseRepository = field(init=False)
+    defense: DefenseService = field(init=False)
     queries: UiQueryService = field(init=False)
     scoring: MicroSkillScoringService = field(init=False)
     adaptive: AdaptiveReviewService = field(init=False)
@@ -33,10 +37,12 @@ class AppFacade:
 
     def __post_init__(self) -> None:
         self.repository = KnowledgeRepository(self.connection)
+        self.defense_repository = DefenseRepository(self.connection)
         self.queries = UiQueryService(self.connection)
         self.scoring = MicroSkillScoringService()
         self.adaptive = AdaptiveReviewService()
         self._settings = self.settings_store.load()
+        self.defense = DefenseService(self.workspace_root, self.defense_repository, self.settings_store)
 
     @property
     def settings(self) -> OllamaSettings:
@@ -55,6 +61,29 @@ class AppFacade:
 
     def inspect_ollama(self) -> OllamaDiagnostics:
         return self.build_ollama_service(timeout_seconds=min(float(self._settings.timeout_seconds), 3.0)).inspect(self._settings.model)
+
+    def load_defense_workspace_snapshot(self, project_id: str | None = None) -> DefenseWorkspaceSnapshot:
+        return self.defense.load_workspace_snapshot(project_id)
+
+    def activate_defense_dlc(self, activation_code: str):
+        return self.defense.activate_dlc(activation_code)
+
+    def issue_local_defense_activation_code(self) -> str:
+        return self.defense.issue_local_activation_code()
+
+    def create_defense_project(self, payload: dict[str, str]):
+        return self.defense.create_project(**payload)
+
+    def import_defense_materials_with_progress(
+        self,
+        project_id: str,
+        paths: list[str | Path],
+        progress_callback=None,
+    ) -> DefenseProcessingResult:
+        return self.defense.import_project_materials(project_id, paths, progress_callback=progress_callback)
+
+    def evaluate_defense_mock(self, project_id: str, mode_key: str, answer_text: str) -> DefenseEvaluationResult:
+        return self.defense.evaluate_mock_defense(project_id, mode_key, answer_text)
 
     def load_documents(self) -> list[DocumentData]:
         return self.queries.load_documents()

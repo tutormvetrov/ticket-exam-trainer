@@ -150,27 +150,27 @@ class LibraryView(QWidget):
         dlc_title = QLabel("DLC: Подготовка к защите магистерской")
         dlc_title.setProperty("role", "section-title")
         dlc_title_row.addWidget(dlc_title)
-        dlc_badge = QLabel("Планируется")
+        dlc_badge = QLabel("Paywall")
         dlc_badge.setProperty("role", "pill")
         dlc_title_row.addWidget(dlc_badge, 0, Qt.AlignmentFlag.AlignVCenter)
         dlc_title_row.addStretch(1)
         dlc_text.addLayout(dlc_title_row)
 
         dlc_body = QLabel(
-            "Будущий модуль поможет разобрать текст магистерской, собрать short defense outline, "
-            "отрепетировать доклад и вопросы комиссии."
+            "Платный локальный модуль разбирает текст магистерской, собирает defense dossier, "
+            "готовит текст защиты и проводит mock-защиту с вопросами комиссии."
         )
         dlc_body.setProperty("role", "body")
         dlc_body.setWordWrap(True)
         dlc_text.addWidget(dlc_body)
 
-        dlc_meta = QLabel("Не входит в текущий релиз. Сейчас это только честный teaser будущего модуля.")
+        dlc_meta = QLabel("Доступ открывается по ключу активации. Оплата внутри приложения не встроена.")
         dlc_meta.setProperty("role", "muted")
         dlc_meta.setWordWrap(True)
         dlc_text.addWidget(dlc_meta)
         dlc_layout.addLayout(dlc_text, 1)
 
-        dlc_button = QPushButton("Что войдёт")
+        dlc_button = QPushButton("Открыть DLC")
         dlc_button.setObjectName("library-dlc-teaser")
         dlc_button.setProperty("variant", "secondary")
         dlc_button.clicked.connect(self.dlc_requested.emit)

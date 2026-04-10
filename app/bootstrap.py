@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--theme", choices=["light", "dark"])
     parser.add_argument(
         "--view",
-        choices=["library", "subjects", "sections", "tickets", "import", "training", "statistics", "settings"],
+        choices=["library", "subjects", "sections", "tickets", "import", "training", "statistics", "defense", "settings"],
     )
     return parser.parse_args()
 

@@ -2,11 +2,13 @@
 
 Статусы: `OPEN`, `IN_PROGRESS`, `BLOCKED`, `DONE`
 
-На 10 апреля 2026 по Windows-релизному объёму открытых product issues не осталось.
-После добавления комфортной macOS-адаптации остался один честный QA-пункт: реальный ручной smoke-проход на физическом Mac не выполнен из этой среды.
+На 10 апреля 2026 основной Windows-релизный сценарий по билетам закрыт.
+По DLC `Тезис` сейчас есть первая рабочая вертикаль, но не полный объём запланированного модуля.
+Отдельно всё ещё остаётся внешний QA-пункт по реальному macOS smoke-run.
 
 | ID | Проблема | Влияние на пользователя | Severity | Временный обход | Exit criteria | Статус | Доказательство |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| DLC-SCOPE | DLC `Тезис` сейчас закрывает paywall, проекты, импорт, dossier, outline и mock-защиту, но ещё не покрывает весь ранее согласованный объём | Нельзя честно называть DLC завершённым коммерческим модулем | medium | Использовать текущую версию как первую рабочую итерацию | Добавить остальной согласованный объём DLC и повторить menu-by-menu audit | OPEN | `ui/views/defense_view.py`, `tests/test_defense_service.py`, `audit/ui_click_audit.md` |
 | QA-ULTRA | Отдельный visual-pass на большом desktop был не завершён | Риск композиционных отличий на очень широком экране | low | Не требовался | Снять живые скриншоты и пройти human visual audit на `2560x1440` | DONE | `audit/screens/ultrawide/library-2560.png`, `audit/screens/ultrawide/training-2560.png`, `audit/screens/ultrawide/statistics-2560.png`, `audit/screens/ultrawide/settings-2560.png` |
 | UI-FREEZE | Окно зависало во время тяжёлого импорта `DOCX/PDF` | Главный пользовательский сценарий выглядел сломанным | critical | Не использовать | Перенести импорт и Ollama diagnostics в background threads, подтвердить живым Qt smoke | DONE | `audit/manual_test_report.md`, `audit/visual_defects.md`, `audit/screens/post-import-thread-library.png` |
 | TEST-LIVE-OLLAMA | Live Ollama интеграция теперь отделена от базового `pytest -q` | Базовый контур больше не выглядит сломанным без локальной модели, при этом live проверка не исчезла | medium | Базовый прогон: `pytest -q`, live прогон: `pytest -q --run-live-ollama` | Подтвердить оба режима реальным запуском | DONE | `pytest.ini`, `tests/conftest.py`, `tests/test_ollama_integration.py`, прогоны 2026-04-10 `22 passed, 4 skipped` и `4 passed` |

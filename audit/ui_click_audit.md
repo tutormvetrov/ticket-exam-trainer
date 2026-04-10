@@ -1,6 +1,6 @@
 # UI Click Audit
 
-- workspace: `C:\Users\tutor\AppData\Local\Temp\tezis-ui-audit-f0mhoiug`
+- workspace: `C:\Users\tutor\AppData\Local\Temp\tezis-ui-audit-hsbfdybx`
 
 ## Results
 
@@ -15,6 +15,7 @@
 - `PASS` [sidebar] import: Пункт меню открывает свой экран
 - `PASS` [sidebar] training: Пункт меню открывает свой экран
 - `PASS` [sidebar] statistics: Пункт меню открывает свой экран
+- `PASS` [sidebar] defense: Пункт меню открывает свой экран
 - `PASS` [sidebar] settings: Пункт меню открывает свой экран
 - `PASS` [library] document selection: Выбор документа обновляет центральную панель
 - `PASS` [library] detail tab 0: Переключает вкладку документа
@@ -25,7 +26,7 @@
 - `PASS` [library] startup secondary: Повторная проверка обновляет статус Ollama
 - `PASS` [library] startup tertiary: Открывает README
 - `PASS` [library] training mode card: Карточка режима ведёт в тренировку
-- `PASS` [library] dlc teaser: Teaser честно показывает модальное описание
+- `PASS` [library] dlc teaser: Карточка DLC ведёт в отдельный paywalled workspace
 - `PASS` [library] import: Импорт из библиотеки завершился и попал в базу
 - `PASS` [subjects] render: Экран предметов заполняется реальными данными
 - `PASS` [sections] filter combo: Фильтр по предмету работает
@@ -39,6 +40,11 @@
 - `PASS` [training] mode cloze: Режим переключается
 - `PASS` [training] check answer: Оценка ответа обновляет UI и статистику
 - `PASS` [statistics] snapshot: Экран статистики показывает реальные попытки
+- `PASS` [defense] paywall: DLC честно закрыт paywall до активации
+- `PASS` [defense] activate: Ключ активации открывает DLC-workspace
+- `PASS` [defense] create project: Проект защиты создаётся и появляется в workspace
+- `PASS` [defense] import materials: Импорт материалов DLC строит dossier и вопросы комиссии
+- `PASS` [defense] evaluate mock defense: Mock-защита даёт разбор и follow-up вопросы
 - `PASS` [settings] nav general: Левая навигация секций работает
 - `PASS` [settings] nav documents: Левая навигация секций работает
 - `PASS` [settings] nav training: Левая навигация секций работает
@@ -70,18 +76,17 @@
 ## Observed External Events
 
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
-- `message` DLC: Подготовка к защите магистерской: Планируется отдельный модуль для подготовки к защите магистерской.
 - `open-url` file:///D:/OllamaModels
 - `launch-script` C:\Users\tutor\OneDrive\Документы\Exam_revision\scripts\setup_ollama_windows.ps1
 - `message` Ollama: Запущен скрипт автоподготовки Ollama. Он открыт в PowerShell. После завершения вернитесь сюда и нажмите «Проверить соединение».
 - `open-url` file:///D:/OllamaModels
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-f0mhoiug
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-f0mhoiug
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-hsbfdybx
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-hsbfdybx
 - `message` Резервная копия: Резервная копия создана:
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-f0mhoiug/backups
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-f0mhoiug/audit
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-hsbfdybx/backups
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-hsbfdybx/audit
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/docs
 - `launch-script` C:\Users\tutor\OneDrive\Документы\Exam_revision\scripts\check_ollama.ps1
 - `message` Ollama: Запущен диагностический скрипт check_ollama.ps1 в PowerShell.

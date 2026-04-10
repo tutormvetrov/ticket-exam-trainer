@@ -25,6 +25,7 @@ NAV_ITEMS = [
     ("import", "Импорт документов", QStyle.StandardPixmap.SP_ArrowUp),
     ("training", "Тренировка", QStyle.StandardPixmap.SP_MediaPlay),
     ("statistics", "Статистика", QStyle.StandardPixmap.SP_FileDialogInfoView),
+    ("defense", "Защита DLC", QStyle.StandardPixmap.SP_DialogHelpButton),
     ("settings", "Настройки", QStyle.StandardPixmap.SP_FileDialogContentsView),
 ]
 

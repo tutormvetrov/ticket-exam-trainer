@@ -675,3 +675,183 @@ class DefenseService:
             ),
             model=settings.model,
         )
+
+    def _next_source_version(self, project_id: str) -> int:
+        rows = self.repository.load_sources(project_id)
+        if not rows:
+            return 1
+        return max(int(row["version"] or 0) for row in rows) + 1
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+        paragraphs = [re.sub(r"\s+", " ", block).strip() for block in re.split(r"\n{2,}", normalized)]
+        return "\n\n".join(block for block in paragraphs if block)
+
+    @staticmethod
+    def _checksum(text: str) -> str:
+        return sha256(text.encode("utf-8")).hexdigest()
+
+    def _find_anchors(self, text: str, sources: list[ThesisSource]) -> list[str]:
+        query = self._compact_text(text, 180).lower()
+        keywords = [token for token in re.findall(r"[A-Za-zА-Яа-яЁё0-9]{5,}", query)[:8]]
+        anchors: list[str] = []
+        for source in sources:
+            paragraphs = [paragraph.strip() for paragraph in re.split(r"\n{2,}", source.normalized_text) if paragraph.strip()]
+            for paragraph in paragraphs:
+                lower = paragraph.lower()
+                if query and query[:40] in lower:
+                    anchors.append(f"{source.title}: {self._compact_text(paragraph, 140)}")
+                elif keywords and any(keyword in lower for keyword in keywords):
+                    anchors.append(f"{source.title}: {self._compact_text(paragraph, 140)}")
+                if len(anchors) >= 3:
+                    return anchors
+        return anchors
+
+    @staticmethod
+    def _claim_to_prompt_dict(claim: DefenseClaim) -> dict[str, object]:
+        return {
+            "kind": claim.kind.value,
+            "text": claim.text,
+            "confidence": round(claim.confidence, 3),
+            "needs_review": claim.needs_review,
+            "anchors": claim.source_anchors,
+        }
+
+    @staticmethod
+    def _compact_text(text: str, limit: int) -> str:
+        compact = re.sub(r"\s+", " ", text).strip()
+        if len(compact) <= limit:
+            return compact
+        return compact[: max(0, limit - 1)].rstrip() + "…"
+
+    @staticmethod
+    def _format_dt(value: object) -> str:
+        if not value:
+            return "нет данных"
+        if isinstance(value, datetime):
+            dt = value
+        else:
+            dt = datetime.fromisoformat(str(value))
+        return dt.strftime("%d.%m.%Y %H:%M")
+
+    def _build_risk_topics(self, claims: list[DefenseClaim]) -> list[str]:
+        risk_topics: list[str] = []
+        by_kind = {claim.kind: claim for claim in claims}
+        for kind in (DefenseClaimKind.NOVELTY, DefenseClaimKind.METHODS, DefenseClaimKind.RESULTS, DefenseClaimKind.LIMITATIONS):
+            claim = by_kind.get(kind)
+            if claim is None:
+                risk_topics.append(f"Не раскрыт блок «{CLAIM_LABELS[kind]}».")
+            elif claim.confidence < 0.55 or claim.needs_review:
+                risk_topics.append(f"Блок «{CLAIM_LABELS[kind]}» требует ручной проверки перед защитой.")
+        return risk_topics[:4]
+
+    def _score_answer(
+        self,
+        answer_text: str,
+        claims: list[DefenseClaim],
+        mode_key: str,
+    ) -> dict[str, int]:
+        answer = answer_text.lower()
+        answer_words = max(1, len(re.findall(r"\w+", answer_text)))
+        by_kind = {claim.kind: claim for claim in claims}
+
+        def claim_coverage(kind: DefenseClaimKind) -> float:
+            claim = by_kind.get(kind)
+            if claim is None:
+                return 0.35
+            keywords = [token.lower() for token in re.findall(r"[A-Za-zА-Яа-яЁё0-9]{5,}", claim.text)[:8]]
+            if not keywords:
+                return 0.45
+            hits = sum(1 for token in keywords if token in answer)
+            return max(0.0, min(1.0, hits / max(1, min(4, len(keywords)))))
+
+        structure = 0.45
+        if answer_words >= 120:
+            structure = 0.9
+        elif answer_words >= 70:
+            structure = 0.75
+        elif answer_words >= 35:
+            structure = 0.58
+
+        oral_clarity = 0.55
+        if 35 <= answer_words <= 220:
+            oral_clarity = 0.78
+        elif answer_words > 220:
+            oral_clarity = 0.63
+
+        followup = 0.72 if mode_key in {"persona_qa", "full_mock_defense"} and answer_words >= 45 else 0.48
+        limitations = claim_coverage(DefenseClaimKind.LIMITATIONS)
+        if limitations < 0.4 and any(token in answer for token in ("огранич", "риски", "границ")):
+            limitations = 0.62
+
+        return {
+            "structure_mastery": int(round(structure * 100)),
+            "relevance_clarity": int(round(claim_coverage(DefenseClaimKind.RELEVANCE) * 100)),
+            "methodology_mastery": int(round(claim_coverage(DefenseClaimKind.METHODS) * 100)),
+            "novelty_mastery": int(round(claim_coverage(DefenseClaimKind.NOVELTY) * 100)),
+            "results_mastery": int(round(claim_coverage(DefenseClaimKind.RESULTS) * 100)),
+            "limitations_honesty": int(round(limitations * 100)),
+            "oral_clarity_text_mode": int(round(oral_clarity * 100)),
+            "followup_mastery": int(round(followup * 100)),
+        }
+
+    def _build_weak_areas(self, project_id: str, score_cards: dict[str, int]) -> list[DefenseWeakArea]:
+        mapping = {
+            "structure_mastery": ("skill", "Структура доклада", "Ответ теряет каркас и может распасться под вопросами комиссии.", None),
+            "relevance_clarity": ("claim", "Актуальность раскрыта слабо", "Пользователь не удерживает блок актуальности.", DefenseClaimKind.RELEVANCE),
+            "methodology_mastery": ("claim", "Методы объяснены неубедительно", "Комиссия сможет уцепиться за методологию.", DefenseClaimKind.METHODS),
+            "novelty_mastery": ("claim", "Новизна звучит неуверенно", "Новизна может быть оспорена на защите.", DefenseClaimKind.NOVELTY),
+            "results_mastery": ("claim", "Результаты поданы размыто", "Главные результаты теряются в ответе.", DefenseClaimKind.RESULTS),
+            "limitations_honesty": ("claim", "Ограничения не названы", "Пользователь избегает честного обсуждения ограничений.", DefenseClaimKind.LIMITATIONS),
+            "oral_clarity_text_mode": ("skill", "Текст доклада тяжело слушать", "Ответ перегружен или недостаточно собран.", None),
+            "followup_mastery": ("skill", "Follow-up ответы шаткие", "Под давлением дополнительных вопросов ответ проседает.", None),
+        }
+        weak_areas: list[DefenseWeakArea] = []
+        for key, score in score_cards.items():
+            if score >= 68:
+                continue
+            kind, title, evidence, claim_kind = mapping[key]
+            weak_areas.append(
+                DefenseWeakArea(
+                    weak_area_id=f"weak-{project_id}-{key}",
+                    project_id=project_id,
+                    kind=kind,
+                    title=title,
+                    severity=round((100 - score) / 100, 3),
+                    evidence=evidence,
+                    claim_kind=claim_kind,
+                    created_at=datetime.now(),
+                )
+            )
+        return weak_areas
+
+    def _select_followups(
+        self,
+        questions: list[DefenseQuestion],
+        mode_key: str,
+        weak_areas: list[DefenseWeakArea],
+    ) -> list[str]:
+        target = 4 if mode_key == DefenseSessionMode.FULL_MOCK_DEFENSE.value else 3
+        risky_kinds = {area.claim_kind for area in weak_areas if area.claim_kind is not None}
+        selected: list[str] = []
+        for question in questions:
+            topic_lower = question.topic.lower()
+            if risky_kinds and any(kind.value.replace("_", " ") in topic_lower for kind in risky_kinds):
+                selected.append(question.question_text)
+            if len(selected) >= target:
+                return selected
+        for question in questions:
+            if question.question_text not in selected:
+                selected.append(question.question_text)
+            if len(selected) >= target:
+                break
+        return selected
+
+    @staticmethod
+    def _fallback_summary(score_cards: dict[str, int], weak_areas: list[DefenseWeakArea]) -> str:
+        average = int(round(sum(score_cards.values()) / max(1, len(score_cards))))
+        if not weak_areas:
+            return f"Текстовая mock-защита прошла ровно. Средний профиль: {average}%."
+        weakest = weak_areas[0].title
+        return f"Средний профиль защиты: {average}%. Главный риск сейчас: {weakest}."

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from application.facade import AppFacade
 from application.settings import OllamaSettings
 from application.settings_store import SettingsStore
+from application.defense_ui_data import DefenseProcessingResult
 from application.ui_data import ImportExecutionResult
 from app.paths import get_readme_path
 from infrastructure.db import connect_initialized, get_database_path
@@ -27,6 +28,7 @@ from ui.background import FunctionThread, ProgressThread
 from ui.components.sidebar import Sidebar
 from ui.components.topbar import TopBar
 from ui.theme import DARK, LIGHT, set_app_theme
+from ui.views.defense_view import DefenseView
 from ui.views.import_view import ImportView
 from ui.views.library_view import LibraryView
 from ui.views.sections_view import SectionsView
@@ -47,6 +49,8 @@ class MainWindow(QMainWindow):
         self.latest_diagnostics: OllamaDiagnostics | None = None
         self._diagnostics_thread: FunctionThread | None = None
         self._import_thread: ProgressThread | None = None
+        self._defense_thread: ProgressThread | None = None
+        self._defense_eval_thread: FunctionThread | None = None
         self._is_closing = False
 
         self.setWindowTitle("Тезис")
@@ -107,6 +111,7 @@ class MainWindow(QMainWindow):
             "import": ImportView(self.palette_colors["shadow"]),
             "training": TrainingView(self.palette_colors["shadow"]),
             "statistics": StatisticsView(self.palette_colors["shadow"]),
+            "defense": DefenseView(self.palette_colors["shadow"]),
             "settings": SettingsView(self.palette_colors["shadow"], self.facade.settings, self.facade.workspace_root),
         }
         for key, view in self.views.items():
@@ -121,6 +126,11 @@ class MainWindow(QMainWindow):
         self.views["library"].recheck_requested.connect(self.refresh_sidebar_ollama_status)
         self.views["library"].readme_requested.connect(self.open_readme)
         self.views["library"].dlc_requested.connect(self.show_dlc_teaser)
+        self.views["defense"].activate_requested.connect(self.activate_defense_dlc)
+        self.views["defense"].create_project_requested.connect(self.create_defense_project)
+        self.views["defense"].project_selected.connect(self.refresh_defense_view)
+        self.views["defense"].import_requested.connect(self.open_defense_import_dialog)
+        self.views["defense"].evaluate_requested.connect(self.evaluate_defense_mock)
 
         self.views["import"].import_requested.connect(self.open_import_dialog)
         self.views["import"].resume_requested.connect(self.resume_partial_import)
@@ -145,6 +155,8 @@ class MainWindow(QMainWindow):
     def switch_view(self, key: str) -> None:
         if key not in self.views:
             return
+        if key == "defense":
+            self.refresh_defense_view(self.views["defense"].current_project_id or None)
         self.current_key = key
         self.sidebar.set_current(key)
         self.stack.setCurrentWidget(self.stack_pages[key])
@@ -238,6 +250,129 @@ class MainWindow(QMainWindow):
         finally:
             connection.close()
 
+    def refresh_defense_view(self, project_id: str | None = None) -> None:
+        self.views["defense"].set_snapshot(self.facade.load_defense_workspace_snapshot(project_id))
+
+    def activate_defense_dlc(self, activation_code: str) -> None:
+        view = self.views["defense"]
+        view.set_activation_pending(True)
+        try:
+            self.facade.activate_defense_dlc(activation_code)
+            self.refresh_defense_view(view.current_project_id or None)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "DLC", str(exc))
+        finally:
+            view.set_activation_pending(False)
+
+    def create_defense_project(self, payload: dict[str, str]) -> None:
+        if not payload.get("title"):
+            QMessageBox.warning(self, "DLC", "Укажите тему работы для проекта защиты.")
+            return
+        try:
+            project = self.facade.create_defense_project(payload)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "DLC", str(exc))
+            return
+        self.refresh_defense_view(project.project_id)
+        self.switch_view("defense")
+
+    def open_defense_import_dialog(self, project_id: str) -> None:
+        if not project_id:
+            return
+        if self._defense_thread is not None and self._defense_thread.isRunning():
+            self.switch_view("defense")
+            return
+
+        paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Импортировать материалы защиты",
+            str(self.facade.settings.default_import_dir),
+            "Материалы (*.docx *.pdf *.pptx *.txt *.md);;Word (*.docx);;PDF (*.pdf);;PowerPoint (*.pptx);;Текст (*.txt *.md);;Все файлы (*.*)",
+        )
+        if not paths:
+            return
+
+        self.switch_view("defense")
+        self.views["defense"].set_processing_pending(self.views["defense"].project_title.text())
+        self._defense_thread = ProgressThread(
+            lambda report_progress: self._import_defense_in_background(project_id, paths, report_progress)
+        )
+        self._defense_thread.progress_changed.connect(self.views["defense"].set_processing_progress)
+        self._defense_thread.succeeded.connect(self._finish_defense_import)
+        self._defense_thread.failed.connect(self._fail_defense_import)
+        self._defense_thread.finished.connect(self._clear_defense_thread)
+        self._defense_thread.start()
+
+    def _import_defense_in_background(self, project_id: str, paths: list[str], progress_callback):
+        database_path = get_database_path(self.facade.workspace_root)
+        connection = connect_initialized(database_path)
+        settings_store = SettingsStore(self.facade.workspace_root / "app_data" / "settings.json")
+        worker_facade = AppFacade(self.facade.workspace_root, connection, settings_store)
+        try:
+            return worker_facade.import_defense_materials_with_progress(project_id, paths, progress_callback=progress_callback)
+        finally:
+            connection.close()
+
+    def _finish_defense_import(self, result) -> None:
+        if self._is_closing:
+            return
+        self.views["defense"].show_processing_result(result)
+        self.refresh_defense_view(result.project_id or self.views["defense"].current_project_id)
+        self.switch_view("defense")
+
+    def _fail_defense_import(self, error_text: str) -> None:
+        if self._is_closing:
+            return
+        self.views["defense"].show_processing_result(
+            DefenseProcessingResult(ok=False, message="", warnings=[], llm_used=False, error=error_text)
+        )
+        QMessageBox.critical(self, "DLC", error_text)
+
+    def _clear_defense_thread(self) -> None:
+        if self._defense_thread is not None:
+            self._defense_thread.deleteLater()
+        self._defense_thread = None
+
+    def evaluate_defense_mock(self, project_id: str, mode_key: str, answer_text: str) -> None:
+        if self._defense_eval_thread is not None and self._defense_eval_thread.isRunning():
+            return
+        self.views["defense"].set_evaluation_pending(True)
+        self._defense_eval_thread = FunctionThread(
+            lambda: self._evaluate_defense_in_background(project_id, mode_key, answer_text)
+        )
+        self._defense_eval_thread.succeeded.connect(self._finish_defense_evaluation)
+        self._defense_eval_thread.failed.connect(self._fail_defense_evaluation)
+        self._defense_eval_thread.finished.connect(self._clear_defense_eval_thread)
+        self._defense_eval_thread.start()
+
+    def _evaluate_defense_in_background(self, project_id: str, mode_key: str, answer_text: str):
+        database_path = get_database_path(self.facade.workspace_root)
+        connection = connect_initialized(database_path)
+        settings_store = SettingsStore(self.facade.workspace_root / "app_data" / "settings.json")
+        worker_facade = AppFacade(self.facade.workspace_root, connection, settings_store)
+        try:
+            return worker_facade.evaluate_defense_mock(project_id, mode_key, answer_text)
+        finally:
+            connection.close()
+
+    def _finish_defense_evaluation(self, result) -> None:
+        if self._is_closing:
+            return
+        self.views["defense"].set_evaluation_pending(False)
+        self.views["defense"].show_evaluation_result(result)
+        self.refresh_defense_view(self.views["defense"].current_project_id or None)
+
+    def _fail_defense_evaluation(self, error_text: str) -> None:
+        if self._is_closing:
+            return
+        self.views["defense"].set_evaluation_pending(False)
+        QMessageBox.critical(self, "DLC", error_text)
+
+    def _clear_defense_eval_thread(self) -> None:
+        if self._defense_eval_thread is not None:
+            self._defense_eval_thread.deleteLater()
+        self._defense_eval_thread = None
+
     def _finish_import(self, result) -> None:
         if self._is_closing:
             return
@@ -321,6 +456,8 @@ class MainWindow(QMainWindow):
             self.topbar.set_theme_label(self.palette_name)
         self.views["library"].set_dlc_visible(settings.show_dlc_teaser)
         self.refresh_all_views()
+        if self.current_key == "defense":
+            self.refresh_defense_view(self.views["defense"].current_project_id or None)
         if settings.auto_check_ollama_on_start or self.latest_diagnostics is not None:
             self.refresh_sidebar_ollama_status()
         else:
@@ -369,18 +506,7 @@ class MainWindow(QMainWindow):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(get_readme_path())))
 
     def show_dlc_teaser(self) -> None:
-        QMessageBox.information(
-            self,
-            "DLC: Подготовка к защите магистерской",
-            "Планируется отдельный модуль для подготовки к защите магистерской.\n\n"
-            "В него войдут:\n"
-            "• загрузка текста магистерской\n"
-            "• разбор структуры доклада\n"
-            "• краткий план защиты\n"
-            "• тренировка ответов на вопросы комиссии\n"
-            "• режимы «научрук» и «оппонент»\n\n"
-            "Этот модуль не входит в текущий релиз.",
-        )
+        self.switch_view("defense")
 
     def _display_diagnostics(self) -> OllamaDiagnostics:
         if self.latest_diagnostics is not None:
@@ -460,6 +586,28 @@ class MainWindow(QMainWindow):
                 pass
             try:
                 self._import_thread.progress_changed.disconnect()
+            except Exception:
+                pass
+        if self._defense_thread is not None:
+            try:
+                self._defense_thread.succeeded.disconnect()
+            except Exception:
+                pass
+            try:
+                self._defense_thread.failed.disconnect()
+            except Exception:
+                pass
+            try:
+                self._defense_thread.progress_changed.disconnect()
+            except Exception:
+                pass
+        if self._defense_eval_thread is not None:
+            try:
+                self._defense_eval_thread.succeeded.disconnect()
+            except Exception:
+                pass
+            try:
+                self._defense_eval_thread.failed.disconnect()
             except Exception:
                 pass
         super().closeEvent(event)

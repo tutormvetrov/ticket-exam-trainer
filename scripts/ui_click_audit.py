@@ -18,6 +18,8 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QPushButton
 
+from application.defense_service import DefenseService
+from application.defense_ui_data import ModelRecommendation
 from application.facade import AppFacade
 from application.settings_store import SettingsStore
 from infrastructure.db import connect_initialized, get_database_path
@@ -64,6 +66,61 @@ class FakeDiagnosticsService:
         )
 
 
+def fake_defense_recommendation(_self) -> ModelRecommendation:
+    return ModelRecommendation(
+        model_name="mistral:instruct",
+        label="Рекомендуемая модель: mistral:instruct",
+        rationale="Локальный тестовый профиль для UI-аудита.",
+        available=True,
+    )
+
+
+def fake_defense_llm(_self, _service, _system: str, prompt: str, *, model: str):
+    if "extract a defense dossier" in prompt:
+        return {
+            "claims": [
+                {"kind": "relevance", "text": "Актуальность защиты подтверждена материалами проекта.", "confidence": 0.82, "needs_review": False},
+                {"kind": "goal", "text": "Цель защиты состоит в ясном объяснении результатов работы.", "confidence": 0.78, "needs_review": False},
+                {"kind": "methods", "text": "Методы и база исследования описаны в загруженных материалах.", "confidence": 0.74, "needs_review": False},
+                {"kind": "results", "text": "Результаты дают прикладной эффект и могут быть защищены перед комиссией.", "confidence": 0.8, "needs_review": False},
+            ],
+            "risk_topics": [{"text": "Новизна раскрыта слишком кратко", "confidence": 0.61}],
+        }
+    if "build a defense speech outline" in prompt:
+        return {
+            "segments": [
+                {"title": "Актуальность", "talking_points": "Кратко объяснить, почему тема важна.", "target_seconds": 60},
+                {"title": "Методы", "talking_points": "Показать логику выбора методов.", "target_seconds": 70},
+                {"title": "Результаты", "talking_points": "Выделить ключевые выводы и пользу.", "target_seconds": 90},
+            ]
+        }
+    if "create a slide storyboard" in prompt:
+        return {
+            "slides": [
+                {"title": "Тема и актуальность", "purpose": "Открыть доклад", "talking_points": ["Контекст темы"], "evidence_links": ["thesis:1"]},
+                {"title": "Результаты", "purpose": "Показать выводы", "talking_points": ["Главный результат"], "evidence_links": ["thesis:2"]},
+            ]
+        }
+    if "generate defense follow-up questions" in prompt:
+        return {
+            "questions": [
+                {"topic": "Новизна", "difficulty": 2, "question_text": "В чём состоит новизна работы?", "risk_tag": "novelty"},
+                {"topic": "Методы", "difficulty": 2, "question_text": "Почему выбран именно этот набор методов?", "risk_tag": "methods"},
+            ]
+        }
+    if "score a thesis defense answer" in prompt:
+        return {
+            "summary": "Mock-защита прошла, но новизну и ограничения нужно раскрывать увереннее.",
+            "followups": [
+                "Чем ваша новизна отличается от предыдущих подходов?",
+                "Какие ограничения работы вы готовы признать сразу?",
+            ],
+            "scores": {},
+            "weak_points": [],
+        }
+    return None
+
+
 class UiClickAudit:
     def __init__(self, workspace_root: Path, report_path: Path | None = None) -> None:
         self.workspace_root = workspace_root
@@ -84,6 +141,11 @@ class UiClickAudit:
         self.facade.save_settings(settings)
 
         self.sample_paths = build_docs(workspace_root / "sample_data")
+        self.defense_notes_path = workspace_root / "sample_data" / "defense_notes.md"
+        self.defense_notes_path.write_text(
+            "Тезисы для защиты:\n- актуальность темы\n- методы\n- ключевой результат\n- ограничения работы",
+            encoding="utf-8",
+        )
         for path in self.sample_paths[:2]:
             result = self.facade.import_document(path)
             if not result.ok:
@@ -100,6 +162,8 @@ class UiClickAudit:
             self.window.facade.settings.model,
         )
         self._original_facade_inspect = AppFacade.inspect_ollama
+        self._original_defense_recommendation = DefenseService._build_model_recommendation
+        self._original_defense_llm = DefenseService._call_llm_json
         AppFacade.inspect_ollama = lambda facade: self._fake_diagnostics()  # type: ignore[assignment]
 
         self._original_messagebox = (
@@ -109,6 +173,7 @@ class UiClickAudit:
         )
         self._original_open_url = QDesktopServices.openUrl
         self._original_get_open_file_name = QFileDialog.getOpenFileName
+        self._original_get_open_file_names = QFileDialog.getOpenFileNames
         self._original_get_existing_directory = QFileDialog.getExistingDirectory
 
     def run(self) -> int:
@@ -125,6 +190,7 @@ class UiClickAudit:
             self._audit_import()
             self._audit_training()
             self._audit_statistics()
+            self._audit_defense()
             self._audit_settings()
         finally:
             self._restore_external_calls()
@@ -145,18 +211,25 @@ class UiClickAudit:
             return True
 
         sample_import = str(self.sample_paths[2])
+        defense_imports = [str(self.sample_paths[0]), str(self.defense_notes_path)]
 
         def fake_get_open_file_name(*args, **kwargs):
             return sample_import, ""
 
+        def fake_get_open_file_names(*args, **kwargs):
+            return defense_imports, ""
+
         def fake_get_existing_directory(*args, **kwargs):
             return str(self.workspace_root / "sample_data")
 
+        DefenseService._build_model_recommendation = fake_defense_recommendation  # type: ignore[assignment]
+        DefenseService._call_llm_json = fake_defense_llm  # type: ignore[assignment]
         QMessageBox.information = fake_messagebox  # type: ignore[assignment]
         QMessageBox.warning = fake_messagebox  # type: ignore[assignment]
         QMessageBox.critical = fake_messagebox  # type: ignore[assignment]
         QDesktopServices.openUrl = fake_open_url  # type: ignore[assignment]
         QFileDialog.getOpenFileName = fake_get_open_file_name  # type: ignore[assignment]
+        QFileDialog.getOpenFileNames = fake_get_open_file_names  # type: ignore[assignment]
         QFileDialog.getExistingDirectory = fake_get_existing_directory  # type: ignore[assignment]
 
         import app.platform as platform_helpers
@@ -170,9 +243,12 @@ class UiClickAudit:
 
     def _restore_external_calls(self) -> None:
         AppFacade.inspect_ollama = self._original_facade_inspect  # type: ignore[assignment]
+        DefenseService._build_model_recommendation = self._original_defense_recommendation  # type: ignore[assignment]
+        DefenseService._call_llm_json = self._original_defense_llm  # type: ignore[assignment]
         QMessageBox.information, QMessageBox.warning, QMessageBox.critical = self._original_messagebox
         QDesktopServices.openUrl = self._original_open_url  # type: ignore[assignment]
         QFileDialog.getOpenFileName = self._original_get_open_file_name  # type: ignore[assignment]
+        QFileDialog.getOpenFileNames = self._original_get_open_file_names  # type: ignore[assignment]
         QFileDialog.getExistingDirectory = self._original_get_existing_directory  # type: ignore[assignment]
 
         import app.platform as platform_helpers
@@ -322,10 +398,11 @@ class UiClickAudit:
 
         event_count = len(self.events)
         self._click_button(self._find_button(view, "library-dlc-teaser"), "library", "dlc teaser")
-        if len(self.events) > event_count and self.events[-1].kind == "message":
-            self._record("PASS", "library", "dlc teaser", "Teaser честно показывает модальное описание")
+        if self.window.current_key == "defense":
+            self._record("PASS", "library", "dlc teaser", "Карточка DLC ведёт в отдельный paywalled workspace")
         else:
-            self._record("FAIL", "library", "dlc teaser", "Teaser не дал ответа пользователю")
+            self._record("FAIL", "library", "dlc teaser", "Карточка DLC не открыла отдельный workspace")
+        self.window.switch_view("library")
 
         before_count = len(self.facade.load_documents())
         self._click_button(self._find_button(view, "library-import"), "library", "import")
@@ -443,6 +520,53 @@ class UiClickAudit:
             self._record("PASS", "statistics", "snapshot", "Экран статистики показывает реальные попытки")
         else:
             self._record("FAIL", "statistics", "snapshot", "После тренировки статистика не обновилась")
+
+    def _audit_defense(self) -> None:
+        self.window.switch_view("defense")
+        self._pump()
+        view = self.window.views["defense"]
+
+        if view.paywall_card.isVisible() and not view.workspace.isVisible():
+            self._record("PASS", "defense", "paywall", "DLC честно закрыт paywall до активации")
+        else:
+            self._record("FAIL", "defense", "paywall", "Экран DLC не показывает честный paywall")
+
+        activation_code = self.facade.issue_local_defense_activation_code()
+        view.activation_input.setText(activation_code)
+        self._click_button(view.activate_button, "defense", "activate")
+        if view.workspace.isVisible() and not view.paywall_card.isVisible():
+            self._record("PASS", "defense", "activate", "Ключ активации открывает DLC-workspace")
+        else:
+            self._record("FAIL", "defense", "activate", "Активация не открыла DLC-workspace")
+
+        view.project_title_input.setText("Mock защита ГМУ")
+        view.student_input.setText("Тестовый студент")
+        view.specialty_input.setText("Государственное и муниципальное управление")
+        view.supervisor_input.setText("Научный руководитель")
+        view.defense_date_input.setText("2026-06-01")
+        self._click_button(view.create_button, "defense", "create project")
+        snapshot = self.facade.load_defense_workspace_snapshot()
+        if snapshot.projects and snapshot.active_project is not None:
+            self._record("PASS", "defense", "create project", "Проект защиты создаётся и появляется в workspace")
+        else:
+            self._record("FAIL", "defense", "create project", "Проект защиты не сохранился")
+            return
+
+        self._click_button(view.import_button, "defense", "import materials")
+        ready = self._wait_for(lambda: self.window._defense_thread is None and not view.is_processing(), timeout_seconds=20.0)
+        snapshot = self.facade.load_defense_workspace_snapshot(view.current_project_id or None)
+        if ready and snapshot.active_project and snapshot.active_project.claims and snapshot.active_project.questions:
+            self._record("PASS", "defense", "import materials", "Импорт материалов DLC строит dossier и вопросы комиссии")
+        else:
+            self._record("FAIL", "defense", "import materials", "Импорт материалов DLC не собрал рабочий артефакт")
+
+        view.answer_input.setPlainText("Актуальность темы подтверждена, методы выбраны под задачу, результаты прикладные.")
+        self._click_button(view.evaluate_button, "defense", "evaluate mock defense")
+        completed = self._wait_for(lambda: self.window._defense_eval_thread is None, timeout_seconds=12.0)
+        if completed and ("Слабые места:" in view.evaluation_label.text() or "Следующие вопросы комиссии:" in view.evaluation_label.text()):
+            self._record("PASS", "defense", "evaluate mock defense", "Mock-защита даёт разбор и follow-up вопросы")
+        else:
+            self._record("FAIL", "defense", "evaluate mock defense", "Mock-защита не вернула разбор ответа")
 
     def _audit_settings(self) -> None:
         self.window.switch_view("settings")

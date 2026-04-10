@@ -9,16 +9,32 @@ from application.settings import OllamaSettings
 
 def test_default_models_path_windows(monkeypatch) -> None:
     monkeypatch.setattr(platform_helpers.sys, "platform", "win32")
+    monkeypatch.delenv("OLLAMA_MODELS", raising=False)
+    monkeypatch.setattr(platform_helpers.Path, "exists", lambda self: str(self).startswith("D:"))
     assert platform_helpers.default_models_path() == Path(r"D:\OllamaModels")
+
+
+def test_default_models_path_windows_falls_back_without_drive_d(monkeypatch) -> None:
+    monkeypatch.setattr(platform_helpers.sys, "platform", "win32")
+    monkeypatch.delenv("OLLAMA_MODELS", raising=False)
+    monkeypatch.setattr(platform_helpers.Path, "exists", lambda self: False)
+    assert platform_helpers.default_models_path() == Path.home() / ".ollama" / "models"
+
+
+def test_default_models_path_prefers_environment_variable(monkeypatch) -> None:
+    monkeypatch.setenv("OLLAMA_MODELS", r"E:\PortableOllamaModels")
+    assert platform_helpers.default_models_path() == Path(r"E:\PortableOllamaModels")
 
 
 def test_default_models_path_macos(monkeypatch) -> None:
     monkeypatch.setattr(platform_helpers.sys, "platform", "darwin")
+    monkeypatch.delenv("OLLAMA_MODELS", raising=False)
     assert platform_helpers.default_models_path() == Path.home() / ".ollama"
 
 
 def test_ollama_settings_pick_platform_default_models_path(monkeypatch) -> None:
     monkeypatch.setattr(platform_helpers.sys, "platform", "darwin")
+    monkeypatch.delenv("OLLAMA_MODELS", raising=False)
     settings = OllamaSettings()
     assert settings.models_path == Path.home() / ".ollama"
 

@@ -1,7 +1,9 @@
 __pycache__/
 .pytest_cache/
 build/
+build_refresh/
 dist/
+dist_refresh/
 backups/
 audit/screens/
 *.pyc
@@ -11,3 +13,5 @@ audit/screens/
 *.db-shm
 *.db-wal
 app_data/
+tmp_qt_smoke/
+tmp_qt_smoke2/

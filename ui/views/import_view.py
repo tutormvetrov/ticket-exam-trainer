@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtCore import QEasingCurve, QElapsedTimer, Property, QPropertyAnimation, QTimer, Qt, Signal
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
 from application.ui_data import ImportExecutionResult
 from domain.models import DocumentData
@@ -19,6 +19,15 @@ class ImportView(QWidget):
         self.shadow_color = shadow_color
         self.last_result = ImportExecutionResult(False)
         self.documents: list[DocumentData] = []
+        self._import_pending = False
+        self._pending_file_name = ""
+        self._progress_percent = 0
+        self._progress_stage = ""
+        self._progress_detail = ""
+        self._elapsed_timer = QElapsedTimer()
+        self._progress_timer = QTimer(self)
+        self._progress_timer.setInterval(1000)
+        self._progress_timer.timeout.connect(self._refresh_progress_meta)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 28)
@@ -42,7 +51,8 @@ class ImportView(QWidget):
         intro_layout.addWidget(intro_title)
 
         intro_body = QLabel(
-            "Поддерживаются DOCX и PDF. После выбора файла текст извлекается, структурируется, сохраняется в SQLite и, при необходимости, уточняется локальным Mistral через Ollama."
+            "Поддерживаются DOCX и PDF. После выбора файла текст извлекается, структурируется, "
+            "сохраняется в SQLite и при необходимости уточняется локальным Mistral через Ollama."
         )
         intro_body.setWordWrap(True)
         intro_body.setProperty("role", "body")
@@ -57,11 +67,11 @@ class ImportView(QWidget):
         badges.addStretch(1)
         intro_layout.addLayout(badges)
 
-        button = QPushButton("Открыть импорт")
-        button.setProperty("variant", "primary")
-        button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.clicked.connect(self.import_requested.emit)
-        intro_layout.addWidget(button, 0, Qt.AlignmentFlag.AlignLeft)
+        self.open_import_button = QPushButton("Открыть импорт")
+        self.open_import_button.setProperty("variant", "primary")
+        self.open_import_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.open_import_button.clicked.connect(self.import_requested.emit)
+        intro_layout.addWidget(self.open_import_button, 0, Qt.AlignmentFlag.AlignLeft)
         top_row.addWidget(intro_card, 3)
 
         summary_card = CardFrame(role="card", shadow_color=shadow_color)
@@ -86,10 +96,48 @@ class ImportView(QWidget):
         self.summary_meta.setProperty("role", "body")
         self.summary_meta.setWordWrap(True)
         summary_layout.addWidget(self.summary_meta)
+
         self.summary_chip = QLabel("")
         self.summary_chip.setProperty("role", "pill")
         self.summary_chip.hide()
         summary_layout.addWidget(self.summary_chip, 0, Qt.AlignmentFlag.AlignLeft)
+
+        self.progress_stage_label = QLabel("")
+        self.progress_stage_label.setStyleSheet("font-size: 13px; font-weight: 700; color: #2A3B52;")
+        self.progress_stage_label.hide()
+        summary_layout.addWidget(self.progress_stage_label)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(12)
+        self.progress_bar.setStyleSheet(
+            """
+            QProgressBar {
+                background: #ECF2F9;
+                border: 1px solid #D8E2F0;
+                border-radius: 6px;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #4E8FF7, stop:1 #2E78E6);
+                border-radius: 5px;
+            }
+            """
+        )
+        self.progress_bar.hide()
+        summary_layout.addWidget(self.progress_bar)
+
+        self._progress_animation = QPropertyAnimation(self, b"animatedProgress", self)
+        self._progress_animation.setDuration(480)
+        self._progress_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self.progress_meta_label = QLabel("")
+        self.progress_meta_label.setProperty("role", "body")
+        self.progress_meta_label.setWordWrap(True)
+        self.progress_meta_label.hide()
+        summary_layout.addWidget(self.progress_meta_label)
         summary_layout.addStretch(1)
         top_row.addWidget(summary_card, 2)
         layout.addLayout(top_row)
@@ -101,27 +149,31 @@ class ImportView(QWidget):
         handoff_title = QLabel("Что делать дальше")
         handoff_title.setProperty("role", "section-title")
         handoff_layout.addWidget(handoff_title)
+
         self.handoff_body = QLabel(
             "После импорта откройте библиотеку, выберите документ и переходите к тренировке или статистике."
         )
         self.handoff_body.setProperty("role", "body")
         self.handoff_body.setWordWrap(True)
         handoff_layout.addWidget(self.handoff_body)
+
         handoff_actions = QHBoxLayout()
         handoff_actions.setContentsMargins(0, 0, 0, 0)
         handoff_actions.setSpacing(10)
-        library_button = QPushButton("Открыть библиотеку")
-        library_button.setProperty("variant", "primary")
-        library_button.clicked.connect(self.open_library_requested.emit)
-        handoff_actions.addWidget(library_button)
-        training_button = QPushButton("Перейти к тренировке")
-        training_button.setProperty("variant", "secondary")
-        training_button.clicked.connect(self.open_training_requested.emit)
-        handoff_actions.addWidget(training_button)
-        statistics_button = QPushButton("Посмотреть статистику")
-        statistics_button.setProperty("variant", "outline")
-        statistics_button.clicked.connect(self.open_statistics_requested.emit)
-        handoff_actions.addWidget(statistics_button)
+        self.library_button = QPushButton("Открыть библиотеку")
+        self.library_button.setProperty("variant", "primary")
+        self.library_button.clicked.connect(self.open_library_requested.emit)
+        handoff_actions.addWidget(self.library_button)
+
+        self.training_button = QPushButton("Перейти к тренировке")
+        self.training_button.setProperty("variant", "secondary")
+        self.training_button.clicked.connect(self.open_training_requested.emit)
+        handoff_actions.addWidget(self.training_button)
+
+        self.statistics_button = QPushButton("Посмотреть статистику")
+        self.statistics_button.setProperty("variant", "outline")
+        self.statistics_button.clicked.connect(self.open_statistics_requested.emit)
+        handoff_actions.addWidget(self.statistics_button)
         handoff_actions.addStretch(1)
         handoff_layout.addLayout(handoff_actions)
         layout.addWidget(handoff_card)
@@ -150,7 +202,77 @@ class ImportView(QWidget):
 
     def set_last_result(self, result: ImportExecutionResult) -> None:
         self.last_result = result
+        self._import_pending = False
+        self._pending_file_name = ""
+        self._set_actions_enabled(True)
         self._refresh()
+
+    def set_import_pending(self, file_name: str) -> None:
+        self._import_pending = True
+        self._pending_file_name = file_name
+        self._progress_percent = 2
+        self._progress_stage = "Подготовка импорта"
+        self._progress_detail = "Открываем файл и запускаем фоновую обработку"
+        self._elapsed_timer.restart()
+        self._progress_timer.start()
+        self._set_actions_enabled(False)
+        self._refresh()
+
+    def set_import_progress(self, percent: int, stage: str, detail: str = "") -> None:
+        bounded = max(0, min(100, int(percent)))
+        self._progress_percent = bounded
+        self._progress_stage = stage
+        self._progress_detail = detail
+        if self._import_pending and not self._elapsed_timer.isValid():
+            self._elapsed_timer.restart()
+        if self._import_pending and not self._progress_timer.isActive():
+            self._progress_timer.start()
+        self._animate_progress_to(bounded)
+        self._refresh_progress_meta()
+        self._refresh()
+
+    def _set_actions_enabled(self, enabled: bool) -> None:
+        self.open_import_button.setEnabled(enabled)
+        self.library_button.setEnabled(enabled)
+        self.training_button.setEnabled(enabled)
+        self.statistics_button.setEnabled(enabled)
+
+    def _refresh_progress_meta(self) -> None:
+        if not self._import_pending or not self._elapsed_timer.isValid():
+            self.progress_meta_label.hide()
+            return
+        elapsed_seconds = max(1, int(self._elapsed_timer.elapsed() / 1000))
+        elapsed_label = self._format_seconds(elapsed_seconds)
+        if 8 <= self._progress_percent < 100:
+            estimated_total = int(round(elapsed_seconds * 100 / max(1, self._progress_percent)))
+            remaining = max(0, estimated_total - elapsed_seconds)
+            self.progress_meta_label.setText(
+                f"Прошло: {elapsed_label} • Осталось примерно: {self._format_seconds(remaining)}"
+            )
+        else:
+            self.progress_meta_label.setText(f"Прошло: {elapsed_label} • Оценка оставшегося времени появится после первых этапов")
+        self.progress_meta_label.show()
+
+    def _animate_progress_to(self, percent: int) -> None:
+        self._progress_animation.stop()
+        self._progress_animation.setStartValue(self.progress_bar.value())
+        self._progress_animation.setEndValue(percent)
+        self._progress_animation.start()
+
+    def get_animated_progress(self) -> int:
+        return self.progress_bar.value()
+
+    def set_animated_progress(self, value: int) -> None:
+        self.progress_bar.setValue(max(0, min(100, int(value))))
+
+    animatedProgress = Property(int, get_animated_progress, set_animated_progress)
+
+    @staticmethod
+    def _format_seconds(seconds: int) -> str:
+        minutes, secs = divmod(max(0, seconds), 60)
+        if minutes:
+            return f"{minutes} мин {secs:02d} с"
+        return f"{secs} с"
 
     def _refresh(self) -> None:
         while self.recent_stack.count():
@@ -161,7 +283,21 @@ class ImportView(QWidget):
 
         latest_document = self.documents[0] if self.documents else None
 
-        if self.last_result.ok:
+        if self._import_pending:
+            self.summary_status.setText("Идёт импорт документа")
+            self.summary_body.setText(
+                f"Файл: {self._pending_file_name}\nИмпорт и разбор идут в фоне. Окно не должно зависать."
+            )
+            self.summary_meta.setText(self._progress_detail or "Можно оставаться на этом экране. Результат появится после завершения обработки.")
+            self.summary_chip.setText(f"{self._progress_percent}%")
+            self.summary_chip.show()
+            self.progress_stage_label.setText(self._progress_stage or "Фоновая обработка")
+            self.progress_stage_label.show()
+            self.progress_bar.show()
+            self.progress_meta_label.show()
+            self.handoff_body.setText("Дождитесь завершения импорта. После этого станут доступны библиотека, тренировка и статистика.")
+        elif self.last_result.ok:
+            self._progress_timer.stop()
             self.summary_status.setText("Последний импорт завершён успешно")
             self.summary_body.setText(
                 f"Документ: {self.last_result.document_title}\n"
@@ -177,16 +313,24 @@ class ImportView(QWidget):
                 self.summary_meta.setText("Данные уже сохранены в SQLite.")
             self.summary_chip.setText("LLM assist: да" if self.last_result.used_llm_assist else "LLM assist: нет")
             self.summary_chip.show()
+            self.progress_stage_label.hide()
+            self.progress_bar.hide()
+            self.progress_meta_label.hide()
             self.handoff_body.setText(
                 "Импорт завершён. Откройте библиотеку, проверьте распознанный документ и сразу переходите к тренировке или статистике."
             )
         elif self.last_result.error:
+            self._progress_timer.stop()
             self.summary_status.setText("Последний импорт завершился ошибкой")
             self.summary_body.setText(self.last_result.error)
             self.summary_meta.setText("Проверьте формат файла и повторите импорт.")
             self.summary_chip.hide()
+            self.progress_stage_label.hide()
+            self.progress_bar.hide()
+            self.progress_meta_label.hide()
             self.handoff_body.setText("Сначала добейтесь успешного импорта, затем открывайте библиотеку и тренировку.")
         elif latest_document is not None:
+            self._progress_timer.stop()
             self.summary_status.setText("В базе уже есть импортированные документы")
             self.summary_body.setText(
                 f"Последний документ: {latest_document.title}\nПредмет: {latest_document.subject}\nСтатус: {latest_document.status}"
@@ -195,14 +339,21 @@ class ImportView(QWidget):
                 f"Импортирован: {latest_document.imported_at}\nРазмер: {latest_document.size}\nБилетов: {latest_document.tickets_count}"
             )
             self.summary_chip.hide()
+            self.progress_stage_label.hide()
+            self.progress_bar.hide()
+            self.progress_meta_label.hide()
             self.handoff_body.setText(
                 "База уже заполнена. Откройте библиотеку для просмотра или переходите сразу в тренировку."
             )
         else:
+            self._progress_timer.stop()
             self.summary_status.setText("Импорт ещё не выполнялся")
             self.summary_body.setText("После первого импорта здесь появится последний обработанный документ и результат разбиения.")
             self.summary_meta.setText("База пока пуста.")
             self.summary_chip.hide()
+            self.progress_stage_label.hide()
+            self.progress_bar.hide()
+            self.progress_meta_label.hide()
             self.handoff_body.setText(
                 "Сначала выберите большой DOCX или PDF. После успешного импорта станут доступны библиотека, тренировка и статистика."
             )

@@ -5,6 +5,8 @@ import pytest
 from application.import_service import DocumentImportService, TicketCandidate
 from infrastructure.ollama.service import OllamaService
 
+pytestmark = pytest.mark.live_ollama
+
 
 def test_ollama_connection_check() -> None:
     service = OllamaService("http://localhost:11434", timeout_seconds=30)

@@ -15,6 +15,7 @@ from infrastructure.ollama.prompts import (
     structuring_system_prompt,
     structuring_user_prompt,
 )
+from infrastructure.ollama.runtime import OllamaRuntimeManager
 
 
 @dataclass(slots=True)
@@ -29,6 +30,7 @@ class OllamaDiagnostics:
     latency_ms: int | None = None
     available_models: list[str] = field(default_factory=list)
     error_text: str = ""
+    resolved_models_path: str = ""
 
     @property
     def last_checked_label(self) -> str:
@@ -67,14 +69,27 @@ class LLMStructuringResult:
 
 
 class OllamaService:
-    def __init__(self, base_url: str, timeout_seconds: float = 2.5) -> None:
+    def __init__(self, base_url: str, timeout_seconds: float = 2.5, models_path=None) -> None:
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
         self.client = OllamaClient(base_url, timeout_seconds)
+        self.runtime = OllamaRuntimeManager(base_url, models_path)
 
     def inspect(self, preferred_model: str = "") -> OllamaDiagnostics:
-        response = self.client.get_tags()
+        runtime_status = self.runtime.ensure_server_ready(wait_timeout_seconds=min(max(self.timeout_seconds, 6.0), 25.0))
         checked_at = datetime.now()
+        if not runtime_status.endpoint_ready:
+            return OllamaDiagnostics(
+                endpoint_ok=False,
+                model_ok=False,
+                endpoint_message="Endpoint недоступен",
+                model_message="Модель не проверена",
+                checked_at=checked_at,
+                error_text=runtime_status.error,
+                resolved_models_path=runtime_status.models_path,
+            )
+
+        response = self.client.get_tags()
         if not response.ok:
             return OllamaDiagnostics(
                 endpoint_ok=False,
@@ -84,6 +99,7 @@ class OllamaService:
                 checked_at=checked_at,
                 latency_ms=response.latency_ms,
                 error_text=response.error,
+                resolved_models_path=runtime_status.models_path,
             )
 
         models = response.payload.get("models", [])
@@ -102,10 +118,13 @@ class OllamaService:
             model_name = resolved.get("name", "") if resolved else ""
 
         size_bytes = int(resolved.get("size", 0) or 0) if resolved else 0
+        endpoint_message = "Endpoint: OK"
+        if runtime_status.started_server:
+            endpoint_message = "Endpoint: OK, Ollama запущен автоматически"
         return OllamaDiagnostics(
             endpoint_ok=True,
             model_ok=model_ok,
-            endpoint_message="Endpoint: OK",
+            endpoint_message=endpoint_message,
             model_message=model_message,
             model_name=model_name,
             model_size_label=self._format_size(size_bytes),
@@ -113,10 +132,14 @@ class OllamaService:
             latency_ms=response.latency_ms,
             available_models=names,
             error_text="",
+            resolved_models_path=runtime_status.models_path,
         )
 
     def list_models(self) -> list[str]:
         return self.inspect().available_models
+
+    def ensure_server_ready(self) -> OllamaDiagnostics:
+        return self.inspect()
 
     def rewrite_question(self, question: str, source_text: str, model: str) -> OllamaScenarioResult:
         system, prompt = rewrite_question_prompt(question, source_text)

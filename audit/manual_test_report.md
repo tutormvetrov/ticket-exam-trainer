@@ -24,8 +24,9 @@
 
 ## Автотесты
 
-- `python -m compileall app application infrastructure ui` -> PASS
-- `pytest -x -vv` -> PASS, `16 passed`
+- `python -m compileall app application infrastructure ui tests` -> PASS
+- `pytest -q` -> PASS, `22 passed, 4 skipped`
+- `pytest -q --run-live-ollama tests/test_ollama_integration.py` -> PASS, `4 passed`
 
 ## Вывод
 
@@ -34,3 +35,31 @@
 - Документация обновлена свежими скриншотами, включая нижнюю зону `Настроек`.
 - Отдельный большой desktop-pass тоже закрыт живым рендером на `2560x1440`.
 - Для macOS выполнена честная кроссплатформенная адаптация по коду и документации, но ручной smoke-run на физическом Mac остаётся открытым QA-пунктом.
+
+## Update 2026-04-10 06:40
+
+- Асинхронный импорт `DOCX/PDF` внедрён на уровне UI shell.
+- Импорт теперь идёт в background thread с отдельным SQLite connection.
+- Живой Qt smoke подтвердил, что event loop не блокируется во время реального `DOCX` импорта.
+- Доказательство: `TICKS=560`, `RESULT_OK=True`.
+- Скрин после актуального запуска: `audit/screens/post-import-thread-library.png`.
+
+## Update 2026-04-10 07:05
+
+- В экран `Импорт документов` добавлен реальный stage-based progress bar.
+- Во время импорта теперь показываются:
+  - текущий этап
+  - процент по фактически пройденным стадиям
+  - прошедшее время
+  - приблизительная оставшаяся длительность
+- UI smoke с реальным рендером progress-состояния подтверждён.
+- Доказательство: `audit/screens/import-progress-demo.png`.
+- Полный `pytest -q` в этот момент не был полностью зелёным, потому что live Ollama integration test упёрся в недоступный локальный endpoint. Это относится к состоянию локального сервиса, а не к progress bar.
+
+## Update 2026-04-10 07:55
+
+- `SettingsView` перестал автоматически запускать Ollama diagnostics просто при открытии экрана.
+- Qt teardown crash закрыт, `pytest tests/test_ui_handlers.py` выходит с кодом `0`.
+- Базовый тестовый контур отделён от live Ollama integration через `--run-live-ollama`.
+- Windows Ollama bridge теперь сначала уважает `OLLAMA_MODELS`, затем рабочий заполненный каталог моделей, а уже потом platform default.
+- На проверочной Windows-машине `OLLAMA_MODELS` нормализован на фактически заполненный каталог `~/.ollama/models`, после чего `scripts/check_ollama.ps1` снова подтвердил живой endpoint, модель и generate smoke.

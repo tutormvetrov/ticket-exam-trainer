@@ -25,6 +25,7 @@ from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
 from app import platform as platform_helpers
 from app.paths import get_app_root, get_check_script_path, get_docs_path, get_readme_path, get_setup_script_path
 from infrastructure.ollama.service import OllamaDiagnostics, OllamaService
+from ui.background import FunctionThread
 from ui.components.common import CardFrame, IconBadge
 from ui.components.settings_widgets import DiagnosticTile, NumberStepper, SettingsNavPanel, SettingsToggleCard
 from ui.training_catalog import DEFAULT_TRAINING_MODES
@@ -76,6 +77,8 @@ class SettingsView(QWidget):
             review_mode=DEFAULT_OLLAMA_SETTINGS.review_mode,
             training_queue_size=DEFAULT_OLLAMA_SETTINGS.training_queue_size,
         )
+        self._diagnostics_thread: FunctionThread | None = None
+        self._refresh_models_after_check = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -761,6 +764,11 @@ class SettingsView(QWidget):
         refresh_button.clicked.connect(self.refresh_models)
         layout.addWidget(refresh_button)
 
+        start_button = QPushButton("Запустить Ollama")
+        start_button.setProperty("variant", "secondary")
+        start_button.clicked.connect(self.start_ollama_server)
+        layout.addWidget(start_button)
+
         check_button = QPushButton("Проверить соединение")
         check_button.setProperty("variant", "secondary")
         check_button.clicked.connect(self.check_connection)
@@ -798,9 +806,6 @@ class SettingsView(QWidget):
         layout.addWidget(label)
         return wrapper
 
-    def _build_service(self) -> OllamaService:
-        return OllamaService(self.url_input.text().strip(), float(self.timeout_stepper.value()))
-
     def switch_section(self, section: str) -> None:
         self.nav_panel.set_current(section)
         mapping = {
@@ -812,23 +817,6 @@ class SettingsView(QWidget):
             "advanced": 5,
         }
         self.settings_stack.setCurrentIndex(mapping[section])
-
-    def check_connection(self) -> None:
-        diagnostics = self._build_service().inspect(self.model_combo.currentText().strip())
-        self._apply_diagnostics(diagnostics)
-        self.diagnostics_changed.emit(diagnostics)
-
-    def refresh_models(self) -> None:
-        diagnostics = self._build_service().inspect(self.model_combo.currentText().strip())
-        current = self.model_combo.currentText().strip() or self.settings.model
-        self.model_combo.blockSignals(True)
-        self.model_combo.clear()
-        models = diagnostics.available_models or [current]
-        self.model_combo.addItems(models)
-        self.model_combo.setCurrentText(current if current in models else models[0])
-        self.model_combo.blockSignals(False)
-        self._apply_diagnostics(diagnostics)
-        self.diagnostics_changed.emit(diagnostics)
 
     def save_settings(self) -> None:
         self.settings = OllamaSettings(
@@ -873,7 +861,10 @@ class SettingsView(QWidget):
         self._set_combo_value(self.review_mode_combo, self.settings.review_mode)
         self._set_combo_value(self.queue_size_combo, self.settings.training_queue_size)
         self._refresh_storage_labels()
-        self.check_connection()
+        if self.settings.auto_check_ollama_on_start:
+            self.check_connection()
+        else:
+            self.set_diagnostics_pending("Статус ещё не проверен. Нажмите «Проверить соединение».")
 
     def select_import_dir(self) -> None:
         path = QFileDialog.getExistingDirectory(
@@ -908,34 +899,6 @@ class SettingsView(QWidget):
         self._refresh_storage_labels()
         QMessageBox.information(self, "Backup", f"Резервная копия создана:\n{target}")
 
-    def run_setup_script(self) -> None:
-        self._launch_script(
-            get_setup_script_path(),
-            "Ollama",
-            "Запущен скрипт автонастройки Ollama. После завершения вернитесь сюда и нажмите «Проверить соединение».",
-        )
-
-    def run_check_script(self) -> None:
-        self._launch_script(
-            get_check_script_path(),
-            "Ollama",
-            "Запущен диагностический скрипт check_ollama.ps1 в отдельном окне PowerShell.",
-        )
-
-    def _launch_script(self, script_path: Path, title: str, success_message: str) -> None:
-        if not script_path.exists():
-            QMessageBox.warning(self, title, f"Скрипт не найден:\n{script_path}")
-            return
-        try:
-            subprocess.Popen(
-                ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
-                creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
-            )
-        except OSError as exc:
-            QMessageBox.critical(self, title, f"Не удалось запустить скрипт:\n{exc}")
-            return
-        QMessageBox.information(self, title, success_message)
-
     def _apply_diagnostics(self, diagnostics: OllamaDiagnostics) -> None:
         if diagnostics.endpoint_ok and diagnostics.model_ok:
             self.status_pill.setStyleSheet(
@@ -956,7 +919,15 @@ class SettingsView(QWidget):
             )
             self.status_pill.setText("Недоступно")
 
+        configured_models_path = self.models_path_input.text().strip()
+        runtime_path_note = ""
+        if diagnostics.resolved_models_path:
+            runtime_path_note = f"Каталог моделей: {diagnostics.resolved_models_path}"
+            if configured_models_path and Path(configured_models_path) != Path(diagnostics.resolved_models_path):
+                runtime_path_note += "\nНастроенный путь не совпадает с фактически используемым. Проверьте миграцию моделей."
         endpoint_body = diagnostics.endpoint_message if diagnostics.endpoint_ok else (diagnostics.error_text or diagnostics.endpoint_message)
+        if runtime_path_note:
+            endpoint_body = f"{endpoint_body}\n{runtime_path_note}"
         self.endpoint_tile.set_content(
             "Endpoint: OK" if diagnostics.endpoint_ok else "Endpoint: ошибка",
             "Сервер отвечает" if diagnostics.endpoint_ok else "Нет ответа",
@@ -1055,3 +1026,96 @@ class SettingsView(QWidget):
 
     def set_search_text(self, text: str) -> None:
         return
+
+    def set_diagnostics_pending(self, message: str = "Проверка...") -> None:
+        self.status_pill.setStyleSheet(
+            "background: #FFF4E7; color: #D97706; border-radius: 999px; padding: 10px 18px; "
+            "font-size: 14px; font-weight: 700;"
+        )
+        self.status_pill.setText("Проверка...")
+        self.endpoint_tile.set_content("Endpoint: проверка", "Ожидание ответа", message, "warning")
+        self.model_tile.set_content(
+            "Статус модели",
+            self.model_combo.currentText().strip() or DEFAULT_OLLAMA_SETTINGS.model,
+            "Диагностика ещё не завершена",
+            "neutral",
+        )
+        self.last_check_tile.set_content("Последняя проверка", "Ожидание", "Результат появится после ответа сервера", "info")
+        self.latency_label.setText("Время отклика: Нет данных")
+        self.error_label.setText("")
+
+    def set_diagnostics(self, diagnostics: OllamaDiagnostics) -> None:
+        self._apply_diagnostics(diagnostics)
+
+    def _build_diagnostics_service(self) -> OllamaService:
+        timeout_seconds = min(float(self.timeout_stepper.value()), 3.0)
+        models_path = Path(self.models_path_input.text().strip() or str(DEFAULT_OLLAMA_SETTINGS.models_path))
+        return OllamaService(self.url_input.text().strip(), timeout_seconds, models_path)
+
+    def check_connection(self) -> None:
+        self._run_diagnostics(refresh_models=False, pending_message="Проверяем endpoint и модель")
+
+    def refresh_models(self) -> None:
+        self._run_diagnostics(refresh_models=True, pending_message="Проверяем endpoint, при необходимости запускаем Ollama и обновляем модели")
+
+    def start_ollama_server(self) -> None:
+        self._run_diagnostics(refresh_models=True, pending_message="Пробуем запустить Ollama и дождаться готовности сервера")
+
+    def _run_diagnostics(self, refresh_models: bool, pending_message: str) -> None:
+        if self._diagnostics_thread is not None and self._diagnostics_thread.isRunning():
+            return
+        self._refresh_models_after_check = refresh_models
+        self.set_diagnostics_pending(pending_message)
+        model_name = self.model_combo.currentText().strip() or self.settings.model
+        self._diagnostics_thread = FunctionThread(lambda: self._build_diagnostics_service().inspect(model_name))
+        self._diagnostics_thread.succeeded.connect(self._finish_diagnostics)
+        self._diagnostics_thread.failed.connect(self._fail_diagnostics)
+        self._diagnostics_thread.finished.connect(self._clear_diagnostics_thread)
+        self._diagnostics_thread.start()
+
+    def _finish_diagnostics(self, diagnostics: OllamaDiagnostics) -> None:
+        if self._refresh_models_after_check:
+            current = self.model_combo.currentText().strip() or self.settings.model
+            self.model_combo.blockSignals(True)
+            self.model_combo.clear()
+            models = diagnostics.available_models or [current]
+            self.model_combo.addItems(models)
+            self.model_combo.setCurrentText(current if current in models else models[0])
+            self.model_combo.blockSignals(False)
+        self._apply_diagnostics(diagnostics)
+        self.diagnostics_changed.emit(diagnostics)
+
+    def _fail_diagnostics(self, error_text: str) -> None:
+        diagnostics = OllamaDiagnostics(
+            endpoint_ok=False,
+            model_ok=False,
+            endpoint_message="Endpoint недоступен",
+            model_message="Модель не проверена",
+            model_name=self.model_combo.currentText().strip() or DEFAULT_OLLAMA_SETTINGS.model,
+            error_text=error_text,
+        )
+        self._apply_diagnostics(diagnostics)
+        self.diagnostics_changed.emit(diagnostics)
+
+    def _clear_diagnostics_thread(self) -> None:
+        if self._diagnostics_thread is not None:
+            self._diagnostics_thread.deleteLater()
+        self._diagnostics_thread = None
+        self._refresh_models_after_check = False
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        if self._diagnostics_thread is not None:
+            try:
+                self._diagnostics_thread.succeeded.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._diagnostics_thread.failed.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._diagnostics_thread.finished.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+            self._diagnostics_thread.wait(3500)
+        super().closeEvent(event)

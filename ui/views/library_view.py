@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
@@ -32,46 +34,53 @@ class LibraryView(QWidget):
         self._startup_tertiary_action = lambda: None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 28)
-        layout.setSpacing(18)
+        layout.setContentsMargins(28, 22, 28, 28)
+        layout.setSpacing(16)
 
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(14)
+
         title = QLabel("Библиотека документов")
         title.setProperty("role", "hero")
         header.addWidget(title)
         header.addStretch(1)
 
-        import_button = QPushButton("+  Импортировать")
-        import_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        import_button.setProperty("variant", "primary")
-        import_button.clicked.connect(self.import_requested.emit)
-        header.addWidget(import_button)
+        self.import_button = QPushButton("+  Импортировать")
+        self.import_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.import_button.setProperty("variant", "primary")
+        self.import_button.clicked.connect(self.import_requested.emit)
+        header.addWidget(self.import_button)
 
-        refresh_button = QPushButton("⟳  Обновить")
-        refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        refresh_button.setProperty("variant", "secondary")
-        refresh_button.clicked.connect(self.refresh_requested.emit)
-        header.addWidget(refresh_button)
+        self.refresh_button = QPushButton("⟳  Обновить")
+        self.refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.refresh_button.setProperty("variant", "secondary")
+        self.refresh_button.clicked.connect(self.refresh_requested.emit)
+        header.addWidget(self.refresh_button)
         layout.addLayout(header)
 
-        self.startup_card = CardFrame(role="card", shadow_color=shadow_color)
+        self.startup_card = CardFrame(role="subtle-card", shadow_color=shadow_color, shadow=False)
         startup_layout = QHBoxLayout(self.startup_card)
-        startup_layout.setContentsMargins(18, 16, 18, 16)
+        startup_layout.setContentsMargins(16, 14, 16, 14)
         startup_layout.setSpacing(14)
-        startup_layout.addWidget(IconBadge("AI", "#EEF5FF", "#2E78E6", size=44, radius=14, font_size=12), 0, Qt.AlignmentFlag.AlignTop)
+        startup_layout.addWidget(
+            IconBadge("AI", "#EEF5FF", "#2E78E6", size=42, radius=13, font_size=12),
+            0,
+            Qt.AlignmentFlag.AlignTop,
+        )
 
         startup_text = QVBoxLayout()
         startup_text.setContentsMargins(0, 0, 0, 0)
-        startup_text.setSpacing(6)
+        startup_text.setSpacing(4)
         self.startup_title = QLabel("Состояние локального ИИ")
         self.startup_title.setProperty("role", "section-title")
         startup_text.addWidget(self.startup_title)
+
         self.startup_body = QLabel("Проверка состояния Ollama и модели.")
         self.startup_body.setProperty("role", "body")
         self.startup_body.setWordWrap(True)
         startup_text.addWidget(self.startup_body)
+
         self.startup_meta = QLabel("")
         self.startup_meta.setProperty("role", "muted")
         self.startup_meta.setWordWrap(True)
@@ -85,10 +94,12 @@ class LibraryView(QWidget):
         self.startup_primary.setProperty("variant", "primary")
         self.startup_primary.clicked.connect(self._handle_startup_primary)
         startup_actions.addWidget(self.startup_primary)
+
         self.startup_secondary = QPushButton("Проверить снова")
         self.startup_secondary.setProperty("variant", "secondary")
         self.startup_secondary.clicked.connect(self._handle_startup_secondary)
         startup_actions.addWidget(self.startup_secondary)
+
         self.startup_tertiary = QPushButton("Как подготовить среду")
         self.startup_tertiary.setProperty("variant", "outline")
         self.startup_tertiary.clicked.connect(self._handle_startup_tertiary)
@@ -124,6 +135,7 @@ class LibraryView(QWidget):
         dlc_layout.setContentsMargins(18, 16, 18, 16)
         dlc_layout.setSpacing(14)
         dlc_layout.addWidget(IconBadge("DLC", "#F5EEFF", "#7C3AED", size=44, radius=14, font_size=11), 0, Qt.AlignmentFlag.AlignTop)
+
         dlc_text = QVBoxLayout()
         dlc_text.setContentsMargins(0, 0, 0, 0)
         dlc_text.setSpacing(6)
@@ -138,17 +150,21 @@ class LibraryView(QWidget):
         dlc_title_row.addWidget(dlc_badge, 0, Qt.AlignmentFlag.AlignVCenter)
         dlc_title_row.addStretch(1)
         dlc_text.addLayout(dlc_title_row)
+
         dlc_body = QLabel(
-            "Будущий модуль поможет разобрать текст магистерской, собрать short defense outline, отрепетировать доклад и вопросы комиссии."
+            "Будущий модуль поможет разобрать текст магистерской, собрать short defense outline, "
+            "отрепетировать доклад и вопросы комиссии."
         )
         dlc_body.setProperty("role", "body")
         dlc_body.setWordWrap(True)
         dlc_text.addWidget(dlc_body)
+
         dlc_meta = QLabel("Не входит в текущий релиз. Сейчас это только честный teaser будущего модуля.")
         dlc_meta.setProperty("role", "muted")
         dlc_meta.setWordWrap(True)
         dlc_text.addWidget(dlc_meta)
         dlc_layout.addLayout(dlc_text, 1)
+
         dlc_button = QPushButton("Что войдёт")
         dlc_button.setProperty("variant", "secondary")
         dlc_button.clicked.connect(self.dlc_requested.emit)
@@ -162,6 +178,11 @@ class LibraryView(QWidget):
         self.documents = documents[:]
         self.document_list.set_documents(documents)
         self.stats_panel.set_snapshot(snapshot)
+
+        has_documents = bool(documents)
+        self.import_button.setText("+  Импортировать" if has_documents else "+  Импортировать билеты")
+        self.refresh_button.setVisible(has_documents)
+
         if self.document_list.filtered:
             self._select_document(self.document_list.filtered[0].id)
         else:
@@ -173,18 +194,28 @@ class LibraryView(QWidget):
             return
 
         self.startup_card.show()
+        if diagnostics.endpoint_message == "Проверка...":
+            self.startup_title.setText("Проверяем локальный ИИ")
+            self.startup_body.setText("Проверка Ollama идёт в фоне. Интерфейс уже доступен, ждать блокировки не нужно.")
+            self.startup_meta.setText(f"Модель по умолчанию: {diagnostics.model_name or 'mistral:instruct'}")
+            self._configure_startup_actions(
+                None,
+                ("Открыть настройки Ollama", self.ollama_settings_requested.emit, "secondary"),
+                ("README", self.readme_requested.emit, "outline"),
+            )
+            return
+
         if diagnostics.endpoint_ok and diagnostics.model_ok:
-            self.startup_title.setText("Локальный ИИ готов, осталось загрузить билеты")
+            self.startup_title.setText("Локальный ИИ готов")
             self.startup_body.setText(
-                "Mistral доступен локально. Следующий шаг: импортируйте один большой DOCX или PDF, чтобы сразу перейти к тренировке."
+                "Mistral доступен локально. Следующий шаг: импортируйте один большой DOCX или PDF через кнопку сверху."
             )
             self.startup_meta.setText(f"Модель: {diagnostics.model_name or 'mistral:instruct'} • Endpoint: OK")
-            self.startup_primary.setText("Импортировать билеты")
-            self._startup_primary_action = self.import_requested.emit
-            self.startup_secondary.setText("Проверить снова")
-            self._startup_secondary_action = self.recheck_requested.emit
-            self.startup_tertiary.setText("Настройки Ollama")
-            self._startup_tertiary_action = self.ollama_settings_requested.emit
+            self._configure_startup_actions(
+                None,
+                ("Проверить снова", self.recheck_requested.emit, "secondary"),
+                ("Настройки Ollama", self.ollama_settings_requested.emit, "outline"),
+            )
             return
 
         self.startup_title.setText("Локальный ИИ пока не готов")
@@ -192,15 +223,37 @@ class LibraryView(QWidget):
             "До полноценной AI-тренировки нужно привести в порядок локальную среду Ollama и модель mistral:instruct."
         )
         self.startup_meta.setText(diagnostics.error_text or diagnostics.model_message or diagnostics.endpoint_message)
-        self.startup_primary.setText("Открыть настройки Ollama")
-        self._startup_primary_action = self.ollama_settings_requested.emit
-        self.startup_secondary.setText("Проверить снова")
-        self._startup_secondary_action = self.recheck_requested.emit
-        self.startup_tertiary.setText("Как подготовить среду")
-        self._startup_tertiary_action = self.readme_requested.emit
+        self._configure_startup_actions(
+            ("Открыть настройки Ollama", self.ollama_settings_requested.emit, "primary"),
+            ("Проверить снова", self.recheck_requested.emit, "secondary"),
+            ("Как подготовить среду", self.readme_requested.emit, "outline"),
+        )
 
     def set_dlc_visible(self, visible: bool) -> None:
         self.dlc_card.setVisible(visible)
+
+    def _configure_startup_actions(
+        self,
+        primary: tuple[str, Callable[[], None], str] | None,
+        secondary: tuple[str, Callable[[], None], str] | None,
+        tertiary: tuple[str, Callable[[], None], str] | None,
+    ) -> None:
+        self._apply_button_config(self.startup_primary, primary, "_startup_primary_action")
+        self._apply_button_config(self.startup_secondary, secondary, "_startup_secondary_action")
+        self._apply_button_config(self.startup_tertiary, tertiary, "_startup_tertiary_action")
+
+    def _apply_button_config(self, button: QPushButton, config, action_attr: str) -> None:
+        if config is None:
+            button.hide()
+            setattr(self, action_attr, lambda: None)
+            return
+        text, action, variant = config
+        button.show()
+        button.setText(text)
+        button.setProperty("variant", variant)
+        button.style().unpolish(button)
+        button.style().polish(button)
+        setattr(self, action_attr, action)
 
     def _select_document(self, document_id: str) -> None:
         for document in self.documents:

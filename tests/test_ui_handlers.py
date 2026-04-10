@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 import sys
+import time
+
+import pytest
+pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
@@ -12,6 +17,8 @@ from application.ui_data import ImportExecutionResult
 from infrastructure.db import connect_initialized, get_database_path
 from ui.main_window import MainWindow
 from ui.theme import set_app_theme
+
+pytestmark = pytest.mark.ui
 
 
 def _qapp() -> QApplication:
@@ -28,11 +35,23 @@ def _build_window(tmp_path: Path, settings: OllamaSettings | None = None) -> tup
     database_path = get_database_path(workspace_root)
     connection = connect_initialized(database_path)
     settings_store = SettingsStore(workspace_root / "app_data" / "settings.json")
-    if settings is not None:
-        settings_store.save(settings)
+    effective_settings = replace(settings or DEFAULT_OLLAMA_SETTINGS, auto_check_ollama_on_start=False)
+    settings_store.save(effective_settings)
     facade = AppFacade(workspace_root, connection, settings_store)
     window = MainWindow(_qapp(), facade, "light")
     return window, workspace_root
+
+
+def _wait_for(predicate, timeout: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout
+    app = _qapp()
+    while time.monotonic() < deadline:
+        app.processEvents()
+        if predicate():
+            return True
+        time.sleep(0.02)
+    app.processEvents()
+    return predicate()
 
 
 def test_import_dialog_shows_real_error_for_unsupported_file(tmp_path: Path, monkeypatch) -> None:
@@ -51,6 +70,7 @@ def test_import_dialog_shows_real_error_for_unsupported_file(tmp_path: Path, mon
 
     assert captured["title"] == "Импорт"
     assert "Unsupported document format" in captured["text"]
+    window.close()
     window.facade.connection.close()
 
 
@@ -83,15 +103,16 @@ def test_settings_sections_persist_real_values(tmp_path: Path, monkeypatch) -> N
     saved = (workspace_root / "app_data" / "settings.json").read_text(encoding="utf-8")
 
     assert captured["title"]
-    assert "\"theme_name\": \"dark\"" in saved
-    assert "\"startup_view\": \"training\"" in saved
-    assert "\"auto_check_ollama_on_start\": false" in saved
-    assert "\"show_dlc_teaser\": false" in saved
-    assert "\"preferred_import_format\": \"pdf\"" in saved
-    assert "\"import_llm_assist\": false" in saved
-    assert "\"default_training_mode\": \"mini-exam\"" in saved
-    assert "\"review_mode\": \"exam_crunch\"" in saved
-    assert "\"training_queue_size\": 12" in saved
+    assert '"theme_name": "dark"' in saved
+    assert '"startup_view": "training"' in saved
+    assert '"auto_check_ollama_on_start": false' in saved
+    assert '"show_dlc_teaser": false' in saved
+    assert '"preferred_import_format": "pdf"' in saved
+    assert '"import_llm_assist": false' in saved
+    assert '"default_training_mode": "mini-exam"' in saved
+    assert '"review_mode": "exam_crunch"' in saved
+    assert '"training_queue_size": 12' in saved
+    window.close()
     window.facade.connection.close()
 
 
@@ -120,6 +141,7 @@ def test_save_settings_with_invalid_ollama_url_keeps_honest_status(tmp_path: Pat
     settings_view.model_combo.setCurrentText("mistral:instruct")
     settings_view.timeout_stepper.set_value(2)
     settings_view.save_settings()
+    assert _wait_for(lambda: settings_view.status_pill.text() != "Проверка...", timeout=5.0)
 
     settings_file = workspace_root / "app_data" / "settings.json"
     saved = settings_file.read_text(encoding="utf-8")
@@ -129,6 +151,7 @@ def test_save_settings_with_invalid_ollama_url_keeps_honest_status(tmp_path: Pat
     assert "Недоступно" in settings_view.status_pill.text()
     assert settings_view.error_label.text().startswith("Ошибка:")
     assert "http://localhost:65500" in saved
+    window.close()
     window.facade.connection.close()
 
 
@@ -138,16 +161,19 @@ def test_successful_import_switches_to_import_view_and_shows_handoff(tmp_path: P
 
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args, **kwargs: (str(tmp_path / "demo.docx"), ""))
     monkeypatch.setattr(
-        AppFacade,
-        "import_document",
-        lambda self, path: ImportExecutionResult(
-            ok=True,
-            document_title="Demo Import",
-            tickets_created=12,
-            sections_created=4,
-            warnings=["Часть структуры распознана через fallback."],
-            used_llm_assist=True,
-        ),
+        window,
+        "_import_in_background",
+        lambda path, progress_callback: (
+            progress_callback(42, "Построение карты билета", "Билет 5 из 12"),
+            ImportExecutionResult(
+                ok=True,
+                document_title="Demo Import",
+                tickets_created=12,
+                sections_created=4,
+                warnings=["Часть структуры распознана через fallback."],
+                used_llm_assist=True,
+            ),
+        )[1],
     )
 
     def fake_information(parent, title: str, text: str):
@@ -157,6 +183,7 @@ def test_successful_import_switches_to_import_view_and_shows_handoff(tmp_path: P
 
     monkeypatch.setattr(QMessageBox, "information", fake_information)
     window.open_import_dialog()
+    assert _wait_for(lambda: "title" in captured, timeout=5.0)
 
     import_view = window.views["import"]
     assert window.current_key == "import"
@@ -167,4 +194,22 @@ def test_successful_import_switches_to_import_view_and_shows_handoff(tmp_path: P
     assert "Создано билетов: 12" in import_view.summary_body.text()
     assert import_view.summary_chip.text() == "LLM assist: да"
     assert "Откройте библиотеку" in import_view.handoff_body.text()
+    window.close()
+    window.facade.connection.close()
+
+
+def test_import_view_shows_real_progress_state(tmp_path: Path) -> None:
+    window, _ = _build_window(tmp_path)
+    import_view = window.views["import"]
+
+    import_view.set_import_pending("demo.docx")
+    import_view.set_import_progress(58, "Генерация упражнений", "Готовим упражнения для билета 7 из 12")
+
+    assert import_view.summary_status.text() == "Идёт импорт документа"
+    assert import_view.summary_chip.text() == "58%"
+    assert import_view.progress_stage_label.text() == "Генерация упражнений"
+    assert not import_view.progress_bar.isHidden()
+    assert not import_view.progress_meta_label.isHidden()
+    assert "Осталось примерно" in import_view.progress_meta_label.text() or "Оценка оставшегося времени" in import_view.progress_meta_label.text()
+    window.close()
     window.facade.connection.close()

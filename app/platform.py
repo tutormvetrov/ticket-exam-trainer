@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -33,8 +34,14 @@ def platform_label() -> str:
 
 
 def default_models_path() -> Path:
+    configured = os.environ.get("OLLAMA_MODELS", "").strip()
+    if configured:
+        return Path(configured)
     if is_windows():
-        return Path(r"D:\OllamaModels")
+        drive_d = Path(r"D:\\")
+        if drive_d.exists():
+            return Path(r"D:\OllamaModels")
+        return Path.home() / ".ollama" / "models"
     if is_macos():
         return Path.home() / ".ollama"
     return Path.home() / ".ollama"

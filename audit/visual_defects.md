@@ -18,3 +18,9 @@
 Текущий residual risk:
 - блокирующих и неблокирующих визуальных дефектов по целевым desktop-разрешениям не осталось
 - отдельный большой desktop-pass на `2560x1440` выполнен и не выявил новых visual issues
+
+## Runtime Defect Closed
+
+| Экран | Зона | Что именно было не так | Почему мешало | Severity | Предполагаемая техническая причина | Как перепроверено | Статус |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Библиотека / Импорт | Runtime during DOCX import | Окно уходило в `Не отвечает`, визуально белело и теряло доверие | Пользователь видел зависшее приложение в главном сценарии | critical | Тяжёлый импорт и Ollama diagnostics шли в UI thread | Живой Qt smoke с heartbeat и реальным `sample_data/manual_ui_smoke.docx`, плюс `audit/screens/post-import-thread-library.png` | FIXED |

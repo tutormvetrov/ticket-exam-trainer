@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 import re
+from typing import Callable
 from uuid import uuid4
 
 from application.exercise_generation import ExerciseGenerator
@@ -32,6 +33,7 @@ STOP_WORDS = {
 SECTION_PATTERN = re.compile(r"^(?:раздел|section)\s*(\d+)?[\.\): -]*(.+)$", re.IGNORECASE)
 TICKET_PATTERN = re.compile(r"^(?:[^\W\d_]+\s*)?(\d+)[\.\): -]*(.+)$", re.UNICODE)
 NUMBERED_PATTERN = re.compile(r"^(\d{1,3})[\.\)]\s+(.+)$")
+ImportProgressCallback = Callable[[int, str, str], None]
 
 
 @dataclass(slots=True)
@@ -83,16 +85,22 @@ class DocumentImportService:
         exam_id: str,
         subject_id: str,
         default_section_id: str,
+        progress_callback: ImportProgressCallback | None = None,
     ) -> StructuredImportResult:
+        self._report_progress(progress_callback, 3, "Чтение документа", "Извлекаем текст из исходного файла")
         imported = self._read_document(path)
+        self._report_progress(progress_callback, 10, "Нормализация текста", "Приводим текст к рабочему формату")
         normalized = self.normalize_text(imported.raw_text)
+        self._report_progress(progress_callback, 18, "Разбиение на фрагменты", "Готовим текст к поиску билетов")
         chunks = self.chunk_text(normalized)
+        self._report_progress(progress_callback, 26, "Поиск билетов", "Пытаемся выделить разделы и кандидаты в билеты")
         candidates = self.extract_ticket_candidates(normalized)
         warnings: list[str] = []
         if not candidates:
             warnings.append("Структура билетов распознана с низкой уверенностью. Использован fallback на единый chunk.")
             title = self.infer_title(normalized, imported.title)
             candidates = [TicketCandidate(1, title, normalized, 0.42, default_section_id)]
+            self._report_progress(progress_callback, 30, "Fallback-структурирование", "Явная структура не найдена, импорт продолжается через единый блок текста")
 
         source_document = SourceDocument(
             document_id=self._slug(f"doc-{imported.title}-{uuid4().hex[:8]}"),
@@ -108,19 +116,31 @@ class DocumentImportService:
 
         tickets = []
         used_llm_assist = False
-        for candidate in candidates:
+        total_candidates = max(1, len(candidates))
+        build_start = 34
+        build_end = 78
+        for index, candidate in enumerate(candidates, start=1):
+            detail = f"Билет {index} из {total_candidates}: {candidate.title[:72]}"
+            self._report_progress(progress_callback, self._loop_progress(build_start, build_end, index - 1, total_candidates), "Построение карты билета", detail)
             section_id = self._slug(candidate.section_title or default_section_id)
             ticket, used_llm, llm_warning = self.build_ticket_map(candidate, exam_id, section_id, source_document.document_id)
             used_llm_assist = used_llm_assist or used_llm
             if llm_warning:
                 warnings.append(llm_warning)
             tickets.append(ticket)
+            self._report_progress(progress_callback, self._loop_progress(build_start, build_end, index, total_candidates), "Построение карты билета", detail)
 
+        self._report_progress(progress_callback, 82, "Связи между билетами", "Строим cross-ticket concepts и перекрёстные ссылки")
         self.attach_cross_ticket_links(tickets)
-        exercise_instances = {
-            ticket.ticket_id: self.exercise_generator.generate(ticket)
-            for ticket in tickets
-        }
+        exercise_instances = {}
+        exercise_start = 84
+        exercise_end = 94
+        total_tickets = max(1, len(tickets))
+        for index, ticket in enumerate(tickets, start=1):
+            detail = f"Генерируем упражнения для билета {index} из {total_tickets}"
+            self._report_progress(progress_callback, self._loop_progress(exercise_start, exercise_end, index - 1, total_tickets), "Генерация упражнений", detail)
+            exercise_instances[ticket.ticket_id] = self.exercise_generator.generate(ticket)
+            self._report_progress(progress_callback, self._loop_progress(exercise_start, exercise_end, index, total_tickets), "Генерация упражнений", detail)
         return StructuredImportResult(
             source_document=source_document,
             normalized_text=normalized,
@@ -285,6 +305,26 @@ class DocumentImportService:
         )
         ticket.validate()
         return ticket, used_llm, warning
+
+    @staticmethod
+    def _report_progress(
+        progress_callback: ImportProgressCallback | None,
+        percent: int,
+        stage: str,
+        detail: str = "",
+    ) -> None:
+        if progress_callback is None:
+            return
+        bounded = max(0, min(100, int(percent)))
+        progress_callback(bounded, stage, detail)
+
+    @staticmethod
+    def _loop_progress(start: int, end: int, current: int, total: int) -> int:
+        if total <= 0:
+            return start
+        span = max(0, end - start)
+        ratio = current / total
+        return start + int(round(span * ratio))
 
     @staticmethod
     def should_use_llm_for_structuring(candidate: TicketCandidate, atoms: list[KnowledgeAtom]) -> bool:

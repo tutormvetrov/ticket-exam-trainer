@@ -1,44 +1,66 @@
 # Тренажёр билетов к вузовским экзаменам
 
-Локальное desktop-приложение на `Python 3.12+` и `PySide6` для подготовки к экзаменам и госэкзамену без облачных LLM.
+Локальное desktop-приложение на `Python 3.12+` и `PySide6` для подготовки к экзаменам и госэкзамену. Проект не использует облачные LLM. LLM-функции работают только через локальный `Ollama` и модель `mistral:instruct`.
 
-Главный сценарий релиза:
-- запустить `exe` или `python main.py`
-- проверить локальный `Ollama + mistral:instruct`
-- импортировать один большой `DOCX` или `PDF`
-- сразу перейти к тренировке и статистике
+Репозиторий содержит исходники, скрипты сборки, пользовательскую документацию и audit-артефакты. Готовый `exe` нужно брать из GitHub Releases или собирать локально.
 
-## Что уже умеет приложение
+## Что реально подтверждено
 
 - импорт `DOCX` и `PDF`
-- разбор текста в билеты и карту знаний
-- генерация упражнений по билетам
-- adaptive repeat и слабые места
-- локальная интеграция `mistral:instruct` через Ollama
-- честная диагностика endpoint и модели
-- рабочие разделы настроек для запуска, импорта, тренировки, данных и сервисных действий
-- создание резервной копии SQLite из экрана `Настройки -> Данные`
-- responsive desktop UI под `1280x720`, `1366x768`, `1536x864`
-- сборка `exe`
+- разбор текста в билеты и внутреннюю карту знаний
+- генерация упражнений и повторной очереди
+- локальная диагностика `Ollama` и `mistral:instruct`
+- хранение данных в `SQLite`
+- desktop UI на `PySide6`
+- Windows-сборка `exe`
 
-## Быстрый старт
+Что не стоит обещать без оговорки:
+- запуск из исходников требует установленного `PySide6`
+- LLM-сценарии требуют локального `Ollama`
+- macOS-код и скрипты подготовлены, но ручной smoke-run на реальном Mac должен быть проверен отдельно
 
-Подробные инструкции:
-- [Быстрый старт](/Users/tutor/OneDrive/Документы/Exam_revision/docs/quickstart.md)
-- [Подробное руководство со скриншотами](/Users/tutor/OneDrive/Документы/Exam_revision/docs/user_guide.md)
+## Основной пользовательский сценарий
 
-### Вариант 1. Готовый exe
+1. Запустить готовый `exe` или `python main.py`
+2. Открыть `Настройки -> Ollama`
+3. Проверить локальный `Ollama + mistral:instruct`
+4. Импортировать один большой `DOCX` или `PDF`
+5. Перейти в библиотеку, тренировку и статистику
 
-1. Откройте `dist\TicketExamTrainer\TicketExamTrainer.exe`
-2. Перейдите в `Настройки -> Ollama`
-3. Нажмите `Проверить соединение`
-4. Если Ollama ещё не готов, нажмите `Автонастройка Ollama` или используйте скрипты ниже
-5. Перейдите в `Импорт документов` и загрузите большой `DOCX` или `PDF`
-6. Откройте `Библиотеку` или `Тренировку`
+## Требования
+
+Для запуска из исходников:
+- `Python 3.12+`
+- `PySide6`
+- зависимости из проекта
+
+Для LLM-функций:
+- локально установленный `Ollama`
+- доступный endpoint `http://localhost:11434`
+- локально загруженная модель `mistral:instruct`
+
+## Документация
+
+- [Быстрый старт](docs/quickstart.md)
+- [Подробное руководство пользователя](docs/user_guide.md)
+- [Архитектура](docs/architecture.md)
+- [Спецификация продукта](docs/product_spec.md)
+- [Roadmap](docs/roadmap.md)
+
+## Запуск
+
+### Вариант 1. Готовый release
+
+1. Скачайте архив релиза с GitHub Releases.
+2. Распакуйте папку релиза.
+3. Запустите `TicketExamTrainer.exe`.
+4. Перейдите в `Настройки -> Ollama`.
+5. Нажмите `Проверить соединение`.
 
 ### Вариант 2. Запуск из исходников
 
 ```powershell
+python -m pip install -r requirements.txt
 python main.py
 ```
 
@@ -52,47 +74,50 @@ python main.py --view training
 
 ## Ollama и Mistral
 
-Целевая конфигурация:
+Целевая конфигурация по умолчанию:
 - API URL: `http://localhost:11434`
 - модель: `mistral:instruct`
-- папка моделей: `D:\OllamaModels`
+- models path выбирается так:
+  - `OLLAMA_MODELS`, если переменная уже задана
+  - `D:\OllamaModels` на Windows, если диск `D:` существует
+  - `~/.ollama/models` на Windows без диска `D:`
+  - `~/.ollama` на macOS
 
-### Автонастройка
+### Автонастройка из интерфейса
 
-Из интерфейса:
-- откройте `Настройки -> Ollama`
-- нажмите `Автонастройка Ollama`
-- после завершения вернитесь в приложение и нажмите `Проверить соединение`
+1. Откройте `Настройки -> Ollama`
+2. Нажмите `Автонастройка Ollama`
+3. После завершения снова нажмите `Проверить соединение`
 
-Из PowerShell:
+### Скрипты Windows
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup_ollama_windows.ps1
 powershell -ExecutionPolicy Bypass -File scripts\check_ollama.ps1
 ```
 
-### Как понять, что всё реально подключено
-
-Признаки живой интеграции:
-- в `Настройках -> Ollama` статус показывает `Подключено`
-- `Endpoint` в диагностике отвечает
-- модель `mistral:instruct` найдена
-- видно время отклика
-- после импорта в summary может появляться `LLM assist: да`
-- follow-up вопросы в тренировке приходят не как заглушка
-
 ### Ручная проверка
 
 ```powershell
-$env:Path += ';C:\Users\tutor\AppData\Local\Programs\Ollama'
 ollama --version
 ollama list
 Invoke-WebRequest -UseBasicParsing http://localhost:11434/api/tags
 ```
 
+Если `ollama` не найден в `PATH`, сначала откройте новую консоль после установки Ollama или укажите полный путь до бинарника вручную. Приложение и `check_ollama.ps1` дополнительно пытаются использовать уже заполненный каталог моделей, даже если в настройках указан другой путь.
+
+### Как честно понять, что интеграция живая
+
+Опираться нужно не на один зелёный индикатор, а на совокупность признаков:
+- в `Настройках -> Ollama` endpoint отвечает
+- модель `mistral:instruct` найдена
+- показано время отклика
+- `scripts/check_ollama.ps1` проходит без ошибки
+- LLM-assisted действия в UI явно помечаются
+
 ## Импорт документов
 
-Основной сценарий релиза:
+Основной сценарий:
 - один большой `DOCX` со сборником билетов
 
 Поддерживается также:
@@ -102,14 +127,14 @@ Invoke-WebRequest -UseBasicParsing http://localhost:11434/api/tags
 - извлекает текст
 - нормализует его
 - выделяет кандидатов в билеты
-- строит атомы знаний и навыки
+- строит карту знаний
 - генерирует упражнения
-- сохраняет всё в `SQLite`
+- сохраняет результат в `SQLite`
 
 Если структура распознана слабо:
 - приложение показывает warning
 - включает fallback
-- не делает вид, что распознало всё идеально
+- не маскирует слабое распознавание под идеальный результат
 
 ## Тренировка и статистика
 
@@ -127,85 +152,89 @@ Invoke-WebRequest -UseBasicParsing http://localhost:11434/api/tags
 - adaptive queue
 - статистика по микронавыкам
 
-## Документация со скриншотами
+## Скриншоты
 
-Скриншоты лежат в:
-- [docs/screenshots](/Users/tutor/OneDrive/Документы/Exam_revision/docs/screenshots)
-
-Основное руководство:
-- [docs/user_guide.md](/Users/tutor/OneDrive/Документы/Exam_revision/docs/user_guide.md)
+- [Каталог скриншотов](docs/screenshots)
+- [Подробное руководство](docs/user_guide.md)
 
 ## Структура проекта
 
-- `app` запуск приложения и пути
-- `application` facade, import, scoring, adaptive logic
+- `app` запуск приложения и platform-aware пути
+- `application` use cases и фасад
 - `domain` модель билетов и знаний
 - `infrastructure/db` SQLite
 - `infrastructure/importers` импорт DOCX/PDF
 - `infrastructure/ollama` локальный клиент и сервисы Ollama
 - `ui` views и components
-- `docs` инструкции и скриншоты
-- `scripts` setup/build/check
+- `docs` пользовательские и технические документы
+- `scripts` setup, build и проверочные скрипты
 - `audit` артефакты ручного и визуального аудита
-- `tests` smoke и integration tests
+- `tests` unit, UI и integration tests
 
-## Сборка exe
+## Сборка Windows exe
 
 ```powershell
 python -m pip install pyinstaller
 powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
 ```
 
-Готовая папка релиза:
+Ожидаемый результат:
 
 ```text
 dist\TicketExamTrainer\
 ```
 
-Внутри должны лежать:
-- `TicketExamTrainer.exe`
-- `README.md`
-- `docs\`
-- `scripts\`
-- `app_data\`
-
 ## Тесты
 
-Полный прогон:
+Базовый запуск:
 
 ```powershell
 pytest -q
 ```
 
+Что входит в базовый прогон:
+- pure logic и database smoke tests
+- runtime tests для bridge вокруг путей Ollama
+- UI tests, если в среде доступен `PySide6`
+
+Что не входит в базовый прогон:
+- live integration tests с реальным локальным `Ollama`
+
+Запуск live integration tests:
+
+```powershell
+pytest -q --run-live-ollama
+```
+
+Если `PySide6` не установлен, UI-тесты будут пропущены честно, а не сломают весь запуск при collection.
+
 ## DLC teaser
 
-В UI уже есть честный teaser будущего модуля:
+В UI есть только teaser будущего модуля:
 - `DLC: Подготовка к защите магистерской`
 
-Он пока не реализован как рабочий сценарий.
-Сейчас это только аккуратный анонс будущего расширения.
+Это не рабочий модуль. Сейчас это только анонс будущего расширения.
 
 ## Внутренний стандарт аудита
 
-Проект использует обязательный стандарт из [skills.md](/Users/tutor/OneDrive/Документы/Exam_revision/skills.md).
+Проект использует обязательный стандарт из [skills.md](skills.md).
 
 Это означает:
 - нельзя верить статусам без проверки
 - нельзя считать экран готовым без живого визуального аудита
-- нельзя выдавать заглушки за реальную функцию
+- нельзя выдавать заглушки за готовую функцию
 - после заметных UI-изменений обновляются `audit/*`
 
 ## macOS
 
-Поддержка macOS теперь доведена до комфортного кроссплатформенного уровня:
-- дефолтный путь моделей выбирается под платформу
-- экран `Настройки -> Ollama` запускает macOS-скрипты вместо Windows-only PowerShell
-- внутренние кнопки окна не дублируют macOS window controls
-- добавлен отдельный скрипт сборки `.app`
+В репозитории есть platform-aware код и отдельные macOS-скрипты:
+- `scripts/setup_ollama_macos.sh`
+- `scripts/check_ollama_macos.sh`
+- `scripts/build_mac_app.sh`
 
-Что важно понимать честно:
-- из этой Windows-среды я не могу физически прогнать живой запуск на реальном Mac
-- поэтому поддержка адаптирована по коду, скриптам и инструкции, но не заявляется как вручную проверенная на macOS машинах
+Честная оговорка:
+- из Windows-среды нельзя полноценно подтвердить ручной runtime smoke на реальном Mac
+- поэтому macOS-путь подготовлен на уровне кода и инструкций, но финальная проверка должна выполняться на macOS отдельно
 
 Базовый запуск на macOS:
 
@@ -213,7 +242,7 @@ pytest -q
 python3 main.py
 ```
 
-Скрипты под macOS:
+Подготовка Ollama:
 
 ```bash
 bash scripts/setup_ollama_macos.sh
@@ -226,24 +255,22 @@ bash scripts/check_ollama_macos.sh
 bash scripts/build_mac_app.sh
 ```
 
-Если macOS блокирует запуск unsigned build, используйте стандартный путь:
-- `Open` из контекстного меню Finder
-- или снимите quarantine-атрибут вручную:
+Если macOS блокирует unsigned build:
 
 ```bash
 xattr -dr com.apple.quarantine dist/TicketExamTrainer.app
 ```
 
-По официальной документации Ollama на macOS файлы и модели хранятся в `~/.ollama`.
+По официальной документации Ollama на macOS модели и данные хранятся в `~/.ollama`.
 Источник: [Ollama macOS docs](https://docs.ollama.com/macos)
 
 ## GitHub Releases
 
-Для GitHub Releases теперь разумно держать два артефакта:
-- Windows: `TicketExamTrainer.exe` или zip с папкой `dist/TicketExamTrainer`
-- macOS: zip с `TicketExamTrainer.app` после сборки на реальном Mac
+Для публикации лучше держать отдельные артефакты:
+- Windows: zip с папкой релиза или готовым `TicketExamTrainer.exe`
+- macOS: zip с `TicketExamTrainer.app`, собранным и проверенным на реальном Mac
 
 В release notes стоит отдельно писать:
-- что Windows-сборка приложена готовой
-- что macOS-сборку лучше собирать или перепроверять на Mac перед публикацией
-- как запускать локальный Ollama и где лежат модели на каждой платформе
+- что Windows-сборка приложена
+- что macOS-сценарий требует проверки на реальном Mac
+- как поднять локальный `Ollama`

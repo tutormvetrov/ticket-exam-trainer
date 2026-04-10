@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QFrame,
@@ -17,11 +17,14 @@ from PySide6.QtWidgets import (
 )
 
 from application.facade import AppFacade
-from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
+from application.settings import OllamaSettings
+from application.settings_store import SettingsStore
+from application.ui_data import ImportExecutionResult
 from app.paths import get_readme_path
+from infrastructure.db import connect_initialized, get_database_path
 from infrastructure.ollama.service import OllamaDiagnostics
+from ui.background import FunctionThread, ProgressThread
 from ui.components.sidebar import Sidebar
-from ui.components.title_bar import AppTitleBar
 from ui.components.topbar import TopBar
 from ui.theme import DARK, LIGHT, set_app_theme
 from ui.views.import_view import ImportView
@@ -42,6 +45,10 @@ class MainWindow(QMainWindow):
         self.palette_name = palette_name
         self.palette_colors = LIGHT if palette_name == "light" else DARK
         self.latest_diagnostics: OllamaDiagnostics | None = None
+        self._diagnostics_thread: FunctionThread | None = None
+        self._import_thread: ProgressThread | None = None
+        self._is_closing = False
+
         self.setWindowTitle("Тренажёр билетов к вузовским экзаменам")
         self.setMinimumSize(1280, 720)
         available = app.primaryScreen().availableGeometry()
@@ -57,9 +64,6 @@ class MainWindow(QMainWindow):
         root = QVBoxLayout(shell)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-
-        self.title_bar = AppTitleBar(self)
-        root.addWidget(self.title_bar)
 
         body = QWidget()
         body_layout = QHBoxLayout(body)
@@ -105,8 +109,8 @@ class MainWindow(QMainWindow):
             "statistics": StatisticsView(self.palette_colors["shadow"]),
             "settings": SettingsView(self.palette_colors["shadow"], self.facade.settings, self.facade.workspace_root),
         }
-        for key in self.views:
-            page = self.views[key] if getattr(self.views[key], "self_scrolling", False) else self._wrap_view(self.views[key])
+        for key, view in self.views.items():
+            page = view if getattr(view, "self_scrolling", False) else self._wrap_view(view)
             self.stack_pages[key] = page
             self.stack.addWidget(page)
 
@@ -124,14 +128,16 @@ class MainWindow(QMainWindow):
         self.views["training"].evaluate_requested.connect(self.handle_training_evaluation)
         self.views["settings"].diagnostics_changed.connect(self.apply_ollama_diagnostics)
         self.views["settings"].settings_saved.connect(self.persist_settings)
+
         self.switch_view("library")
         self.topbar.set_theme_label(self.palette_name)
         self.views["library"].set_dlc_visible(self.facade.settings.show_dlc_teaser)
+        self.refresh_all_views()
+
         if self.facade.settings.auto_check_ollama_on_start:
-            self.refresh_sidebar_ollama_status()
+            QTimer.singleShot(0, self.refresh_sidebar_ollama_status)
         else:
             self._apply_manual_ollama_status()
-        self.refresh_all_views()
 
     def switch_view(self, key: str) -> None:
         if key not in self.views:
@@ -159,31 +165,79 @@ class MainWindow(QMainWindow):
         return scroll
 
     def open_import_dialog(self) -> None:
+        if self._import_thread is not None and self._import_thread.isRunning():
+            self.switch_view("import")
+            return
+
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Импортировать документ",
             str(self.facade.settings.default_import_dir),
             self._import_filter(),
         )
-        if path:
-            result = self.facade.import_document(path)
-            self.views["import"].set_last_result(result)
-            if result.ok:
-                self.refresh_all_views()
-                self.switch_view("import")
-                warnings = "\n".join(f"• {warning}" for warning in result.warnings[:4])
-                message = (
-                    f"Документ импортирован: {result.document_title}\n"
-                    f"Создано билетов: {result.tickets_created}\n"
-                    f"Разделов: {result.sections_created}\n"
-                    f"LLM assist: {'да' if result.used_llm_assist else 'нет'}"
-                )
-                if warnings:
-                    message = f"{message}\n\nПредупреждения:\n{warnings}"
-                QMessageBox.information(self, "Импорт", message)
-            else:
-                self.switch_view("import")
-                QMessageBox.critical(self, "Импорт", result.error or "Не удалось импортировать документ.")
+        if not path:
+            return
+
+        document_path = Path(path)
+        if document_path.suffix.lower() not in {".docx", ".pdf"}:
+            self.switch_view("import")
+            error_text = f"Unsupported document format: {document_path.suffix}"
+            self.views["import"].set_last_result(ImportExecutionResult(ok=False, error=error_text))
+            QMessageBox.critical(self, "Импорт", error_text)
+            return
+
+        self.switch_view("import")
+        self.views["import"].set_import_pending(document_path.name)
+
+        self._import_thread = ProgressThread(lambda report_progress: self._import_in_background(document_path, report_progress))
+        self._import_thread.progress_changed.connect(self.views["import"].set_import_progress)
+        self._import_thread.succeeded.connect(self._finish_import)
+        self._import_thread.failed.connect(self._fail_import)
+        self._import_thread.finished.connect(self._clear_import_thread)
+        self._import_thread.start()
+
+    def _import_in_background(self, document_path: Path, progress_callback):
+        database_path = get_database_path(self.facade.workspace_root)
+        connection = connect_initialized(database_path)
+        settings_store = SettingsStore(self.facade.workspace_root / "app_data" / "settings.json")
+        worker_facade = AppFacade(self.facade.workspace_root, connection, settings_store)
+        try:
+            return worker_facade.import_document_with_progress(document_path, progress_callback=progress_callback)
+        finally:
+            connection.close()
+
+    def _finish_import(self, result) -> None:
+        if self._is_closing:
+            return
+        self.views["import"].set_last_result(result)
+        self.switch_view("import")
+        if not result.ok:
+            QMessageBox.critical(self, "Импорт", result.error or "Не удалось импортировать документ.")
+            return
+
+        self.refresh_all_views()
+        warnings = "\n".join(f"• {warning}" for warning in result.warnings[:4])
+        message = (
+            f"Документ импортирован: {result.document_title}\n"
+            f"Создано билетов: {result.tickets_created}\n"
+            f"Разделов: {result.sections_created}\n"
+            f"LLM assist: {'да' if result.used_llm_assist else 'нет'}"
+        )
+        if warnings:
+            message = f"{message}\n\nПредупреждения:\n{warnings}"
+        QMessageBox.information(self, "Импорт", message)
+
+    def _fail_import(self, error_text: str) -> None:
+        if self._is_closing:
+            return
+        self.views["import"].set_last_result(ImportExecutionResult(ok=False, error=error_text))
+        self.switch_view("import")
+        QMessageBox.critical(self, "Импорт", error_text)
+
+    def _clear_import_thread(self) -> None:
+        if self._import_thread is not None:
+            self._import_thread.deleteLater()
+        self._import_thread = None
 
     def toggle_theme(self) -> None:
         self.palette_name = "dark" if self.palette_name == "light" else "light"
@@ -194,10 +248,29 @@ class MainWindow(QMainWindow):
         self.facade.save_settings(settings)
 
     def refresh_sidebar_ollama_status(self) -> None:
-        diagnostics = self.facade.inspect_ollama()
-        self.apply_ollama_diagnostics(diagnostics)
+        if self._diagnostics_thread is not None and self._diagnostics_thread.isRunning():
+            return
+
+        self.latest_diagnostics = None
+        self.sidebar.set_ollama_status(
+            available=False,
+            label_text="Ollama: идёт проверка",
+            model_text=f"Модель: {self.facade.settings.model}",
+            url_text=self.facade.settings.base_url,
+            tone="warning",
+        )
+        self.views["settings"].set_diagnostics_pending("Проверяем endpoint и модель")
+        self.refresh_all_views()
+
+        self._diagnostics_thread = FunctionThread(self.facade.inspect_ollama)
+        self._diagnostics_thread.succeeded.connect(self.apply_ollama_diagnostics)
+        self._diagnostics_thread.failed.connect(self._handle_diagnostics_failure)
+        self._diagnostics_thread.finished.connect(self._clear_diagnostics_thread)
+        self._diagnostics_thread.start()
 
     def apply_ollama_diagnostics(self, diagnostics: OllamaDiagnostics) -> None:
+        if self._is_closing or not self._connection_usable():
+            return
         self.latest_diagnostics = diagnostics
         available = diagnostics.endpoint_ok and diagnostics.model_ok
         label = "Ollama: подключено" if available else ("Ollama: endpoint OK" if diagnostics.endpoint_ok else "Ollama: недоступно")
@@ -210,21 +283,27 @@ class MainWindow(QMainWindow):
             model_text=f"Модель: {model_suffix}",
             url_text=self.facade.settings.base_url,
         )
+        self.views["settings"].set_diagnostics(diagnostics)
+        self.refresh_all_views()
 
     def persist_settings(self, settings: OllamaSettings) -> None:
+        if self._is_closing or not self._connection_usable():
+            return
         self.facade.save_settings(settings)
         if settings.theme_name != self.palette_name:
             self.palette_name = settings.theme_name
             self.palette_colors = set_app_theme(self.app, self.palette_name)
             self.topbar.set_theme_label(self.palette_name)
         self.views["library"].set_dlc_visible(settings.show_dlc_teaser)
+        self.refresh_all_views()
         if settings.auto_check_ollama_on_start or self.latest_diagnostics is not None:
             self.refresh_sidebar_ollama_status()
         else:
             self._apply_manual_ollama_status()
-        self.refresh_all_views()
 
     def refresh_all_views(self) -> None:
+        if self._is_closing or not self._connection_usable():
+            return
         documents = self.facade.load_documents()
         statistics = self.facade.load_statistics_snapshot()
         subjects = self.facade.load_subjects()
@@ -287,9 +366,14 @@ class MainWindow(QMainWindow):
                 model_name=self.facade.settings.model,
                 error_text="Автопроверка отключена. Откройте Настройки -> Ollama и нажмите «Проверить соединение».",
             )
-        diagnostics = self.facade.inspect_ollama()
-        self.latest_diagnostics = diagnostics
-        return diagnostics
+        return OllamaDiagnostics(
+            endpoint_ok=False,
+            model_ok=False,
+            endpoint_message="Проверка...",
+            model_message="Ожидание ответа от локального сервера",
+            model_name=self.facade.settings.model,
+            error_text="Проверка...",
+        )
 
     def _apply_manual_ollama_status(self) -> None:
         self.latest_diagnostics = None
@@ -300,6 +384,57 @@ class MainWindow(QMainWindow):
             url_text=self.facade.settings.base_url,
             tone="warning",
         )
+        self.views["settings"].set_diagnostics_pending("Автопроверка отключена")
+        self.refresh_all_views()
+
+    def _handle_diagnostics_failure(self, error_text: str) -> None:
+        diagnostics = OllamaDiagnostics(
+            endpoint_ok=False,
+            model_ok=False,
+            endpoint_message="Endpoint недоступен",
+            model_message="Модель не проверена",
+            model_name=self.facade.settings.model,
+            error_text=error_text,
+        )
+        self.apply_ollama_diagnostics(diagnostics)
+
+    def _clear_diagnostics_thread(self) -> None:
+        if self._diagnostics_thread is not None:
+            self._diagnostics_thread.deleteLater()
+        self._diagnostics_thread = None
+
+    def _connection_usable(self) -> bool:
+        try:
+            self.facade.connection.execute("SELECT 1")
+        except Exception:  # noqa: BLE001
+            return False
+        return True
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        self._is_closing = True
+        if self._diagnostics_thread is not None:
+            try:
+                self._diagnostics_thread.succeeded.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._diagnostics_thread.failed.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+        if self._import_thread is not None:
+            try:
+                self._import_thread.succeeded.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._import_thread.failed.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._import_thread.progress_changed.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+        super().closeEvent(event)
 
     def _import_filter(self) -> str:
         if self.facade.settings.preferred_import_format == "pdf":

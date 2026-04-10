@@ -46,11 +46,12 @@ class AppFacade:
         self._settings = settings
         self.settings_store.save(settings)
 
-    def build_ollama_service(self) -> OllamaService:
-        return OllamaService(self._settings.base_url, float(self._settings.timeout_seconds))
+    def build_ollama_service(self, timeout_seconds: float | None = None) -> OllamaService:
+        resolved_timeout = float(self._settings.timeout_seconds if timeout_seconds is None else timeout_seconds)
+        return OllamaService(self._settings.base_url, resolved_timeout, self._settings.models_path)
 
     def inspect_ollama(self) -> OllamaDiagnostics:
-        return self.build_ollama_service().inspect(self._settings.model)
+        return self.build_ollama_service(timeout_seconds=min(float(self._settings.timeout_seconds), 3.0)).inspect(self._settings.model)
 
     def load_documents(self) -> list[DocumentData]:
         return self.queries.load_documents()
@@ -94,6 +95,13 @@ class AppFacade:
         return self.queries.load_training_snapshot(limit=self._settings.training_queue_size)
 
     def import_document(self, path: str | Path) -> ImportExecutionResult:
+        return self.import_document_with_progress(path)
+
+    def import_document_with_progress(
+        self,
+        path: str | Path,
+        progress_callback=None,
+    ) -> ImportExecutionResult:
         document_path = Path(path)
         stem_title = normalize_import_title(document_path.stem)
         exam = Exam(
@@ -115,6 +123,7 @@ class AppFacade:
                 exam_id=exam.exam_id,
                 subject_id=subject_slug,
                 default_section_id="imported-section",
+                progress_callback=progress_callback,
             )
         except Exception as exc:  # noqa: BLE001
             return ImportExecutionResult(False, error=str(exc))
@@ -139,8 +148,14 @@ class AppFacade:
             )
 
         exam.total_tickets = len(result.tickets)
+        if progress_callback is not None:
+            progress_callback(96, "Сохранение в базу", "Записываем документ, билеты и упражнения в SQLite")
         self.repository.save_import_result(result, exam, unique_sections)
+        if progress_callback is not None:
+            progress_callback(99, "Обновление очереди", "Перестраиваем adaptive queue и статистику")
         self._refresh_review_queue()
+        if progress_callback is not None:
+            progress_callback(100, "Импорт завершён", "Документ сохранён и готов к использованию")
         return ImportExecutionResult(
             ok=True,
             document_title=result.source_document.title,

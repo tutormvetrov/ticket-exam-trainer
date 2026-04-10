@@ -1,6 +1,6 @@
 # UI Click Audit
 
-- workspace: `C:\Users\tutor\AppData\Local\Temp\tezis-ui-audit-hsbfdybx`
+- workspace: `C:\Users\tutor\AppData\Local\Temp\tezis-ui-audit-76ly4nwq`
 
 ## Results
 
@@ -35,10 +35,13 @@
 - `PASS` [import] open training: Кнопка handoff ведёт в тренировку
 - `PASS` [import] open statistics: Кнопка handoff ведёт в статистику
 - `PASS` [training] queue selection: Выбор карточки меняет активный билет
-- `PASS` [training] mode reading: Режим переключается
-- `PASS` [training] mode active-recall: Режим переключается
-- `PASS` [training] mode cloze: Режим переключается
-- `PASS` [training] check answer: Оценка ответа обновляет UI и статистику
+- `PASS` [training] mode reading: Режим открывает свой workspace с mode-specific CTA
+- `PASS` [training] mode active-recall: Режим открывает свой workspace с mode-specific CTA
+- `PASS` [training] mode cloze: Режим открывает свой workspace с mode-specific CTA
+- `PASS` [training] mode matching: Режим открывает свой workspace с mode-specific CTA
+- `PASS` [training] mode plan: Режим открывает свой workspace с mode-specific CTA
+- `PASS` [training] mode mini-exam: Режим открывает свой workspace с mode-specific CTA
+- `PASS` [training] mode-specific scenarios: Все 6 режимов дают отдельный сценарий и реальный результат
 - `PASS` [statistics] snapshot: Экран статистики показывает реальные попытки
 - `PASS` [defense] paywall: DLC честно закрыт paywall до активации
 - `PASS` [defense] activate: Ключ активации открывает DLC-workspace
@@ -82,11 +85,11 @@
 - `open-url` file:///D:/OllamaModels
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-hsbfdybx
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-hsbfdybx
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-76ly4nwq
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-76ly4nwq
 - `message` Резервная копия: Резервная копия создана:
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-hsbfdybx/backups
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-hsbfdybx/audit
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-76ly4nwq/backups
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-76ly4nwq/audit
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/docs
 - `launch-script` C:\Users\tutor\OneDrive\Документы\Exam_revision\scripts\check_ollama.ps1
 - `message` Ollama: Запущен диагностический скрипт check_ollama.ps1 в PowerShell.

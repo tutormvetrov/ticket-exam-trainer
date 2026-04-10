@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+from random import Random
+
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QLabel, QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from application.ui_data import TrainingEvaluationResult, TrainingSnapshot
 from domain.knowledge import TicketKnowledgeMap
 from ui.components.common import CardFrame, ClickableFrame
 from ui.components.training_modes import TrainingModesPanel
+from ui.components.training_workspaces import TrainingWorkspaceBase, create_training_workspaces
 from ui.training_catalog import DEFAULT_TRAINING_MODES
+from ui.training_mode_registry import TRAINING_MODE_SPECS
 
 
 class AdaptiveQueueCard(ClickableFrame):
@@ -57,6 +61,11 @@ class TrainingView(QWidget):
         self.selected_mode = "active-recall"
         self.ticket_lookup: dict[str, TicketKnowledgeMap] = {}
         self.queue_buttons: dict[str, AdaptiveQueueCard] = {}
+        self.workspaces: dict[str, TrainingWorkspaceBase] = create_training_workspaces()
+        self._suppress_ticket_selector = False
+        self._last_result: TrainingEvaluationResult | None = None
+        self._last_result_ticket_id = ""
+        self._last_result_mode = ""
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 28)
@@ -93,83 +102,86 @@ class TrainingView(QWidget):
         self.session_card = CardFrame(role="card", shadow_color=shadow_color)
         session_layout = QVBoxLayout(self.session_card)
         session_layout.setContentsMargins(22, 20, 22, 20)
-        session_layout.setSpacing(12)
+        session_layout.setSpacing(14)
+
         self.session_title = QLabel("Выберите билет")
         self.session_title.setStyleSheet("font-size: 20px; font-weight: 800;")
         session_layout.addWidget(self.session_title)
 
-        self.session_meta = QLabel("Очередь пока пуста.")
+        self.session_meta = QLabel("Сначала выберите билет из очереди или вручную.")
         self.session_meta.setProperty("role", "body")
         self.session_meta.setWordWrap(True)
         session_layout.addWidget(self.session_meta)
 
-        self.session_hint = QLabel(
-            "Ответ можно писать в свободной форме. Оценка сохранится в БД и повлияет на адаптивное повторение."
-        )
-        self.session_hint.setProperty("role", "body")
-        self.session_hint.setWordWrap(True)
-        session_layout.addWidget(self.session_hint)
+        selector_row = QHBoxLayout()
+        selector_row.setContentsMargins(0, 0, 0, 0)
+        selector_row.setSpacing(10)
+        selector_label = QLabel("Билет")
+        selector_label.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+        self.ticket_selector = QComboBox()
+        self.ticket_selector.currentIndexChanged.connect(self._ticket_selector_changed)
+        selector_row.addWidget(selector_label)
+        selector_row.addWidget(self.ticket_selector, 1)
+        session_layout.addLayout(selector_row)
 
-        answer_label = QLabel("Ваш ответ")
-        answer_label.setProperty("role", "section-title")
-        session_layout.addWidget(answer_label)
+        self.workspace_title = QLabel(TRAINING_MODE_SPECS[self.selected_mode].workspace_title)
+        self.workspace_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #243548;")
+        self.workspace_title.setWordWrap(True)
+        session_layout.addWidget(self.workspace_title)
 
-        editor_shell = QFrame()
-        editor_shell.setProperty("role", "editor-shell")
-        editor_layout = QVBoxLayout(editor_shell)
-        editor_layout.setContentsMargins(10, 10, 10, 10)
-        editor_layout.setSpacing(0)
-        self.answer_input = QTextEdit()
-        self.answer_input.setProperty("role", "editor")
-        self.answer_input.setPlaceholderText("Введите краткий или полный ответ по выбранному билету...")
-        self.answer_input.setMinimumHeight(220)
-        editor_layout.addWidget(self.answer_input)
-        session_layout.addWidget(editor_shell)
+        self.workspace_hint = QLabel(TRAINING_MODE_SPECS[self.selected_mode].workspace_hint)
+        self.workspace_hint.setProperty("role", "body")
+        self.workspace_hint.setWordWrap(True)
+        session_layout.addWidget(self.workspace_hint)
 
-        action_row = QHBoxLayout()
-        action_row.setContentsMargins(0, 0, 0, 0)
-        action_row.setSpacing(12)
-        self.mode_label = QLabel("Режим: Активное вспоминание")
-        self.mode_label.setStyleSheet("font-size: 14px; font-weight: 700;")
-        action_row.addWidget(self.mode_label)
-        action_row.addStretch(1)
-        self.check_button = QPushButton("Проверить ответ")
-        self.check_button.setObjectName("training-check")
-        self.check_button.setProperty("variant", "primary")
-        self.check_button.clicked.connect(self._emit_evaluation)
-        action_row.addWidget(self.check_button)
-        session_layout.addLayout(action_row)
-
-        self.feedback_title = QLabel("Результат проверки")
-        self.feedback_title.setProperty("role", "section-title")
-        session_layout.addWidget(self.feedback_title)
-
-        self.feedback_body = QLabel("Проверка ещё не запускалась.")
-        self.feedback_body.setProperty("role", "body")
-        self.feedback_body.setWordWrap(True)
-        session_layout.addWidget(self.feedback_body)
+        self.workspace_stack = QStackedWidget()
+        for mode_key, workspace in self.workspaces.items():
+            workspace.setObjectName(f"training-workspace-{mode_key}")
+            workspace.evaluate_requested.connect(self._emit_evaluation)
+            workspace.advance_requested.connect(self.select_next_ticket)
+            workspace.random_requested.connect(self.select_random_ticket)
+            self.workspace_stack.addWidget(workspace)
+        session_layout.addWidget(self.workspace_stack, 1)
 
         body.addWidget(self.session_card, 6)
         layout.addLayout(body, 1)
 
+        self.modes_panel.set_selected_mode(self.selected_mode)
+        self._show_workspace(self.selected_mode)
+
     def set_snapshot(self, snapshot: TrainingSnapshot) -> None:
         self.snapshot = snapshot
         self.ticket_lookup = {ticket.ticket_id: ticket for ticket in snapshot.tickets}
+        self._populate_ticket_selector()
         self._rebuild_queue()
+
         if snapshot.queue_items:
             selected = self.selected_ticket_id if self.selected_ticket_id in self.ticket_lookup else snapshot.queue_items[0].ticket_id
             self.select_ticket(selected)
         elif snapshot.tickets:
-            self.select_ticket(snapshot.tickets[0].ticket_id)
+            selected = self.selected_ticket_id if self.selected_ticket_id in self.ticket_lookup else snapshot.tickets[0].ticket_id
+            self.select_ticket(selected)
         else:
             self.selected_ticket_id = ""
             self.session_title.setText("Выберите билет")
-            self.session_meta.setText("Очередь пока пуста.")
+            self.session_meta.setText("Сначала импортируйте и обработайте материалы.")
+            self._update_workspace()
 
     def select_mode(self, mode_key: str) -> None:
+        if mode_key not in self.workspaces:
+            return
+        current_workspace = self.workspaces.get(self.selected_mode)
+        if current_workspace is not None:
+            current_workspace.deactivate()
+
         self.selected_mode = mode_key
-        label_map = {mode.key: mode.title for mode in DEFAULT_TRAINING_MODES}
-        self.mode_label.setText(f"Режим: {label_map.get(mode_key, mode_key)}")
+        self.modes_panel.set_selected_mode(mode_key)
+        self._show_workspace(mode_key)
+
+        if mode_key == "mini-exam" and self.ticket_lookup:
+            self.select_random_ticket()
+        else:
+            self._update_workspace()
 
     def select_ticket(self, ticket_id: str) -> None:
         self.selected_ticket_id = ticket_id
@@ -180,26 +192,80 @@ class TrainingView(QWidget):
         if ticket is None:
             self.session_title.setText("Выберите билет")
             self.session_meta.setText("По выбранному элементу нет данных.")
+            self._update_workspace()
             return
+
         self.session_title.setText(ticket.title)
         self.session_meta.setText(
-            f"Атомов: {len(ticket.atoms)} • Навыков: {len(ticket.skills)} • Ориентир устного ответа: {ticket.estimated_oral_time_sec} сек."
+            f"Атомов: {len(ticket.atoms)} • Навыков: {len(ticket.skills)} • "
+            f"Ориентир устного ответа: {ticket.estimated_oral_time_sec} сек."
         )
+        self._select_ticket_in_combo(ticket_id)
+        self._update_workspace()
+
+    def select_next_ticket(self) -> None:
+        ids = self._visible_ticket_ids()
+        if not ids:
+            return
+        if self.selected_ticket_id not in ids:
+            self.select_ticket(ids[0])
+            return
+        index = ids.index(self.selected_ticket_id)
+        self.select_ticket(ids[(index + 1) % len(ids)])
+
+    def select_random_ticket(self) -> None:
+        ids = self._visible_ticket_ids()
+        if not ids:
+            return
+        if len(ids) == 1:
+            self.select_ticket(ids[0])
+            return
+        random = Random(len(ids) * 31 + sum(ord(char) for char in self.selected_mode))
+        candidates = [ticket_id for ticket_id in ids if ticket_id != self.selected_ticket_id]
+        self.select_ticket(random.choice(candidates or ids))
 
     def show_evaluation(self, result: TrainingEvaluationResult) -> None:
-        if not result.ok:
-            self.feedback_body.setText(result.error or "Проверка завершилась ошибкой.")
+        self._last_result = result
+        self._last_result_ticket_id = self.selected_ticket_id
+        self._last_result_mode = self.selected_mode
+        self.workspaces[self.selected_mode].show_evaluation(result)
+
+    def set_search_text(self, text: str) -> None:
+        query = text.strip().lower()
+        if not query:
+            self._rebuild_queue()
             return
 
-        lines = [f"Оценка: {result.score_percent}%"]
-        if result.feedback:
-            lines.append(result.feedback)
-        if result.weak_points:
-            lines.append("Слабые места: " + ", ".join(result.weak_points))
-        if result.followup_questions:
-            lines.append("Уточняющие вопросы:")
-            lines.extend(f"• {question}" for question in result.followup_questions[:4])
-        self.feedback_body.setText("\n".join(lines))
+        filtered = [item for item in self.snapshot.queue_items if query in item.ticket_title.lower()]
+        current = self.snapshot
+        self.snapshot = TrainingSnapshot(queue_items=filtered, tickets=current.tickets)
+        self._rebuild_queue()
+        self.snapshot = current
+
+    def _show_workspace(self, mode_key: str) -> None:
+        spec = TRAINING_MODE_SPECS[mode_key]
+        self.workspace_title.setText(spec.workspace_title)
+        self.workspace_hint.setText(spec.workspace_hint)
+        self.workspace_stack.setCurrentWidget(self.workspaces[mode_key])
+
+    def _update_workspace(self) -> None:
+        ticket = self.ticket_lookup.get(self.selected_ticket_id)
+        workspace = self.workspaces[self.selected_mode]
+        workspace.set_ticket(ticket)
+        if (
+            self._last_result is not None
+            and self._last_result_ticket_id == self.selected_ticket_id
+            and self._last_result_mode == self.selected_mode
+        ):
+            workspace.show_evaluation(self._last_result)
+
+    def _emit_evaluation(self, answer_text: str) -> None:
+        if not self.selected_ticket_id:
+            self.workspaces[self.selected_mode].show_evaluation(
+                TrainingEvaluationResult(False, 0, "", [], error="Нет выбранного билета для проверки.")
+            )
+            return
+        self.evaluate_requested.emit(self.selected_ticket_id, self.selected_mode, answer_text)
 
     def _rebuild_queue(self) -> None:
         self.queue_title.setText(f"Адаптивная очередь ({len(self.snapshot.queue_items)})")
@@ -211,7 +277,9 @@ class TrainingView(QWidget):
         self.queue_buttons.clear()
 
         if not self.snapshot.queue_items:
-            empty = QLabel("После импорта и первых попыток здесь появится адаптивная очередь повторения.")
+            empty = QLabel(
+                "Адаптивная очередь пока пуста. Выберите билет вручную через селектор справа или сначала сделайте первые попытки."
+            )
             empty.setProperty("role", "body")
             empty.setWordWrap(True)
             self.queue_stack.addWidget(empty)
@@ -228,24 +296,30 @@ class TrainingView(QWidget):
             self.queue_stack.addWidget(button)
             self.queue_buttons[item.ticket_id] = button
 
-    def _emit_evaluation(self) -> None:
-        if not self.selected_ticket_id:
-            self.feedback_body.setText("Нет выбранного билета для проверки.")
-            return
-        self.evaluate_requested.emit(
-            self.selected_ticket_id,
-            self.selected_mode,
-            self.answer_input.toPlainText(),
-        )
+    def _populate_ticket_selector(self) -> None:
+        self._suppress_ticket_selector = True
+        self.ticket_selector.clear()
+        self.ticket_selector.addItem("Выберите билет вручную", "")
+        for ticket in self.snapshot.tickets:
+            self.ticket_selector.addItem(ticket.title, ticket.ticket_id)
+        self._select_ticket_in_combo(self.selected_ticket_id)
+        self._suppress_ticket_selector = False
 
-    def set_search_text(self, text: str) -> None:
-        query = text.strip().lower()
-        if not query:
-            self._rebuild_queue()
-            return
+    def _select_ticket_in_combo(self, ticket_id: str) -> None:
+        self._suppress_ticket_selector = True
+        index = self.ticket_selector.findData(ticket_id)
+        self.ticket_selector.setCurrentIndex(max(index, 0))
+        self._suppress_ticket_selector = False
 
-        filtered = [item for item in self.snapshot.queue_items if query in item.ticket_title.lower()]
-        current = self.snapshot
-        self.snapshot = TrainingSnapshot(queue_items=filtered, tickets=current.tickets)
-        self._rebuild_queue()
-        self.snapshot = current
+    def _ticket_selector_changed(self) -> None:
+        if self._suppress_ticket_selector:
+            return
+        ticket_id = self.ticket_selector.currentData()
+        if ticket_id:
+            self.select_ticket(ticket_id)
+
+    def _visible_ticket_ids(self) -> list[str]:
+        if self.queue_buttons:
+            return list(self.queue_buttons.keys())
+        return [ticket.ticket_id for ticket in self.snapshot.tickets]
+

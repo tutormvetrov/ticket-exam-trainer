@@ -16,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QPushButton
+from PySide6.QtWidgets import QApplication, QComboBox, QFileDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QTextEdit
 
 from application.defense_service import DefenseService
 from application.defense_ui_data import ModelRecommendation
@@ -494,23 +494,74 @@ class UiClickAudit:
             self._record("FAIL", "training", "queue selection", "Недостаточно элементов adaptive queue")
 
         mode_cards = view.modes_panel.findChildren(TrainingModeCard)
-        if mode_cards:
-            for card in mode_cards[:3]:
-                self._click_widget(card, "training", f"mode {card.mode.key}")
-                if view.selected_mode == card.mode.key:
-                    self._record("PASS", "training", f"mode {card.mode.key}", "Режим переключается")
-                else:
-                    self._record("FAIL", "training", f"mode {card.mode.key}", "Режим не переключился")
+        mode_map = {card.mode.key: card for card in mode_cards}
+        expected_widgets = {
+            "reading": "training-reading-understood",
+            "active-recall": "training-active-recall-submit",
+            "cloze": "training-cloze-submit",
+            "matching": "training-matching-submit",
+            "plan": "training-plan-submit",
+            "mini-exam": "training-mini-exam-submit",
+        }
+        for mode_key in ["reading", "active-recall", "cloze", "matching", "plan", "mini-exam"]:
+            card = mode_map.get(mode_key)
+            self._click_widget(card, "training", f"mode {mode_key}")
+            current = view.workspace_stack.currentWidget()
+            button = current.findChild(QPushButton, expected_widgets[mode_key]) if current is not None else None
+            if view.selected_mode == mode_key and current is not None and button is not None:
+                self._record("PASS", "training", f"mode {mode_key}", "Режим открывает свой workspace с mode-specific CTA")
+            else:
+                self._record("FAIL", "training", f"mode {mode_key}", "Режим не открыл отдельный workspace")
 
-        before_processed = self.facade.load_statistics_snapshot().processed_tickets
-        answer = "Короткий тестовый ответ по билету для smoke-аудита."
-        view.answer_input.setPlainText(answer)
-        self._click_button(self._find_button(view, "training-check"), "training", "check answer")
-        after_processed = self.facade.load_statistics_snapshot().processed_tickets
-        if "Оценка:" in view.feedback_body.text() and after_processed >= before_processed:
-            self._record("PASS", "training", "check answer", "Оценка ответа обновляет UI и статистику")
+        before_sessions = len(self.facade.load_statistics_snapshot().recent_sessions)
+
+        self._click_widget(mode_map.get("reading"), "training", "mode reading scenario")
+        reading_workspace = view.workspace_stack.currentWidget()
+        self._click_button(reading_workspace.findChild(QPushButton, "training-reading-understood"), "training", "reading submit")
+        reading_ok = "Оценка:" in reading_workspace.findChild(QLabel, "training-mode-result").text()
+
+        self._click_widget(mode_map.get("active-recall"), "training", "mode active-recall scenario")
+        recall_workspace = view.workspace_stack.currentWidget()
+        recall_input = recall_workspace.findChild(QTextEdit, "training-active-recall-input")
+        recall_submit = recall_workspace.findChild(QPushButton, "training-active-recall-submit")
+        recall_combo = recall_workspace.findChild(QComboBox)
+        recall_input.setPlainText("Пробую воспроизвести ответ по памяти для smoke-аудита.")
+        recall_combo.setCurrentIndex(1)
+        self._click_button(recall_submit, "training", "active recall submit")
+        recall_ok = "Оценка:" in recall_workspace.findChild(QLabel, "training-mode-result").text()
+
+        self._click_widget(mode_map.get("cloze"), "training", "mode cloze scenario")
+        cloze_workspace = view.workspace_stack.currentWidget()
+        for field in cloze_workspace.findChildren(QLineEdit):
+            field.setText("тест")
+        self._click_button(cloze_workspace.findChild(QPushButton, "training-cloze-submit"), "training", "cloze submit")
+        cloze_ok = "Оценка:" in cloze_workspace.findChild(QLabel, "training-mode-result").text()
+
+        self._click_widget(mode_map.get("matching"), "training", "mode matching scenario")
+        matching_workspace = view.workspace_stack.currentWidget()
+        for combo in matching_workspace.findChildren(QComboBox):
+            if combo.count() > 1:
+                combo.setCurrentIndex(1)
+        self._click_button(matching_workspace.findChild(QPushButton, "training-matching-submit"), "training", "matching submit")
+        matching_ok = "Оценка:" in matching_workspace.findChild(QLabel, "training-mode-result").text()
+
+        self._click_widget(mode_map.get("plan"), "training", "mode plan scenario")
+        plan_workspace = view.workspace_stack.currentWidget()
+        self._click_button(plan_workspace.findChild(QPushButton, "training-plan-submit"), "training", "plan submit")
+        plan_ok = "Оценка:" in plan_workspace.findChild(QLabel, "training-mode-result").text()
+
+        self._click_widget(mode_map.get("mini-exam"), "training", "mode mini-exam scenario")
+        exam_workspace = view.workspace_stack.currentWidget()
+        exam_input = exam_workspace.findChild(QTextEdit, "training-mini-exam-input")
+        exam_input.setPlainText("Полный текстовый ответ в экзаменационном режиме для smoke-аудита.")
+        self._click_button(exam_workspace.findChild(QPushButton, "training-mini-exam-submit"), "training", "mini exam submit")
+        exam_ok = "Оценка:" in exam_workspace.findChild(QLabel, "training-mode-result").text()
+
+        after_sessions = len(self.facade.load_statistics_snapshot().recent_sessions)
+        if all([reading_ok, recall_ok, cloze_ok, matching_ok, plan_ok, exam_ok]) and after_sessions >= before_sessions:
+            self._record("PASS", "training", "mode-specific scenarios", "Все 6 режимов дают отдельный сценарий и реальный результат")
         else:
-            self._record("FAIL", "training", "check answer", "Проверка ответа не дала результата")
+            self._record("FAIL", "training", "mode-specific scenarios", "Не все режимы завершили mode-specific сценарий")
 
     def _audit_statistics(self) -> None:
         self.window.switch_view("statistics")

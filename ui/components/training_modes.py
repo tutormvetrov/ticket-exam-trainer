@@ -13,12 +13,10 @@ class TrainingModeCard(ClickableFrame):
     def __init__(self, mode: TrainingModeData, shadow_color) -> None:
         super().__init__(role="mode-card", shadow_color=shadow_color)
         self.mode = mode
+        self._selected = False
         self.setObjectName(f"training-mode-{mode.key}")
         self.setFixedHeight(92)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setStyleSheet(
-            f"QFrame#TrainingModeCard {{ background: {mode.tint}; border: 1px solid {mode.border}; border-radius: 16px; }}"
-        )
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(14)
@@ -35,6 +33,15 @@ class TrainingModeCard(ClickableFrame):
         text_box.addWidget(title)
         text_box.addWidget(description)
         layout.addLayout(text_box, 1)
+        self.set_selected(False)
+
+    def set_selected(self, selected: bool) -> None:
+        self._selected = selected
+        border = self.mode.border if not selected else "#2F6FEB"
+        background = self.mode.tint if not selected else "#EEF5FF"
+        self.setStyleSheet(
+            f"QFrame#TrainingModeCard {{ background: {background}; border: 2px solid {border}; border-radius: 16px; }}"
+        )
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
@@ -47,6 +54,7 @@ class TrainingModesPanel(CardFrame):
 
     def __init__(self, modes: list[TrainingModeData], shadow_color) -> None:
         super().__init__(role="card", shadow_color=shadow_color)
+        self.cards: dict[str, TrainingModeCard] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(12)
@@ -66,4 +74,9 @@ class TrainingModesPanel(CardFrame):
             card = TrainingModeCard(mode, shadow_color)
             card.clicked_mode.connect(self.mode_selected.emit)
             grid.addWidget(card, index // 3, index % 3)
+            self.cards[mode.key] = card
         layout.addLayout(grid)
+
+    def set_selected_mode(self, mode_key: str) -> None:
+        for key, card in self.cards.items():
+            card.set_selected(key == mode_key)

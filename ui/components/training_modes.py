@@ -13,7 +13,7 @@ class TrainingModeCard(ClickableFrame):
     def __init__(self, mode: TrainingModeData, shadow_color) -> None:
         super().__init__(role="mode-card", shadow_color=shadow_color)
         self.mode = mode
-        self.setObjectName("TrainingModeCard")
+        self.setObjectName(f"training-mode-{mode.key}")
         self.setFixedHeight(92)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setStyleSheet(

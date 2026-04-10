@@ -212,7 +212,7 @@
 - либо снимите quarantine:
 
 ```bash
-xattr -dr com.apple.quarantine dist/TicketExamTrainer.app
+xattr -dr com.apple.quarantine dist/Tezis.app
 ```
 
 По официальной документации Ollama на macOS данные и модели лежат в `~/.ollama`.

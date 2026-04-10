@@ -7,7 +7,7 @@
 Готовая сборка из GitHub Releases:
 
 ```text
-TicketExamTrainer\TicketExamTrainer.exe
+Tezis\Tezis.exe
 ```
 
 Запуск из исходников:
@@ -149,5 +149,5 @@ bash scripts/build_mac_app.sh
 2. если этого мало, выполните:
 
 ```bash
-xattr -dr com.apple.quarantine dist/TicketExamTrainer.app
+xattr -dr com.apple.quarantine dist/Tezis.app
 ```

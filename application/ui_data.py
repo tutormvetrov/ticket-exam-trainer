@@ -55,11 +55,18 @@ class TrainingSnapshot:
 @dataclass(slots=True)
 class ImportExecutionResult:
     ok: bool
+    document_id: str = ""
     document_title: str = ""
+    status: str = ""
     tickets_created: int = 0
     sections_created: int = 0
     warnings: list[str] = field(default_factory=list)
     used_llm_assist: bool = False
+    llm_done_tickets: int = 0
+    llm_pending_tickets: int = 0
+    llm_fallback_tickets: int = 0
+    llm_failed_tickets: int = 0
+    resume_available: bool = False
     error: str = ""
 
 

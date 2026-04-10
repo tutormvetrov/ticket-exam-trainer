@@ -14,7 +14,7 @@ from domain.knowledge import (
     TicketMasteryProfile,
     WeakArea,
 )
-from application.import_service import ContentChunk, StructuredImportResult
+from application.import_service import ContentChunk, ImportQueueItem, StructuredImportResult
 
 
 def _json_dump(value: object) -> str:
@@ -53,14 +53,27 @@ class KnowledgeRepository:
             (section.section_id, section.exam_id, section.title, section.order_index, section.description),
         )
 
-    def save_source_document(self, document: SourceDocument, raw_text: str = "", status: str = "imported") -> None:
+    def save_source_document(
+        self,
+        document: SourceDocument,
+        raw_text: str = "",
+        status: str = "imported",
+        *,
+        warnings: list[str] | None = None,
+        used_llm_assist: bool = False,
+        ticket_total: int = 0,
+        tickets_llm_done: int = 0,
+        last_attempted_at: str | None = None,
+        last_error: str = "",
+    ) -> None:
         self.connection.execute(
             """
             INSERT INTO source_documents (
                 document_id, exam_id, subject_id, title, file_path, file_type, size_bytes,
-                checksum, imported_at, raw_text, status
+                checksum, imported_at, raw_text, status, warnings_json, used_llm_assist,
+                ticket_total, tickets_llm_done, last_attempted_at, last_error
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(document_id) DO UPDATE SET
                 exam_id = excluded.exam_id,
                 subject_id = excluded.subject_id,
@@ -71,7 +84,13 @@ class KnowledgeRepository:
                 checksum = excluded.checksum,
                 imported_at = excluded.imported_at,
                 raw_text = excluded.raw_text,
-                status = excluded.status
+                status = excluded.status,
+                warnings_json = excluded.warnings_json,
+                used_llm_assist = excluded.used_llm_assist,
+                ticket_total = excluded.ticket_total,
+                tickets_llm_done = excluded.tickets_llm_done,
+                last_attempted_at = excluded.last_attempted_at,
+                last_error = excluded.last_error
             """,
             (
                 document.document_id,
@@ -85,18 +104,25 @@ class KnowledgeRepository:
                 document.imported_at.isoformat(),
                 raw_text,
                 status,
+                _json_dump(warnings or []),
+                int(used_llm_assist),
+                int(ticket_total),
+                int(tickets_llm_done),
+                last_attempted_at,
+                last_error,
             ),
         )
 
-    def save_ticket_map(self, ticket: TicketKnowledgeMap) -> None:
+    def save_ticket_map(self, ticket: TicketKnowledgeMap, *, llm_status: str = "done", llm_error: str = "") -> None:
         ticket.validate()
         self.connection.execute(
             """
             INSERT INTO tickets (
                 ticket_id, exam_id, section_id, source_document_id, title,
-                canonical_answer_summary, difficulty, estimated_oral_time_sec, source_confidence
+                canonical_answer_summary, difficulty, estimated_oral_time_sec, source_confidence,
+                llm_status, llm_error
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(ticket_id) DO UPDATE SET
                 exam_id = excluded.exam_id,
                 section_id = excluded.section_id,
@@ -105,7 +131,9 @@ class KnowledgeRepository:
                 canonical_answer_summary = excluded.canonical_answer_summary,
                 difficulty = excluded.difficulty,
                 estimated_oral_time_sec = excluded.estimated_oral_time_sec,
-                source_confidence = excluded.source_confidence
+                source_confidence = excluded.source_confidence,
+                llm_status = excluded.llm_status,
+                llm_error = excluded.llm_error
             """,
             (
                 ticket.ticket_id,
@@ -117,6 +145,8 @@ class KnowledgeRepository:
                 ticket.difficulty,
                 ticket.estimated_oral_time_sec,
                 ticket.source_confidence,
+                llm_status,
+                llm_error,
             ),
         )
 
@@ -156,13 +186,167 @@ class KnowledgeRepository:
         self.save_exam(exam)
         for section in sections:
             self.save_section(section)
-        self.save_source_document(result.source_document, raw_text=result.normalized_text, status="structured")
+        self.save_source_document(
+            result.source_document,
+            raw_text=result.normalized_text,
+            status="structured",
+            warnings=result.warnings,
+            used_llm_assist=result.used_llm_assist,
+            ticket_total=len(result.tickets),
+            tickets_llm_done=len(result.tickets),
+            last_attempted_at=result.source_document.imported_at.isoformat(),
+        )
         self.save_chunks(result.source_document.document_id, result.chunks)
         for ticket in result.tickets:
             self.save_ticket_map(ticket)
         for instances in result.exercise_instances.values():
             self.save_exercise_instances(instances)
         self.connection.commit()
+
+    def save_import_queue(self, document_id: str, items: list[ImportQueueItem]) -> None:
+        self.connection.execute("DELETE FROM import_ticket_queue WHERE document_id = ?", (document_id,))
+        for item in items:
+            self.connection.execute(
+                """
+                INSERT INTO import_ticket_queue (
+                    ticket_id, document_id, ticket_index, section_id, title, body_text,
+                    candidate_confidence, llm_status, llm_error, llm_attempted, used_llm, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(ticket_id) DO UPDATE SET
+                    document_id = excluded.document_id,
+                    ticket_index = excluded.ticket_index,
+                    section_id = excluded.section_id,
+                    title = excluded.title,
+                    body_text = excluded.body_text,
+                    candidate_confidence = excluded.candidate_confidence,
+                    llm_status = excluded.llm_status,
+                    llm_error = excluded.llm_error,
+                    llm_attempted = excluded.llm_attempted,
+                    used_llm = excluded.used_llm,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    item.ticket_id,
+                    document_id,
+                    item.ticket_index,
+                    item.section_id,
+                    item.title,
+                    item.body_text,
+                    item.candidate_confidence,
+                    item.llm_status,
+                    item.llm_error,
+                    int(item.llm_attempted),
+                    int(item.used_llm),
+                ),
+            )
+        self.connection.commit()
+
+    def update_import_queue_item(
+        self,
+        ticket_id: str,
+        *,
+        llm_status: str,
+        llm_error: str = "",
+        llm_attempted: bool = False,
+        used_llm: bool = False,
+    ) -> None:
+        self.connection.execute(
+            """
+            UPDATE import_ticket_queue
+            SET llm_status = ?, llm_error = ?, llm_attempted = ?, used_llm = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE ticket_id = ?
+            """,
+            (llm_status, llm_error, int(llm_attempted), int(used_llm), ticket_id),
+        )
+        self.connection.commit()
+
+    def load_import_queue(self, document_id: str, statuses: tuple[str, ...] | None = None) -> list[sqlite3.Row]:
+        if statuses:
+            placeholders = ", ".join("?" for _ in statuses)
+            return self.connection.execute(
+                f"""
+                SELECT *
+                FROM import_ticket_queue
+                WHERE document_id = ? AND llm_status IN ({placeholders})
+                ORDER BY ticket_index
+                """,
+                (document_id, *statuses),
+            ).fetchall()
+        return self.connection.execute(
+            """
+            SELECT *
+            FROM import_ticket_queue
+            WHERE document_id = ?
+            ORDER BY ticket_index
+            """,
+            (document_id,),
+        ).fetchall()
+
+    def count_import_queue_statuses(self, document_id: str) -> dict[str, int]:
+        rows = self.connection.execute(
+            """
+            SELECT llm_status, COUNT(*) AS total
+            FROM import_ticket_queue
+            WHERE document_id = ?
+            GROUP BY llm_status
+            """,
+            (document_id,),
+        ).fetchall()
+        return {row["llm_status"]: int(row["total"] or 0) for row in rows}
+
+    def update_document_import_state(
+        self,
+        document_id: str,
+        *,
+        status: str,
+        warnings: list[str] | None = None,
+        used_llm_assist: bool | None = None,
+        ticket_total: int | None = None,
+        tickets_llm_done: int | None = None,
+        last_attempted_at: str | None = None,
+        last_error: str | None = None,
+    ) -> None:
+        current = self.connection.execute(
+            """
+            SELECT warnings_json, used_llm_assist, ticket_total, tickets_llm_done, last_attempted_at, last_error
+            FROM source_documents
+            WHERE document_id = ?
+            """,
+            (document_id,),
+        ).fetchone()
+        if current is None:
+            raise KeyError(f"Document '{document_id}' not found.")
+        self.connection.execute(
+            """
+            UPDATE source_documents
+            SET status = ?,
+                warnings_json = ?,
+                used_llm_assist = ?,
+                ticket_total = ?,
+                tickets_llm_done = ?,
+                last_attempted_at = ?,
+                last_error = ?
+            WHERE document_id = ?
+            """,
+            (
+                status,
+                _json_dump(warnings if warnings is not None else json.loads(current["warnings_json"] or "[]")),
+                int(used_llm_assist if used_llm_assist is not None else bool(current["used_llm_assist"])),
+                int(ticket_total if ticket_total is not None else current["ticket_total"] or 0),
+                int(tickets_llm_done if tickets_llm_done is not None else current["tickets_llm_done"] or 0),
+                last_attempted_at if last_attempted_at is not None else current["last_attempted_at"],
+                last_error if last_error is not None else (current["last_error"] or ""),
+                document_id,
+            ),
+        )
+        self.connection.commit()
+
+    def load_source_document_row(self, document_id: str) -> sqlite3.Row | None:
+        return self.connection.execute(
+            "SELECT * FROM source_documents WHERE document_id = ?",
+            (document_id,),
+        ).fetchone()
 
     def save_exercise_instances(self, instances: list[ExerciseInstance]) -> None:
         for instance in instances:

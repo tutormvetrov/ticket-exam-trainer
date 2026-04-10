@@ -43,21 +43,24 @@ class Sidebar(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
 
-        brand = QWidget()
-        brand.setMinimumHeight(72)
+        brand = QFrame()
+        brand.setMinimumHeight(76)
+        brand.setStyleSheet("background: #FFFFFF; border: 2px solid #111111; border-radius: 18px;")
         brand_layout = QHBoxLayout(brand)
-        brand_layout.setContentsMargins(6, 6, 6, 6)
-        brand_layout.setSpacing(10)
+        brand_layout.setContentsMargins(10, 10, 12, 10)
+        brand_layout.setSpacing(12)
         brand_layout.addWidget(LogoMark(52), 0, Qt.AlignmentFlag.AlignTop)
 
         title_box = QVBoxLayout()
         title_box.setContentsMargins(0, 0, 0, 0)
         title_box.setSpacing(0)
-        title = QLabel("Тренажёр билетов\nк вузовским экзаменам")
-        title.setStyleSheet("font-size: 13px; font-weight: 700; line-height: 1.25;")
+
+        title = QLabel("Тезис")
+        title.setStyleSheet("font-size: 24px; font-weight: 800; line-height: 1.05; color: #035F46;")
         title.setWordWrap(True)
         title.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         title_box.addWidget(title)
+
         brand_layout.addLayout(title_box, 1)
         layout.addWidget(brand)
 
@@ -76,6 +79,7 @@ class Sidebar(QWidget):
 
         for key, label, icon_kind in NAV_ITEMS:
             button = QPushButton(label)
+            button.setObjectName(f"sidebar-{key}")
             button.setCheckable(True)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setMinimumHeight(42)

@@ -79,6 +79,7 @@ class DocumentDetailPanel(CardFrame):
         self.tab_buttons: list[QPushButton] = []
         for index, title in enumerate(("Разделы", "Билеты", "Информация")):
             button = QPushButton(title)
+            button.setObjectName(f"document-detail-tab-{index}")
             button.setCheckable(True)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setProperty("variant", "tab")

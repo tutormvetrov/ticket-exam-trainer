@@ -69,14 +69,15 @@ class LLMStructuringResult:
 
 
 class OllamaService:
-    def __init__(self, base_url: str, timeout_seconds: float = 2.5, models_path=None) -> None:
+    def __init__(self, base_url: str, timeout_seconds: float | None = 2.5, models_path=None) -> None:
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
         self.client = OllamaClient(base_url, timeout_seconds)
         self.runtime = OllamaRuntimeManager(base_url, models_path)
 
     def inspect(self, preferred_model: str = "") -> OllamaDiagnostics:
-        runtime_status = self.runtime.ensure_server_ready(wait_timeout_seconds=min(max(self.timeout_seconds, 6.0), 25.0))
+        timeout_for_runtime = self.timeout_seconds if self.timeout_seconds is not None else 25.0
+        runtime_status = self.runtime.ensure_server_ready(wait_timeout_seconds=min(max(timeout_for_runtime, 6.0), 25.0))
         checked_at = datetime.now()
         if not runtime_status.endpoint_ready:
             return OllamaDiagnostics(

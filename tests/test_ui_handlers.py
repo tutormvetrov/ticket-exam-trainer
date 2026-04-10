@@ -157,7 +157,6 @@ def test_save_settings_with_invalid_ollama_url_keeps_honest_status(tmp_path: Pat
 
 def test_successful_import_switches_to_import_view_and_shows_handoff(tmp_path: Path, monkeypatch) -> None:
     window, _ = _build_window(tmp_path)
-    captured: dict[str, str] = {}
 
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args, **kwargs: (str(tmp_path / "demo.docx"), ""))
     monkeypatch.setattr(
@@ -167,33 +166,58 @@ def test_successful_import_switches_to_import_view_and_shows_handoff(tmp_path: P
             progress_callback(42, "Построение карты билета", "Билет 5 из 12"),
             ImportExecutionResult(
                 ok=True,
+                document_id="doc-demo",
                 document_title="Demo Import",
+                status="structured",
                 tickets_created=12,
                 sections_created=4,
                 warnings=["Часть структуры распознана через fallback."],
                 used_llm_assist=True,
+                llm_done_tickets=12,
             ),
         )[1],
     )
 
-    def fake_information(parent, title: str, text: str):
-        captured["title"] = title
-        captured["text"] = text
-        return QMessageBox.StandardButton.Ok
-
-    monkeypatch.setattr(QMessageBox, "information", fake_information)
     window.open_import_dialog()
-    assert _wait_for(lambda: "title" in captured, timeout=5.0)
+    assert _wait_for(lambda: window.views["import"].last_result.ok, timeout=5.0)
 
     import_view = window.views["import"]
     assert window.current_key == "import"
-    assert captured["title"] == "Импорт"
-    assert "Разделов: 4" in captured["text"]
-    assert "LLM assist: да" in captured["text"]
-    assert import_view.summary_status.text() == "Последний импорт завершён успешно"
+    assert import_view.summary_status.text() == "Последний импорт завершён полностью"
     assert "Создано билетов: 12" in import_view.summary_body.text()
-    assert import_view.summary_chip.text() == "LLM assist: да"
+    assert "LLM:" in import_view.summary_chip.text()
     assert "Откройте библиотеку" in import_view.handoff_body.text()
+    assert import_view.resume_button.isHidden()
+    window.close()
+    window.facade.connection.close()
+
+
+def test_import_view_shows_partial_llm_and_resume_button(tmp_path: Path) -> None:
+    window, _ = _build_window(tmp_path)
+    import_view = window.views["import"]
+
+    import_view.set_last_result(
+        ImportExecutionResult(
+            ok=True,
+            document_id="doc-demo",
+            document_title="USUR",
+            status="partial_llm",
+            tickets_created=34,
+            sections_created=1,
+            warnings=["LLM structuring fallback: timeout"],
+            used_llm_assist=False,
+            llm_done_tickets=29,
+            llm_pending_tickets=0,
+            llm_fallback_tickets=5,
+            llm_failed_tickets=0,
+            resume_available=True,
+        )
+    )
+
+    assert import_view.summary_status.text() == "Импорт сохранён, но LLM-хвост не добит"
+    assert "резервный режим 5" in import_view.summary_chip.text()
+    assert not import_view.resume_button.isHidden()
+    assert "доделать только хвост" in import_view.handoff_body.text().lower()
     window.close()
     window.facade.connection.close()
 

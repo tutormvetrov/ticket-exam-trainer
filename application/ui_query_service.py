@@ -4,7 +4,7 @@ from datetime import datetime
 import json
 import sqlite3
 
-from application.ui_data import SectionOverviewItem, StatisticsSnapshot, TicketMasteryBreakdown, TrainingQueueItem, TrainingSnapshot
+from application.ui_data import ImportExecutionResult, SectionOverviewItem, StatisticsSnapshot, TicketMasteryBreakdown, TrainingQueueItem, TrainingSnapshot
 from domain.knowledge import (
     AtomType,
     CrossTicketLink,
@@ -133,6 +133,18 @@ class UiQueryService:
             FROM tickets
             ORDER BY created_at DESC, ticket_id DESC
             """
+        ).fetchall()
+        return [self.load_ticket_map(row["ticket_id"]) for row in rows]
+
+    def load_ticket_maps_for_document(self, document_id: str) -> list[TicketKnowledgeMap]:
+        rows = self.connection.execute(
+            """
+            SELECT ticket_id
+            FROM tickets
+            WHERE source_document_id = ?
+            ORDER BY created_at, ticket_id
+            """,
+            (document_id,),
         ).fetchall()
         return [self.load_ticket_map(row["ticket_id"]) for row in rows]
 
@@ -366,6 +378,81 @@ class UiQueryService:
             "SELECT * FROM weak_areas ORDER BY severity DESC, last_detected_at DESC"
         ).fetchall()
 
+    def load_latest_import_result(self) -> ImportExecutionResult:
+        row = self.connection.execute(
+            """
+            SELECT *
+            FROM source_documents
+            ORDER BY COALESCE(last_attempted_at, imported_at) DESC, imported_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        if row is None:
+            return ImportExecutionResult(False)
+
+        queue_counts = {
+            status_row["llm_status"]: int(status_row["total"] or 0)
+            for status_row in self.connection.execute(
+                """
+                SELECT llm_status, COUNT(*) AS total
+                FROM import_ticket_queue
+                WHERE document_id = ?
+                GROUP BY llm_status
+                """,
+                (row["document_id"],),
+            ).fetchall()
+        }
+        warnings = self._json_load(row["warnings_json"]) if "warnings_json" in row.keys() else []
+        ticket_total = int(row["ticket_total"] or 0)
+        if not ticket_total:
+            ticket_total_row = self.connection.execute(
+                "SELECT COUNT(*) AS total FROM tickets WHERE source_document_id = ?",
+                (row["document_id"],),
+            ).fetchone()
+            ticket_total = int(ticket_total_row["total"] or 0)
+
+        llm_done = int(queue_counts.get("done", 0))
+        llm_pending = int(queue_counts.get("pending", 0))
+        llm_fallback = int(queue_counts.get("fallback", 0))
+        llm_failed = int(queue_counts.get("failed", 0))
+
+        status = row["status"] or "imported"
+        legacy_resumable = not queue_counts and ticket_total > 0 and not bool(row["used_llm_assist"])
+        legacy_fallback = legacy_resumable and any("LLM structuring fallback" in warning for warning in warnings)
+        if legacy_resumable:
+            if legacy_fallback:
+                llm_fallback = max(ticket_total - llm_done, 1)
+            else:
+                llm_pending = max(ticket_total - llm_done, 1)
+            status = "partial_llm" if status == "structured" else status
+        elif not queue_counts and ticket_total:
+            llm_done = int(ticket_total)
+
+        resume_available = bool(
+            status in {"importing", "partial_llm", "failed"} and (llm_pending or llm_fallback or llm_failed)
+        )
+        return ImportExecutionResult(
+            ok=status in {"structured", "partial_llm", "importing"} or bool(ticket_total),
+            document_id=row["document_id"],
+            document_title=self._display_document_title(row["title"]),
+            status=status,
+            tickets_created=ticket_total,
+            sections_created=int(
+                self.connection.execute(
+                    "SELECT COUNT(DISTINCT section_id) AS total FROM tickets WHERE source_document_id = ?",
+                    (row["document_id"],),
+                ).fetchone()["total"] or 0
+            ),
+            warnings=warnings,
+            used_llm_assist=bool(row["used_llm_assist"]) if "used_llm_assist" in row.keys() else False,
+            llm_done_tickets=llm_done,
+            llm_pending_tickets=llm_pending,
+            llm_fallback_tickets=llm_fallback,
+            llm_failed_tickets=llm_failed,
+            resume_available=resume_available,
+            error=row["last_error"] or "",
+        )
+
     @staticmethod
     def _json_load(raw_value: str | None) -> list[str]:
         if not raw_value:
@@ -395,6 +482,9 @@ class UiQueryService:
         mapping = {
             "structured": "Обработан",
             "imported": "Импортирован",
+            "importing": "Импорт идёт",
+            "partial_llm": "Частично доработан",
+            "failed": "Импорт с ошибкой",
         }
         return mapping.get(status, status or "Неизвестно")
 

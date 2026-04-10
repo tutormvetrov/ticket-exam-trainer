@@ -53,7 +53,7 @@
 
 1. Скачайте архив релиза с GitHub Releases.
 2. Распакуйте папку релиза.
-3. Запустите `TicketExamTrainer.exe`.
+3. Запустите `Tezis.exe`.
 4. Перейдите в `Настройки -> Ollama`.
 5. Нажмите `Проверить соединение`.
 
@@ -181,7 +181,7 @@ powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
 Ожидаемый результат:
 
 ```text
-dist\TicketExamTrainer\
+dist\Tezis\
 ```
 
 ## Тесты
@@ -258,7 +258,7 @@ bash scripts/build_mac_app.sh
 Если macOS блокирует unsigned build:
 
 ```bash
-xattr -dr com.apple.quarantine dist/TicketExamTrainer.app
+xattr -dr com.apple.quarantine dist/Tezis.app
 ```
 
 По официальной документации Ollama на macOS модели и данные хранятся в `~/.ollama`.
@@ -267,8 +267,8 @@ xattr -dr com.apple.quarantine dist/TicketExamTrainer.app
 ## GitHub Releases
 
 Для публикации лучше держать отдельные артефакты:
-- Windows: zip с папкой релиза или готовым `TicketExamTrainer.exe`
-- macOS: zip с `TicketExamTrainer.app`, собранным и проверенным на реальном Mac
+- Windows: zip с папкой релиза или готовым `Tezis.exe`
+- macOS: zip с `Tezis.app`, собранным и проверенным на реальном Mac
 
 В release notes стоит отдельно писать:
 - что Windows-сборка приложена

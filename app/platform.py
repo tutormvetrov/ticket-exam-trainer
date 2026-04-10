@@ -73,10 +73,10 @@ def release_build_script_name() -> str | None:
 
 def release_artifact_name() -> str:
     if is_windows():
-        return "TicketExamTrainer.exe"
+        return "Tezis.exe"
     if is_macos():
-        return "TicketExamTrainer.app"
-    return "TicketExamTrainer"
+        return "Tezis.app"
+    return "Tezis"
 
 
 def script_host_label() -> str:

@@ -17,7 +17,7 @@ class OllamaResponse:
 
 
 class OllamaClient:
-    def __init__(self, base_url: str, timeout_seconds: float = 2.5) -> None:
+    def __init__(self, base_url: str, timeout_seconds: float | None = 2.5) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
 

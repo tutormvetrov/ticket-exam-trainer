@@ -47,12 +47,14 @@ class LibraryView(QWidget):
         header.addStretch(1)
 
         self.import_button = QPushButton("+  Импортировать")
+        self.import_button.setObjectName("library-import")
         self.import_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.import_button.setProperty("variant", "primary")
         self.import_button.clicked.connect(self.import_requested.emit)
         header.addWidget(self.import_button)
 
         self.refresh_button = QPushButton("⟳  Обновить")
+        self.refresh_button.setObjectName("library-refresh")
         self.refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.refresh_button.setProperty("variant", "secondary")
         self.refresh_button.clicked.connect(self.refresh_requested.emit)
@@ -91,16 +93,19 @@ class LibraryView(QWidget):
         startup_actions.setContentsMargins(0, 0, 0, 0)
         startup_actions.setSpacing(8)
         self.startup_primary = QPushButton("Открыть настройки Ollama")
+        self.startup_primary.setObjectName("library-startup-primary")
         self.startup_primary.setProperty("variant", "primary")
         self.startup_primary.clicked.connect(self._handle_startup_primary)
         startup_actions.addWidget(self.startup_primary)
 
         self.startup_secondary = QPushButton("Проверить снова")
+        self.startup_secondary.setObjectName("library-startup-secondary")
         self.startup_secondary.setProperty("variant", "secondary")
         self.startup_secondary.clicked.connect(self._handle_startup_secondary)
         startup_actions.addWidget(self.startup_secondary)
 
         self.startup_tertiary = QPushButton("Как подготовить среду")
+        self.startup_tertiary.setObjectName("library-startup-tertiary")
         self.startup_tertiary.setProperty("variant", "outline")
         self.startup_tertiary.clicked.connect(self._handle_startup_tertiary)
         startup_actions.addWidget(self.startup_tertiary)
@@ -166,6 +171,7 @@ class LibraryView(QWidget):
         dlc_layout.addLayout(dlc_text, 1)
 
         dlc_button = QPushButton("Что войдёт")
+        dlc_button.setObjectName("library-dlc-teaser")
         dlc_button.setProperty("variant", "secondary")
         dlc_button.clicked.connect(self.dlc_requested.emit)
         dlc_layout.addWidget(dlc_button, 0, Qt.AlignmentFlag.AlignBottom)

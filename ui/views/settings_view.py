@@ -114,11 +114,13 @@ class SettingsView(QWidget):
         header_row.addStretch(1)
 
         reset_button = QPushButton("Сбросить")
+        reset_button.setObjectName("settings-reset")
         reset_button.setProperty("variant", "outline")
         reset_button.clicked.connect(self.reset_form)
         header_row.addWidget(reset_button)
 
         save_button = QPushButton("Сохранить изменения")
+        save_button.setObjectName("settings-save")
         save_button.setProperty("variant", "primary")
         save_button.clicked.connect(self.save_settings)
         header_row.addWidget(save_button)
@@ -263,6 +265,7 @@ class SettingsView(QWidget):
         self.default_import_dir_input.setMinimumHeight(46)
         folder_row.addWidget(self.default_import_dir_input, 1)
         folder_button = QPushButton("Выбрать")
+        folder_button.setObjectName("settings-select-import-dir")
         folder_button.setProperty("variant", "secondary")
         folder_button.setMinimumHeight(46)
         folder_button.clicked.connect(self.select_import_dir)
@@ -291,7 +294,7 @@ class SettingsView(QWidget):
         card_layout.addLayout(row)
 
         self.import_llm_card = SettingsToggleCard(
-            "LLM assist при структурировании",
+            "LLM-помощь при структурировании",
             "Разрешить Mistral уточнять структуру билетов, если исходный документ размечен неидеально.",
             "AI",
             "#18B06A",
@@ -342,8 +345,8 @@ class SettingsView(QWidget):
 
         review_block = self._labeled_block("Профиль повторения")
         self.review_mode_combo = QComboBox()
-        self.review_mode_combo.addItem("Standard adaptive", "standard_adaptive")
-        self.review_mode_combo.addItem("Exam crunch", "exam_crunch")
+        self.review_mode_combo.addItem("Стандартное адаптивное", "standard_adaptive")
+        self.review_mode_combo.addItem("Экспресс перед экзаменом", "exam_crunch")
         self.review_mode_combo.setMinimumHeight(46)
         review_block.layout().addWidget(self.review_mode_combo)
         grid.addWidget(review_block, 0, 1)
@@ -451,6 +454,7 @@ class SettingsView(QWidget):
         self.models_path_input.setMinimumHeight(46)
         folder_row.addWidget(self.models_path_input, 1)
         models_button = QPushButton("Открыть")
+        models_button.setObjectName("settings-open-models-folder-inline")
         models_button.setProperty("variant", "secondary")
         models_button.setMinimumHeight(46)
         models_button.clicked.connect(self.open_models_folder)
@@ -554,10 +558,12 @@ class SettingsView(QWidget):
         buttons.setContentsMargins(0, 0, 0, 0)
         buttons.setSpacing(10)
         open_app_button = QPushButton("Открыть папку приложения")
+        open_app_button.setObjectName("settings-open-app-folder")
         open_app_button.setProperty("variant", "secondary")
         open_app_button.clicked.connect(lambda: self._open_path(self.workspace_root))
         buttons.addWidget(open_app_button)
         open_db_button = QPushButton("Открыть папку базы")
+        open_db_button.setObjectName("settings-open-db-folder")
         open_db_button.setProperty("variant", "secondary")
         open_db_button.clicked.connect(lambda: self._open_path(self.database_path.parent))
         buttons.addWidget(open_db_button)
@@ -590,11 +596,13 @@ class SettingsView(QWidget):
         backup_buttons = QHBoxLayout()
         backup_buttons.setContentsMargins(0, 0, 0, 0)
         backup_buttons.setSpacing(10)
-        create_backup_button = QPushButton("Создать backup")
+        create_backup_button = QPushButton("Создать резервную копию")
+        create_backup_button.setObjectName("settings-create-backup")
         create_backup_button.setProperty("variant", "primary")
         create_backup_button.clicked.connect(self.create_backup)
         backup_buttons.addWidget(create_backup_button)
-        open_backups_button = QPushButton("Открыть backups")
+        open_backups_button = QPushButton("Открыть папку копий")
+        open_backups_button.setObjectName("settings-open-backups")
         open_backups_button.setProperty("variant", "secondary")
         open_backups_button.clicked.connect(lambda: self._open_path(self.backups_dir))
         backup_buttons.addWidget(open_backups_button)
@@ -639,11 +647,13 @@ class SettingsView(QWidget):
         buttons = QHBoxLayout()
         buttons.setContentsMargins(0, 0, 0, 0)
         buttons.setSpacing(10)
-        audit_button = QPushButton("Открыть audit")
+        audit_button = QPushButton("Открыть аудит")
+        audit_button.setObjectName("settings-open-audit")
         audit_button.setProperty("variant", "secondary")
         audit_button.clicked.connect(lambda: self._open_path(self.workspace_root / "audit"))
         buttons.addWidget(audit_button)
-        docs_button = QPushButton("Открыть docs")
+        docs_button = QPushButton("Открыть документацию")
+        docs_button.setObjectName("settings-open-docs")
         docs_button.setProperty("variant", "secondary")
         docs_button.clicked.connect(lambda: self._open_path(get_docs_path()))
         buttons.addWidget(docs_button)
@@ -669,12 +679,14 @@ class SettingsView(QWidget):
         actions_layout.addWidget(actions_body)
 
         run_check_button = QPushButton("Запустить check_ollama.ps1")
+        run_check_button.setObjectName("settings-run-check-script")
         run_check_button.setText(self._run_check_button_text())
         run_check_button.setProperty("variant", "primary")
         run_check_button.clicked.connect(self.run_check_script)
         actions_layout.addWidget(run_check_button)
 
         open_readme_button = QPushButton("Открыть README")
+        open_readme_button.setObjectName("settings-open-readme")
         open_readme_button.setProperty("variant", "secondary")
         open_readme_button.clicked.connect(self.open_readme)
         actions_layout.addWidget(open_readme_button)
@@ -736,6 +748,7 @@ class SettingsView(QWidget):
         info_layout.addLayout(info_text, 1)
 
         readme_button = QPushButton("Подробнее в README")
+        readme_button.setObjectName("settings-readme-link")
         readme_button.setProperty("variant", "toolbar")
         readme_button.clicked.connect(self.open_readme)
         info_layout.addWidget(readme_button, 0, Qt.AlignmentFlag.AlignBottom)
@@ -760,31 +773,37 @@ class SettingsView(QWidget):
         layout.addWidget(title)
 
         refresh_button = QPushButton("Обновить список моделей")
+        refresh_button.setObjectName("settings-refresh-models")
         refresh_button.setProperty("variant", "secondary")
         refresh_button.clicked.connect(self.refresh_models)
         layout.addWidget(refresh_button)
 
         start_button = QPushButton("Запустить Ollama")
+        start_button.setObjectName("settings-start-ollama")
         start_button.setProperty("variant", "secondary")
         start_button.clicked.connect(self.start_ollama_server)
         layout.addWidget(start_button)
 
         check_button = QPushButton("Проверить соединение")
+        check_button.setObjectName("settings-check-connection")
         check_button.setProperty("variant", "secondary")
         check_button.clicked.connect(self.check_connection)
         layout.addWidget(check_button)
 
         install_button = QPushButton("Автонастройка Ollama")
+        install_button.setObjectName("settings-run-setup")
         install_button.setProperty("variant", "secondary")
         install_button.clicked.connect(self.run_setup_script)
         layout.addWidget(install_button)
 
         folder_button = QPushButton("Открыть папку моделей")
+        folder_button.setObjectName("settings-open-models-folder")
         folder_button.setProperty("variant", "secondary")
         folder_button.clicked.connect(self.open_models_folder)
         layout.addWidget(folder_button)
 
         help_button = QPushButton("Инструкция по установке")
+        help_button.setObjectName("settings-open-install-help")
         help_button.setProperty("variant", "secondary")
         help_button.clicked.connect(self.open_readme)
         layout.addWidget(help_button)
@@ -885,7 +904,7 @@ class SettingsView(QWidget):
 
     def create_backup(self) -> None:
         if not self.database_path.exists():
-            QMessageBox.warning(self, "Backup", f"Файл базы не найден:\n{self.database_path}")
+            QMessageBox.warning(self, "Резервная копия", f"Файл базы не найден:\n{self.database_path}")
             return
         self.backups_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -893,11 +912,11 @@ class SettingsView(QWidget):
         try:
             shutil.copy2(self.database_path, target)
         except OSError as exc:
-            QMessageBox.critical(self, "Backup", f"Не удалось создать резервную копию:\n{exc}")
+            QMessageBox.critical(self, "Резервная копия", f"Не удалось создать резервную копию:\n{exc}")
             return
         self.backup_status_label.setText(f"Последняя копия: {target.name}")
         self._refresh_storage_labels()
-        QMessageBox.information(self, "Backup", f"Резервная копия создана:\n{target}")
+        QMessageBox.information(self, "Резервная копия", f"Резервная копия создана:\n{target}")
 
     def _apply_diagnostics(self, diagnostics: OllamaDiagnostics) -> None:
         if diagnostics.endpoint_ok and diagnostics.model_ok:
@@ -911,7 +930,7 @@ class SettingsView(QWidget):
                 "background: #FFF4E7; color: #D97706; border-radius: 999px; padding: 10px 18px; "
                 "font-size: 14px; font-weight: 700;"
             )
-            self.status_pill.setText("Endpoint OK")
+            self.status_pill.setText("Сервер отвечает")
         else:
             self.status_pill.setStyleSheet(
                 "background: #FFF0F2; color: #D35469; border-radius: 999px; padding: 10px 18px; "
@@ -929,7 +948,7 @@ class SettingsView(QWidget):
         if runtime_path_note:
             endpoint_body = f"{endpoint_body}\n{runtime_path_note}"
         self.endpoint_tile.set_content(
-            "Endpoint: OK" if diagnostics.endpoint_ok else "Endpoint: ошибка",
+            "Сервер: OK" if diagnostics.endpoint_ok else "Сервер: ошибка",
             "Сервер отвечает" if diagnostics.endpoint_ok else "Нет ответа",
             endpoint_body,
             "success" if diagnostics.endpoint_ok else "danger",
@@ -966,9 +985,6 @@ class SettingsView(QWidget):
         return platform_helpers.check_script_name() or "diagnostic script"
 
     def _run_check_button_text(self) -> str:
-        script_name = platform_helpers.check_script_name()
-        if script_name:
-            return f"Запустить {script_name}"
         return "Запустить диагностику Ollama"
 
     def _setup_launch_message(self) -> str:
@@ -1033,7 +1049,7 @@ class SettingsView(QWidget):
             "font-size: 14px; font-weight: 700;"
         )
         self.status_pill.setText("Проверка...")
-        self.endpoint_tile.set_content("Endpoint: проверка", "Ожидание ответа", message, "warning")
+        self.endpoint_tile.set_content("Сервер: проверка", "Ожидание ответа", message, "warning")
         self.model_tile.set_content(
             "Статус модели",
             self.model_combo.currentText().strip() or DEFAULT_OLLAMA_SETTINGS.model,

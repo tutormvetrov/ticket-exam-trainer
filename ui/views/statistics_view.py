@@ -95,7 +95,7 @@ class StatisticsView(QWidget):
             "Процессы": sum(item.process_mastery for item in mastery.values()) / len(mastery),
             "Короткий устный": sum(item.oral_short_mastery for item in mastery.values()) / len(mastery),
             "Полный устный": sum(item.oral_full_mastery for item in mastery.values()) / len(mastery),
-            "Follow-up": sum(item.followup_mastery for item in mastery.values()) / len(mastery),
+            "Уточняющие вопросы": sum(item.followup_mastery for item in mastery.values()) / len(mastery),
         }
         for name, value in sorted(averages.items(), key=lambda pair: pair[1]):
             label = QLabel(f"• {name}: {int(round(value * 100))}%")

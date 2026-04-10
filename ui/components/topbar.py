@@ -38,6 +38,7 @@ class TopBar(QWidget):
         layout.addStretch(1)
 
         self.settings_button = QPushButton("⚙")
+        self.settings_button.setObjectName("topbar-settings")
         self.settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.settings_button.setFixedSize(48, 40)
         self.settings_button.setProperty("variant", "toolbar-ghost")
@@ -45,12 +46,14 @@ class TopBar(QWidget):
         layout.addWidget(self.settings_button)
 
         self.ollama_button = QPushButton("⟳  Настройки Ollama")
+        self.ollama_button.setObjectName("topbar-ollama")
         self.ollama_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.ollama_button.setProperty("variant", "toolbar")
         self.ollama_button.clicked.connect(self.ollama_clicked.emit)
         layout.addWidget(self.ollama_button)
 
         self.theme_button = QPushButton("◔  Тёмная тема")
+        self.theme_button.setObjectName("topbar-theme")
         self.theme_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.theme_button.setProperty("variant", "toolbar")
         self.theme_button.clicked.connect(self.theme_clicked.emit)

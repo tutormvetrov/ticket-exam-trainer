@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QRectF, Signal, QSize
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ui.theme import apply_shadow
@@ -23,22 +23,32 @@ class LogoMark(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        rect = QRectF(4, 4, self.width() - 8, self.height() - 8)
-
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#3B82F6"))
-        painter.drawRoundedRect(rect, 14, 14)
 
-        painter.setBrush(QColor("#FFFFFF"))
-        for index, top in enumerate((12, 22, 32)):
-            offset = index * 2.5
+        gradient = QLinearGradient(8, 8, self.width() - 8, self.height() - 8)
+        gradient.setColorAt(0.0, QColor("#03C77E"))
+        gradient.setColorAt(1.0, QColor("#6CF6B8"))
+
+        def draw_slice(top: float, left: float, right: float, height: float, trim: float) -> None:
             path = QPainterPath()
-            path.moveTo(12 + offset, top)
-            path.lineTo(34 + offset, top)
-            path.lineTo(42 + offset, top + 5)
-            path.lineTo(20 + offset, top + 5)
+            path.moveTo(left, top + height)
+            path.quadTo(left + 12, top + height - 12, left + 24, top)
+            path.lineTo(right - trim, top + height * 0.38)
+            path.quadTo(right + 2, top + height * 0.54, right - 2, top + height)
+            path.lineTo(left, top + height)
             path.closeSubpath()
             painter.drawPath(path)
+
+        painter.setBrush(gradient)
+        draw_slice(7, 8, 42, 26, 2)
+        draw_slice(23, 15, 46, 19, 4)
+        draw_slice(35, 22, 48, 13, 5)
+
+        cut_pen = QPen(QColor("#FFFFFF"), 4.2)
+        cut_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(cut_pen)
+        painter.drawArc(QRectF(10, 11, 34, 24), 210 * 16, -70 * 16)
+        painter.drawArc(QRectF(17, 25, 28, 18), 205 * 16, -72 * 16)
 
 
 class IconBadge(QFrame):

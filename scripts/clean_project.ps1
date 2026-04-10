@@ -45,7 +45,7 @@ $filesToRemove = @(
     "user-fix-settings-bottom.png",
     "user-fix-settings.png",
     "seed-run.log",
-    "dist\\TicketExamTrainer\\release-smoke.png"
+    "dist\\Tezis\\release-smoke.png"
 )
 
 foreach ($dir in $dirsToRemove | Select-Object -Unique) {

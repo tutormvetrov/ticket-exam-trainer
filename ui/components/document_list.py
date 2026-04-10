@@ -51,15 +51,11 @@ class DocumentListItem(ClickableFrame):
         text_layout.addWidget(counts)
         layout.addLayout(text_layout, 1)
 
-        more = QPushButton("⋮")
-        more.setFixedSize(30, 30)
-        more.setProperty("variant", "toolbar-ghost")
-        more.setCursor(Qt.CursorShape.PointingHandCursor)
-        layout.addWidget(more, 0, Qt.AlignmentFlag.AlignTop)
-
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(self.document.id)
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def set_selected(self, selected: bool) -> None:

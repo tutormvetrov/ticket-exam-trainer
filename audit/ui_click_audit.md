@@ -1,0 +1,89 @@
+# UI Click Audit
+
+- workspace: `C:\Users\tutor\AppData\Local\Temp\tezis-ui-audit-f0mhoiug`
+
+## Results
+
+- `PASS` [topbar] settings button: Открывает экран настроек
+- `PASS` [topbar] ollama button: Открывает раздел Ollama
+- `PASS` [topbar] theme button: Переключает тему
+- `PASS` [topbar] search: Фильтрация работает на библиотеке
+- `PASS` [sidebar] library: Пункт меню открывает свой экран
+- `PASS` [sidebar] subjects: Пункт меню открывает свой экран
+- `PASS` [sidebar] sections: Пункт меню открывает свой экран
+- `PASS` [sidebar] tickets: Пункт меню открывает свой экран
+- `PASS` [sidebar] import: Пункт меню открывает свой экран
+- `PASS` [sidebar] training: Пункт меню открывает свой экран
+- `PASS` [sidebar] statistics: Пункт меню открывает свой экран
+- `PASS` [sidebar] settings: Пункт меню открывает свой экран
+- `PASS` [library] document selection: Выбор документа обновляет центральную панель
+- `PASS` [library] detail tab 0: Переключает вкладку документа
+- `PASS` [library] detail tab 1: Переключает вкладку документа
+- `PASS` [library] detail tab 2: Переключает вкладку документа
+- `PASS` [library] refresh: Кнопка обновления не роняет экран
+- `PASS` [library] startup primary: Переводит в настройки Ollama
+- `PASS` [library] startup secondary: Повторная проверка обновляет статус Ollama
+- `PASS` [library] startup tertiary: Открывает README
+- `PASS` [library] training mode card: Карточка режима ведёт в тренировку
+- `PASS` [library] dlc teaser: Teaser честно показывает модальное описание
+- `PASS` [library] import: Импорт из библиотеки завершился и попал в базу
+- `PASS` [subjects] render: Экран предметов заполняется реальными данными
+- `PASS` [sections] filter combo: Фильтр по предмету работает
+- `PASS` [tickets] ticket selection: Выбор билета обновляет карту
+- `PASS` [import] open library: Кнопка handoff ведёт в библиотеку
+- `PASS` [import] open training: Кнопка handoff ведёт в тренировку
+- `PASS` [import] open statistics: Кнопка handoff ведёт в статистику
+- `PASS` [training] queue selection: Выбор карточки меняет активный билет
+- `PASS` [training] mode reading: Режим переключается
+- `PASS` [training] mode active-recall: Режим переключается
+- `PASS` [training] mode cloze: Режим переключается
+- `PASS` [training] check answer: Оценка ответа обновляет UI и статистику
+- `PASS` [statistics] snapshot: Экран статистики показывает реальные попытки
+- `PASS` [settings] nav general: Левая навигация секций работает
+- `PASS` [settings] nav documents: Левая навигация секций работает
+- `PASS` [settings] nav training: Левая навигация секций работает
+- `PASS` [settings] nav ollama: Левая навигация секций работает
+- `PASS` [settings] nav data: Левая навигация секций работает
+- `PASS` [settings] nav advanced: Левая навигация секций работает
+- `PASS` [settings] general auto-check toggle: Переключатель реально меняет состояние
+- `PASS` [settings] documents select dir: Диалог папки применяет путь
+- `PASS` [settings] training default mode: Комбо режима тренировки переключается
+- `PASS` [settings] ollama open models inline: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] ollama refresh models: Диагностика завершилась и обновила статус
+- `PASS` [settings] ollama start server: Диагностика завершилась и обновила статус
+- `PASS` [settings] ollama check connection: Диагностика завершилась и обновила статус
+- `PASS` [settings] ollama run setup: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] ollama open models: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] ollama install help: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] ollama readme link: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] data open app folder: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] data open db folder: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] data create backup: Backup реально создаётся
+- `PASS` [settings] data open backups: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] advanced open audit: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] advanced open docs: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] advanced run check script: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] advanced open readme: Кнопка вызвала ожидаемое действие
+- `PASS` [settings] save: Сохранение пишет файл настроек и даёт подтверждение
+- `PASS` [settings] reset: Сброс перезаполняет форму
+
+## Observed External Events
+
+- `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
+- `message` DLC: Подготовка к защите магистерской: Планируется отдельный модуль для подготовки к защите магистерской.
+- `open-url` file:///D:/OllamaModels
+- `launch-script` C:\Users\tutor\OneDrive\Документы\Exam_revision\scripts\setup_ollama_windows.ps1
+- `message` Ollama: Запущен скрипт автоподготовки Ollama. Он открыт в PowerShell. После завершения вернитесь сюда и нажмите «Проверить соединение».
+- `open-url` file:///D:/OllamaModels
+- `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
+- `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-f0mhoiug
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-f0mhoiug
+- `message` Резервная копия: Резервная копия создана:
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-f0mhoiug/backups
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-f0mhoiug/audit
+- `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/docs
+- `launch-script` C:\Users\tutor\OneDrive\Документы\Exam_revision\scripts\check_ollama.ps1
+- `message` Ollama: Запущен диагностический скрипт check_ollama.ps1 в PowerShell.
+- `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
+- `message` Настройки: Параметры сохранены и применены.

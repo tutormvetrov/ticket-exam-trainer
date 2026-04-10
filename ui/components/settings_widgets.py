@@ -21,7 +21,7 @@ class SettingsNavItem(ClickableFrame):
     def __init__(self, key: str, title: str, subtitle: str, icon_text: str, icon_bg: str) -> None:
         super().__init__(role="subtle-card", shadow=False)
         self.key = key
-        self.setObjectName("SettingsNavItem")
+        self.setObjectName(f"settings-nav-{key}")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumHeight(78)
         self.setProperty("selected", False)
@@ -89,11 +89,12 @@ class ToggleSwitch(QPushButton):
 
     def __init__(self, checked: bool = False) -> None:
         super().__init__()
+        self.setObjectName("settings-toggle-switch")
         self.setCheckable(True)
         self.setChecked(checked)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(48, 26)
-        self.clicked.connect(self.toggled_value.emit)
+        self.clicked.connect(lambda checked=False: self.toggled_value.emit(bool(checked)))
         self.setStyleSheet("QPushButton { border: none; background: transparent; }")
 
     def paintEvent(self, event) -> None:  # noqa: N802
@@ -131,6 +132,7 @@ class SettingsToggleCard(CardFrame):
 
         self.toggle = ToggleSwitch(checked)
         layout.addWidget(self.toggle, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.toggle.setObjectName(f"settings-toggle-{title.lower().replace(' ', '-').replace('/', '-')}")
 
 
 class DiagnosticTile(CardFrame):
@@ -214,6 +216,7 @@ class NumberStepper(QFrame):
         layout.setSpacing(0)
 
         minus = QPushButton("\u2212")
+        minus.setObjectName("number-stepper-minus")
         minus.setProperty("variant", "toolbar-ghost")
         minus.setFixedWidth(42)
         minus.clicked.connect(lambda: self._set_value(self._value - 5))
@@ -226,6 +229,7 @@ class NumberStepper(QFrame):
         layout.addWidget(self.label)
 
         plus = QPushButton("+")
+        plus.setObjectName("number-stepper-plus")
         plus.setProperty("variant", "toolbar-ghost")
         plus.setFixedWidth(42)
         plus.clicked.connect(lambda: self._set_value(self._value + 5))

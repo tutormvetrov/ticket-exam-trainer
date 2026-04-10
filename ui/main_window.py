@@ -49,7 +49,7 @@ class MainWindow(QMainWindow):
         self._import_thread: ProgressThread | None = None
         self._is_closing = False
 
-        self.setWindowTitle("Тренажёр билетов к вузовским экзаменам")
+        self.setWindowTitle("Тезис")
         self.setMinimumSize(1280, 720)
         available = app.primaryScreen().availableGeometry()
         self.resize(
@@ -121,10 +121,13 @@ class MainWindow(QMainWindow):
         self.views["library"].recheck_requested.connect(self.refresh_sidebar_ollama_status)
         self.views["library"].readme_requested.connect(self.open_readme)
         self.views["library"].dlc_requested.connect(self.show_dlc_teaser)
+
         self.views["import"].import_requested.connect(self.open_import_dialog)
+        self.views["import"].resume_requested.connect(self.resume_partial_import)
         self.views["import"].open_library_requested.connect(lambda: self.switch_view("library"))
         self.views["import"].open_training_requested.connect(lambda: self.switch_view("training"))
         self.views["import"].open_statistics_requested.connect(lambda: self.switch_view("statistics"))
+
         self.views["training"].evaluate_requested.connect(self.handle_training_evaluation)
         self.views["settings"].diagnostics_changed.connect(self.apply_ollama_diagnostics)
         self.views["settings"].settings_saved.connect(self.persist_settings)
@@ -206,26 +209,48 @@ class MainWindow(QMainWindow):
         finally:
             connection.close()
 
+    def resume_partial_import(self, document_id: str) -> None:
+        if not document_id:
+            return
+        if self._import_thread is not None and self._import_thread.isRunning():
+            self.switch_view("import")
+            return
+
+        latest = self.facade.load_latest_import_result()
+        remaining = latest.llm_pending_tickets + latest.llm_fallback_tickets + latest.llm_failed_tickets
+        self.switch_view("import")
+        self.views["import"].set_resume_pending(latest.document_title or "Документ", remaining)
+
+        self._import_thread = ProgressThread(lambda report_progress: self._resume_in_background(document_id, report_progress))
+        self._import_thread.progress_changed.connect(self.views["import"].set_import_progress)
+        self._import_thread.succeeded.connect(self._finish_import)
+        self._import_thread.failed.connect(self._fail_import)
+        self._import_thread.finished.connect(self._clear_import_thread)
+        self._import_thread.start()
+
+    def _resume_in_background(self, document_id: str, progress_callback):
+        database_path = get_database_path(self.facade.workspace_root)
+        connection = connect_initialized(database_path)
+        settings_store = SettingsStore(self.facade.workspace_root / "app_data" / "settings.json")
+        worker_facade = AppFacade(self.facade.workspace_root, connection, settings_store)
+        try:
+            return worker_facade.resume_document_import_with_progress(document_id, progress_callback=progress_callback)
+        finally:
+            connection.close()
+
     def _finish_import(self, result) -> None:
         if self._is_closing:
             return
-        self.views["import"].set_last_result(result)
-        self.switch_view("import")
         if not result.ok:
+            self.views["import"].set_last_result(result)
+            self.switch_view("import")
             QMessageBox.critical(self, "Импорт", result.error or "Не удалось импортировать документ.")
             return
 
         self.refresh_all_views()
-        warnings = "\n".join(f"• {warning}" for warning in result.warnings[:4])
-        message = (
-            f"Документ импортирован: {result.document_title}\n"
-            f"Создано билетов: {result.tickets_created}\n"
-            f"Разделов: {result.sections_created}\n"
-            f"LLM assist: {'да' if result.used_llm_assist else 'нет'}"
-        )
-        if warnings:
-            message = f"{message}\n\nПредупреждения:\n{warnings}"
-        QMessageBox.information(self, "Импорт", message)
+        latest_result = self.facade.load_latest_import_result()
+        self.views["import"].set_last_result(latest_result if latest_result.ok else result)
+        self.switch_view("import")
 
     def _fail_import(self, error_text: str) -> None:
         if self._is_closing:
@@ -259,7 +284,7 @@ class MainWindow(QMainWindow):
             url_text=self.facade.settings.base_url,
             tone="warning",
         )
-        self.views["settings"].set_diagnostics_pending("Проверяем endpoint и модель")
+        self.views["settings"].set_diagnostics_pending("Проверяем сервер и модель")
         self.refresh_all_views()
 
         self._diagnostics_thread = FunctionThread(self.facade.inspect_ollama)
@@ -273,7 +298,7 @@ class MainWindow(QMainWindow):
             return
         self.latest_diagnostics = diagnostics
         available = diagnostics.endpoint_ok and diagnostics.model_ok
-        label = "Ollama: подключено" if available else ("Ollama: endpoint OK" if diagnostics.endpoint_ok else "Ollama: недоступно")
+        label = "Ollama: подключено" if available else ("Ollama: сервер отвечает" if diagnostics.endpoint_ok else "Ollama: недоступно")
         model_suffix = diagnostics.model_name or self.facade.settings.model
         if diagnostics.model_size_label:
             model_suffix = f"{model_suffix} • {diagnostics.model_size_label}"
@@ -305,6 +330,7 @@ class MainWindow(QMainWindow):
         if self._is_closing or not self._connection_usable():
             return
         documents = self.facade.load_documents()
+        latest_import = self.facade.load_latest_import_result()
         statistics = self.facade.load_statistics_snapshot()
         subjects = self.facade.load_subjects()
         sections = self.facade.load_sections_overview()
@@ -318,6 +344,8 @@ class MainWindow(QMainWindow):
         self.views["library"].set_startup_status(current_diagnostics, bool(documents))
         self.views["library"].set_dlc_visible(self.facade.settings.show_dlc_teaser)
         self.views["import"].set_documents(documents)
+        if not self.views["import"].is_busy():
+            self.views["import"].set_last_result(latest_import)
         self.views["subjects"].set_subjects(subjects)
         self.views["sections"].set_sections(sections)
         self.views["tickets"].set_data(tickets, mastery, weak_areas)
@@ -348,7 +376,7 @@ class MainWindow(QMainWindow):
             "В него войдут:\n"
             "• загрузка текста магистерской\n"
             "• разбор структуры доклада\n"
-            "• short defense outline\n"
+            "• краткий план защиты\n"
             "• тренировка ответов на вопросы комиссии\n"
             "• режимы «научрук» и «оппонент»\n\n"
             "Этот модуль не входит в текущий релиз.",
@@ -364,7 +392,7 @@ class MainWindow(QMainWindow):
                 endpoint_message="Автопроверка отключена",
                 model_message="Статус не проверен",
                 model_name=self.facade.settings.model,
-                error_text="Автопроверка отключена. Откройте Настройки -> Ollama и нажмите «Проверить соединение».",
+                error_text="Автопроверка отключена. Откройте Настройки → Ollama и нажмите «Проверить соединение».",
             )
         return OllamaDiagnostics(
             endpoint_ok=False,
@@ -391,7 +419,7 @@ class MainWindow(QMainWindow):
         diagnostics = OllamaDiagnostics(
             endpoint_ok=False,
             model_ok=False,
-            endpoint_message="Endpoint недоступен",
+            endpoint_message="Сервер недоступен",
             model_message="Модель не проверена",
             model_name=self.facade.settings.model,
             error_text=error_text,
@@ -406,7 +434,7 @@ class MainWindow(QMainWindow):
     def _connection_usable(self) -> bool:
         try:
             self.facade.connection.execute("SELECT 1")
-        except Exception:  # noqa: BLE001
+        except Exception:
             return False
         return True
 
@@ -415,24 +443,24 @@ class MainWindow(QMainWindow):
         if self._diagnostics_thread is not None:
             try:
                 self._diagnostics_thread.succeeded.disconnect()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
             try:
                 self._diagnostics_thread.failed.disconnect()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         if self._import_thread is not None:
             try:
                 self._import_thread.succeeded.disconnect()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
             try:
                 self._import_thread.failed.disconnect()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
             try:
                 self._import_thread.progress_changed.disconnect()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         super().closeEvent(event)
 

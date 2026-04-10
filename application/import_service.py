@@ -57,6 +57,29 @@ class TicketCandidate:
 
 
 @dataclass(slots=True)
+class ImportQueueItem:
+    ticket_id: str
+    ticket_index: int
+    section_id: str
+    title: str
+    body_text: str
+    candidate_confidence: float
+    llm_status: str = "pending"
+    llm_error: str = ""
+    llm_attempted: bool = False
+    used_llm: bool = False
+
+
+@dataclass(slots=True)
+class PreparedImportBundle:
+    source_document: SourceDocument
+    normalized_text: str
+    chunks: list[ContentChunk]
+    candidates: list[TicketCandidate]
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class StructuredImportResult:
     source_document: SourceDocument
     normalized_text: str
@@ -87,6 +110,59 @@ class DocumentImportService:
         default_section_id: str,
         progress_callback: ImportProgressCallback | None = None,
     ) -> StructuredImportResult:
+        prepared = self.prepare_import(
+            path,
+            exam_id,
+            subject_id,
+            default_section_id,
+            progress_callback=progress_callback,
+        )
+
+        tickets = []
+        used_llm_assist = False
+        total_candidates = max(1, len(prepared.candidates))
+        build_start = 34
+        build_end = 78
+        for index, candidate in enumerate(prepared.candidates, start=1):
+            detail = f"Билет {index} из {total_candidates}: {candidate.title[:72]}"
+            self._report_progress(progress_callback, self._loop_progress(build_start, build_end, index - 1, total_candidates), "Построение карты билета", detail)
+            section_id = self.resolve_section_id(candidate, default_section_id)
+            ticket, used_llm, llm_warning = self.build_ticket_map(candidate, exam_id, section_id, prepared.source_document.document_id)
+            used_llm_assist = used_llm_assist or used_llm
+            if llm_warning:
+                prepared.warnings.append(llm_warning)
+            tickets.append(ticket)
+            self._report_progress(progress_callback, self._loop_progress(build_start, build_end, index, total_candidates), "Построение карты билета", detail)
+
+        self._report_progress(progress_callback, 82, "Связи между билетами", "Строим cross-ticket concepts и перекрёстные ссылки")
+        self.attach_cross_ticket_links(tickets)
+        exercise_instances = {}
+        exercise_start = 84
+        exercise_end = 94
+        total_tickets = max(1, len(tickets))
+        for index, ticket in enumerate(tickets, start=1):
+            detail = f"Генерируем упражнения для билета {index} из {total_tickets}"
+            self._report_progress(progress_callback, self._loop_progress(exercise_start, exercise_end, index - 1, total_tickets), "Генерация упражнений", detail)
+            exercise_instances[ticket.ticket_id] = self.exercise_generator.generate(ticket)
+            self._report_progress(progress_callback, self._loop_progress(exercise_start, exercise_end, index, total_tickets), "Генерация упражнений", detail)
+        return StructuredImportResult(
+            source_document=prepared.source_document,
+            normalized_text=prepared.normalized_text,
+            chunks=prepared.chunks,
+            tickets=tickets,
+            exercise_instances=exercise_instances,
+            warnings=prepared.warnings,
+            used_llm_assist=used_llm_assist,
+        )
+
+    def prepare_import(
+        self,
+        path: str | Path,
+        exam_id: str,
+        subject_id: str,
+        default_section_id: str,
+        progress_callback: ImportProgressCallback | None = None,
+    ) -> PreparedImportBundle:
         self._report_progress(progress_callback, 3, "Чтение документа", "Извлекаем текст из исходного файла")
         imported = self._read_document(path)
         self._report_progress(progress_callback, 10, "Нормализация текста", "Приводим текст к рабочему формату")
@@ -113,43 +189,65 @@ class DocumentImportService:
             imported_at=datetime.now(),
             checksum="",
         )
-
-        tickets = []
-        used_llm_assist = False
-        total_candidates = max(1, len(candidates))
-        build_start = 34
-        build_end = 78
-        for index, candidate in enumerate(candidates, start=1):
-            detail = f"Билет {index} из {total_candidates}: {candidate.title[:72]}"
-            self._report_progress(progress_callback, self._loop_progress(build_start, build_end, index - 1, total_candidates), "Построение карты билета", detail)
-            section_id = self._slug(candidate.section_title or default_section_id)
-            ticket, used_llm, llm_warning = self.build_ticket_map(candidate, exam_id, section_id, source_document.document_id)
-            used_llm_assist = used_llm_assist or used_llm
-            if llm_warning:
-                warnings.append(llm_warning)
-            tickets.append(ticket)
-            self._report_progress(progress_callback, self._loop_progress(build_start, build_end, index, total_candidates), "Построение карты билета", detail)
-
-        self._report_progress(progress_callback, 82, "Связи между билетами", "Строим cross-ticket concepts и перекрёстные ссылки")
-        self.attach_cross_ticket_links(tickets)
-        exercise_instances = {}
-        exercise_start = 84
-        exercise_end = 94
-        total_tickets = max(1, len(tickets))
-        for index, ticket in enumerate(tickets, start=1):
-            detail = f"Генерируем упражнения для билета {index} из {total_tickets}"
-            self._report_progress(progress_callback, self._loop_progress(exercise_start, exercise_end, index - 1, total_tickets), "Генерация упражнений", detail)
-            exercise_instances[ticket.ticket_id] = self.exercise_generator.generate(ticket)
-            self._report_progress(progress_callback, self._loop_progress(exercise_start, exercise_end, index, total_tickets), "Генерация упражнений", detail)
-        return StructuredImportResult(
+        return PreparedImportBundle(
             source_document=source_document,
             normalized_text=normalized,
             chunks=chunks,
-            tickets=tickets,
-            exercise_instances=exercise_instances,
+            candidates=candidates,
             warnings=warnings,
-            used_llm_assist=used_llm_assist,
         )
+
+    def create_import_queue_items(
+        self,
+        candidates: list[TicketCandidate],
+        source_document_id: str,
+        default_section_id: str,
+    ) -> list[ImportQueueItem]:
+        queue_items: list[ImportQueueItem] = []
+        for candidate in candidates:
+            section_id = self.resolve_section_id(candidate, default_section_id)
+            queue_items.append(
+                ImportQueueItem(
+                    ticket_id=self.make_ticket_id(candidate, source_document_id),
+                    ticket_index=candidate.index,
+                    section_id=section_id,
+                    title=candidate.title,
+                    body_text=candidate.body,
+                    candidate_confidence=candidate.confidence,
+                )
+            )
+        return queue_items
+
+    def generate_exercise_instances(self, ticket: TicketKnowledgeMap) -> list:
+        return self.exercise_generator.generate(ticket)
+
+    def rebuild_ticket_map(
+        self,
+        ticket: TicketKnowledgeMap,
+        source_text: str,
+        *,
+        force_llm: bool = True,
+    ) -> tuple[TicketKnowledgeMap, bool, str]:
+        candidate = TicketCandidate(
+            index=1,
+            title=ticket.title,
+            body=source_text,
+            confidence=ticket.source_confidence or 0.5,
+            section_title=ticket.section_id,
+        )
+        original_flag = self.enable_llm_structuring
+        try:
+            if force_llm:
+                self.enable_llm_structuring = True
+            return self.build_ticket_map(
+                candidate,
+                ticket.exam_id,
+                ticket.section_id,
+                ticket.source_document_id,
+                ticket_id=ticket.ticket_id,
+            )
+        finally:
+            self.enable_llm_structuring = original_flag
 
     def _read_document(self, path: str | Path) -> ImportedDocumentText:
         document_path = Path(path)
@@ -255,8 +353,9 @@ class DocumentImportService:
         exam_id: str,
         section_id: str,
         source_document_id: str,
+        ticket_id: str | None = None,
     ) -> tuple[TicketKnowledgeMap, bool, str]:
-        ticket_key = self._slug(f"{source_document_id}-ticket-{candidate.index}-{candidate.title}")
+        ticket_key = ticket_id or self.make_ticket_id(candidate, source_document_id)
         atoms = self.extract_atoms(candidate.body, ticket_key)
         summary = self.build_summary(atoms)
         examiner_prompts = self.build_examiner_prompts(candidate.title, atoms)
@@ -305,6 +404,12 @@ class DocumentImportService:
         )
         ticket.validate()
         return ticket, used_llm, warning
+
+    def make_ticket_id(self, candidate: TicketCandidate, source_document_id: str) -> str:
+        return self._slug(f"{source_document_id}-ticket-{candidate.index}-{candidate.title}")
+
+    def resolve_section_id(self, candidate: TicketCandidate, default_section_id: str) -> str:
+        return self._slug(candidate.section_title or default_section_id)
 
     @staticmethod
     def _report_progress(

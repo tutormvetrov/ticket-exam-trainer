@@ -129,11 +129,12 @@ class TrainingView(QWidget):
         action_row = QHBoxLayout()
         action_row.setContentsMargins(0, 0, 0, 0)
         action_row.setSpacing(12)
-        self.mode_label = QLabel("Режим: Active Recall")
+        self.mode_label = QLabel("Режим: Активное вспоминание")
         self.mode_label.setStyleSheet("font-size: 14px; font-weight: 700;")
         action_row.addWidget(self.mode_label)
         action_row.addStretch(1)
         self.check_button = QPushButton("Проверить ответ")
+        self.check_button.setObjectName("training-check")
         self.check_button.setProperty("variant", "primary")
         self.check_button.clicked.connect(self._emit_evaluation)
         action_row.addWidget(self.check_button)
@@ -196,7 +197,7 @@ class TrainingView(QWidget):
         if result.weak_points:
             lines.append("Слабые места: " + ", ".join(result.weak_points))
         if result.followup_questions:
-            lines.append("Follow-up:")
+            lines.append("Уточняющие вопросы:")
             lines.extend(f"• {question}" for question in result.followup_questions[:4])
         self.feedback_body.setText("\n".join(lines))
 

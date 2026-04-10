@@ -1,0 +1,104 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+
+
+def platform_key() -> str:
+    if sys.platform.startswith("win"):
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+def is_windows() -> bool:
+    return platform_key() == "windows"
+
+
+def is_macos() -> bool:
+    return platform_key() == "macos"
+
+
+def platform_label() -> str:
+    mapping = {
+        "windows": "Windows",
+        "macos": "macOS",
+        "linux": "Linux",
+    }
+    return mapping.get(platform_key(), "Desktop")
+
+
+def default_models_path() -> Path:
+    if is_windows():
+        return Path(r"D:\OllamaModels")
+    if is_macos():
+        return Path.home() / ".ollama"
+    return Path.home() / ".ollama"
+
+
+def setup_script_name() -> str | None:
+    if is_windows():
+        return "setup_ollama_windows.ps1"
+    if is_macos():
+        return "setup_ollama_macos.sh"
+    return None
+
+
+def check_script_name() -> str | None:
+    if is_windows():
+        return "check_ollama.ps1"
+    if is_macos():
+        return "check_ollama_macos.sh"
+    return None
+
+
+def release_build_script_name() -> str | None:
+    if is_windows():
+        return "build_exe.ps1"
+    if is_macos():
+        return "build_mac_app.sh"
+    return None
+
+
+def release_artifact_name() -> str:
+    if is_windows():
+        return "TicketExamTrainer.exe"
+    if is_macos():
+        return "TicketExamTrainer.app"
+    return "TicketExamTrainer"
+
+
+def script_host_label() -> str:
+    if is_windows():
+        return "PowerShell"
+    if is_macos():
+        return "Terminal"
+    return "shell"
+
+
+def launch_support_script(script_path: Path) -> None:
+    if is_windows():
+        subprocess.Popen(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
+            creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+        )
+        return
+
+    if is_macos():
+        command = f"bash {shlex.quote(str(script_path))}"
+        subprocess.Popen(
+            [
+                "osascript",
+                "-e",
+                'tell application "Terminal" to activate',
+                "-e",
+                f'tell application "Terminal" to do script {json.dumps(command)}',
+            ]
+        )
+        return
+
+    subprocess.Popen(["bash", str(script_path)])

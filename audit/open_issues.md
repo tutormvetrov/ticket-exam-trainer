@@ -1,0 +1,11 @@
+# Open Issues
+
+Статусы: `OPEN`, `IN_PROGRESS`, `BLOCKED`, `DONE`
+
+На 10 апреля 2026 по Windows-релизному объёму открытых product issues не осталось.
+После добавления комфортной macOS-адаптации остался один честный QA-пункт: реальный ручной smoke-проход на физическом Mac не выполнен из этой среды.
+
+| ID | Проблема | Влияние на пользователя | Severity | Временный обход | Exit criteria | Статус | Доказательство |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| QA-ULTRA | Отдельный visual-pass на большом desktop был не завершён | Риск композиционных отличий на очень широком экране | low | Не требовался | Снять живые скриншоты и пройти human visual audit на `2560x1440` | DONE | `audit/screens/ultrawide/library-2560.png`, `audit/screens/ultrawide/training-2560.png`, `audit/screens/ultrawide/statistics-2560.png`, `audit/screens/ultrawide/settings-2560.png` |
+| MAC-REAL | macOS-ветка адаптирована по коду, скриптам и инструкции, но не прогнана руками на реальном Mac | Возможны platform-specific нюансы Gatekeeper, Terminal launch и `.app` bundle, которые нельзя честно подтвердить из Windows-среды | medium | Использовать `python3 main.py` и следовать разделу macOS в `README.md` | Собрать `.app` на реальном Mac, пройти `setup/check` Ollama и smoke `import -> training -> statistics` | OPEN | `tests/test_platform_support.py`, `scripts/setup_ollama_macos.sh`, `scripts/check_ollama_macos.sh`, `scripts/build_mac_app.sh` |

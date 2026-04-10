@@ -1,0 +1,170 @@
+from __future__ import annotations
+
+from pathlib import Path
+import sys
+
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+
+from application.facade import AppFacade
+from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
+from application.settings_store import SettingsStore
+from application.ui_data import ImportExecutionResult
+from infrastructure.db import connect_initialized, get_database_path
+from ui.main_window import MainWindow
+from ui.theme import set_app_theme
+
+
+def _qapp() -> QApplication:
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+        set_app_theme(app, "light")
+    return app
+
+
+def _build_window(tmp_path: Path, settings: OllamaSettings | None = None) -> tuple[MainWindow, Path]:
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir(parents=True, exist_ok=True)
+    database_path = get_database_path(workspace_root)
+    connection = connect_initialized(database_path)
+    settings_store = SettingsStore(workspace_root / "app_data" / "settings.json")
+    if settings is not None:
+        settings_store.save(settings)
+    facade = AppFacade(workspace_root, connection, settings_store)
+    window = MainWindow(_qapp(), facade, "light")
+    return window, workspace_root
+
+
+def test_import_dialog_shows_real_error_for_unsupported_file(tmp_path: Path, monkeypatch) -> None:
+    window, _ = _build_window(tmp_path)
+    captured: dict[str, str] = {}
+
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args, **kwargs: (str(tmp_path / "broken.txt"), ""))
+
+    def fake_critical(parent, title: str, text: str):
+        captured["title"] = title
+        captured["text"] = text
+        return QMessageBox.StandardButton.Ok
+
+    monkeypatch.setattr(QMessageBox, "critical", fake_critical)
+    window.open_import_dialog()
+
+    assert captured["title"] == "Импорт"
+    assert "Unsupported document format" in captured["text"]
+    window.facade.connection.close()
+
+
+def test_settings_sections_persist_real_values(tmp_path: Path, monkeypatch) -> None:
+    window, workspace_root = _build_window(tmp_path)
+    captured: dict[str, str] = {}
+
+    def fake_information(parent, title: str, text: str):
+        captured["title"] = title
+        captured["text"] = text
+        return QMessageBox.StandardButton.Ok
+
+    monkeypatch.setattr(QMessageBox, "information", fake_information)
+
+    settings_view = window.views["settings"]
+    monkeypatch.setattr(settings_view, "check_connection", lambda: None)
+
+    settings_view.theme_combo.setCurrentIndex(settings_view.theme_combo.findData("dark"))
+    settings_view.startup_view_combo.setCurrentIndex(settings_view.startup_view_combo.findData("training"))
+    settings_view.auto_check_card.toggle.setChecked(False)
+    settings_view.dlc_card.toggle.setChecked(False)
+    settings_view.default_import_dir_input.setText(str(workspace_root))
+    settings_view.import_format_combo.setCurrentIndex(settings_view.import_format_combo.findData("pdf"))
+    settings_view.import_llm_card.toggle.setChecked(False)
+    settings_view.training_mode_combo.setCurrentIndex(settings_view.training_mode_combo.findData("mini-exam"))
+    settings_view.review_mode_combo.setCurrentIndex(settings_view.review_mode_combo.findData("exam_crunch"))
+    settings_view.queue_size_combo.setCurrentIndex(settings_view.queue_size_combo.findData(12))
+    settings_view.save_settings()
+
+    saved = (workspace_root / "app_data" / "settings.json").read_text(encoding="utf-8")
+
+    assert captured["title"]
+    assert "\"theme_name\": \"dark\"" in saved
+    assert "\"startup_view\": \"training\"" in saved
+    assert "\"auto_check_ollama_on_start\": false" in saved
+    assert "\"show_dlc_teaser\": false" in saved
+    assert "\"preferred_import_format\": \"pdf\"" in saved
+    assert "\"import_llm_assist\": false" in saved
+    assert "\"default_training_mode\": \"mini-exam\"" in saved
+    assert "\"review_mode\": \"exam_crunch\"" in saved
+    assert "\"training_queue_size\": 12" in saved
+    window.facade.connection.close()
+
+
+def test_save_settings_with_invalid_ollama_url_keeps_honest_status(tmp_path: Path, monkeypatch) -> None:
+    invalid_settings = OllamaSettings(
+        base_url="http://localhost:65500",
+        model=DEFAULT_OLLAMA_SETTINGS.model,
+        models_path=DEFAULT_OLLAMA_SETTINGS.models_path,
+        timeout_seconds=2,
+        rewrite_questions=DEFAULT_OLLAMA_SETTINGS.rewrite_questions,
+        examiner_followups=DEFAULT_OLLAMA_SETTINGS.examiner_followups,
+        rule_based_fallback=DEFAULT_OLLAMA_SETTINGS.rule_based_fallback,
+    )
+    window, workspace_root = _build_window(tmp_path, invalid_settings)
+    captured: dict[str, str] = {}
+
+    def fake_information(parent, title: str, text: str):
+        captured["title"] = title
+        captured["text"] = text
+        return QMessageBox.StandardButton.Ok
+
+    monkeypatch.setattr(QMessageBox, "information", fake_information)
+
+    settings_view = window.views["settings"]
+    settings_view.url_input.setText("http://localhost:65500")
+    settings_view.model_combo.setCurrentText("mistral:instruct")
+    settings_view.timeout_stepper.set_value(2)
+    settings_view.save_settings()
+
+    settings_file = workspace_root / "app_data" / "settings.json"
+    saved = settings_file.read_text(encoding="utf-8")
+
+    assert captured["title"] == "Настройки"
+    assert "сохранены" in captured["text"]
+    assert "Недоступно" in settings_view.status_pill.text()
+    assert settings_view.error_label.text().startswith("Ошибка:")
+    assert "http://localhost:65500" in saved
+    window.facade.connection.close()
+
+
+def test_successful_import_switches_to_import_view_and_shows_handoff(tmp_path: Path, monkeypatch) -> None:
+    window, _ = _build_window(tmp_path)
+    captured: dict[str, str] = {}
+
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args, **kwargs: (str(tmp_path / "demo.docx"), ""))
+    monkeypatch.setattr(
+        AppFacade,
+        "import_document",
+        lambda self, path: ImportExecutionResult(
+            ok=True,
+            document_title="Demo Import",
+            tickets_created=12,
+            sections_created=4,
+            warnings=["Часть структуры распознана через fallback."],
+            used_llm_assist=True,
+        ),
+    )
+
+    def fake_information(parent, title: str, text: str):
+        captured["title"] = title
+        captured["text"] = text
+        return QMessageBox.StandardButton.Ok
+
+    monkeypatch.setattr(QMessageBox, "information", fake_information)
+    window.open_import_dialog()
+
+    import_view = window.views["import"]
+    assert window.current_key == "import"
+    assert captured["title"] == "Импорт"
+    assert "Разделов: 4" in captured["text"]
+    assert "LLM assist: да" in captured["text"]
+    assert import_view.summary_status.text() == "Последний импорт завершён успешно"
+    assert "Создано билетов: 12" in import_view.summary_body.text()
+    assert import_view.summary_chip.text() == "LLM assist: да"
+    assert "Откройте библиотеку" in import_view.handoff_body.text()
+    window.facade.connection.close()

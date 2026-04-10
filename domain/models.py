@@ -25,6 +25,7 @@ class DocumentData:
     imported_at: str
     size: str
     status: str
+    answer_profile_label: str = "Обычный билет"
     display_tickets_count: int = 0
     sections: list[SectionData] = field(default_factory=list)
     tickets: list[TicketData] = field(default_factory=list)

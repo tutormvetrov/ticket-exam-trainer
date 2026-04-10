@@ -31,6 +31,9 @@ class SettingsStore:
                 default_training_mode=DEFAULT_OLLAMA_SETTINGS.default_training_mode,
                 review_mode=DEFAULT_OLLAMA_SETTINGS.review_mode,
                 training_queue_size=DEFAULT_OLLAMA_SETTINGS.training_queue_size,
+                font_preset=DEFAULT_OLLAMA_SETTINGS.font_preset,
+                font_size=DEFAULT_OLLAMA_SETTINGS.font_size,
+                auto_check_updates_on_start=DEFAULT_OLLAMA_SETTINGS.auto_check_updates_on_start,
             )
 
         payload = json.loads(self.path.read_text(encoding="utf-8"))
@@ -52,6 +55,9 @@ class SettingsStore:
             default_training_mode=payload.get("default_training_mode", DEFAULT_OLLAMA_SETTINGS.default_training_mode),
             review_mode=payload.get("review_mode", DEFAULT_OLLAMA_SETTINGS.review_mode),
             training_queue_size=int(payload.get("training_queue_size", DEFAULT_OLLAMA_SETTINGS.training_queue_size)),
+            font_preset=payload.get("font_preset", DEFAULT_OLLAMA_SETTINGS.font_preset),
+            font_size=int(payload.get("font_size", DEFAULT_OLLAMA_SETTINGS.font_size)),
+            auto_check_updates_on_start=bool(payload.get("auto_check_updates_on_start", DEFAULT_OLLAMA_SETTINGS.auto_check_updates_on_start)),
         )
 
     def save(self, settings: OllamaSettings) -> None:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QElapsedTimer, Property, QPropertyAnimation, QTimer, Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
 from application.ui_data import ImportExecutionResult
 from domain.models import DocumentData
@@ -70,6 +70,19 @@ class ImportView(QWidget):
         badges.addStretch(1)
         intro_layout.addLayout(badges)
 
+        profile_row = QHBoxLayout()
+        profile_row.setContentsMargins(0, 0, 0, 0)
+        profile_row.setSpacing(10)
+        profile_label = QLabel("Профиль ответа")
+        profile_label.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+        self.answer_profile_combo = QComboBox()
+        self.answer_profile_combo.setObjectName("import-answer-profile")
+        self.answer_profile_combo.addItem("Обычный билет", "standard_ticket")
+        self.answer_profile_combo.addItem("Госэкзамен", "state_exam_public_admin")
+        profile_row.addWidget(profile_label)
+        profile_row.addWidget(self.answer_profile_combo, 1)
+        intro_layout.addLayout(profile_row)
+
         self.open_import_button = QPushButton("Открыть импорт")
         self.open_import_button.setObjectName("import-open")
         self.open_import_button.setProperty("variant", "primary")
@@ -88,27 +101,32 @@ class ImportView(QWidget):
         summary_layout.addWidget(summary_title)
 
         self.summary_status = QLabel("Импорт ещё не выполнялся")
+        self.summary_status.setProperty("skipTextAdmin", True)
         self.summary_status.setStyleSheet("font-size: 15px; font-weight: 700;")
         summary_layout.addWidget(self.summary_status)
 
         self.summary_body = QLabel(
             "После первого импорта здесь появится последний обработанный документ и честный статус его состояния."
         )
+        self.summary_body.setProperty("skipTextAdmin", True)
         self.summary_body.setWordWrap(True)
         self.summary_body.setProperty("role", "body")
         summary_layout.addWidget(self.summary_body)
 
         self.summary_meta = QLabel("База пока пуста.")
+        self.summary_meta.setProperty("skipTextAdmin", True)
         self.summary_meta.setProperty("role", "body")
         self.summary_meta.setWordWrap(True)
         summary_layout.addWidget(self.summary_meta)
 
         self.summary_chip = QLabel("")
+        self.summary_chip.setProperty("skipTextAdmin", True)
         self.summary_chip.setProperty("role", "pill")
         self.summary_chip.hide()
         summary_layout.addWidget(self.summary_chip, 0, Qt.AlignmentFlag.AlignLeft)
 
         self.progress_stage_label = QLabel("")
+        self.progress_stage_label.setProperty("skipTextAdmin", True)
         self.progress_stage_label.setStyleSheet("font-size: 13px; font-weight: 700; color: #2A3B52;")
         self.progress_stage_label.hide()
         summary_layout.addWidget(self.progress_stage_label)
@@ -140,6 +158,7 @@ class ImportView(QWidget):
         self._progress_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         self.progress_meta_label = QLabel("")
+        self.progress_meta_label.setProperty("skipTextAdmin", True)
         self.progress_meta_label.setProperty("role", "body")
         self.progress_meta_label.setWordWrap(True)
         self.progress_meta_label.hide()
@@ -161,6 +180,7 @@ class ImportView(QWidget):
         self.handoff_body = QLabel(
             "После импорта откройте библиотеку, проверьте документ и переходите к тренировке или статистике."
         )
+        self.handoff_body.setProperty("skipTextAdmin", True)
         self.handoff_body.setProperty("role", "body")
         self.handoff_body.setWordWrap(True)
         handoff_layout.addWidget(self.handoff_body)
@@ -219,6 +239,9 @@ class ImportView(QWidget):
     def is_busy(self) -> bool:
         return self._import_pending
 
+    def selected_answer_profile_code(self) -> str:
+        return str(self.answer_profile_combo.currentData() or "standard_ticket")
+
     def set_documents(self, documents: list[DocumentData]) -> None:
         self.documents = documents[:]
         self._refresh()
@@ -240,6 +263,7 @@ class ImportView(QWidget):
         self._elapsed_timer.restart()
         self._progress_timer.start()
         self._set_actions_enabled(False)
+        self.answer_profile_combo.setEnabled(False)
         self._refresh()
 
     def set_resume_pending(self, document_title: str, remaining: int) -> None:
@@ -251,6 +275,7 @@ class ImportView(QWidget):
         self._elapsed_timer.restart()
         self._progress_timer.start()
         self._set_actions_enabled(False)
+        self.answer_profile_combo.setEnabled(False)
         self._refresh()
 
     def set_import_progress(self, percent: int, stage: str, detail: str = "") -> None:
@@ -276,6 +301,7 @@ class ImportView(QWidget):
         self.training_button.setEnabled(enabled)
         self.statistics_button.setEnabled(enabled)
         self.resume_button.setEnabled(enabled)
+        self.answer_profile_combo.setEnabled(enabled)
 
     def _refresh_progress_meta(self) -> None:
         if not self._import_pending or not self._elapsed_timer.isValid():
@@ -333,6 +359,7 @@ class ImportView(QWidget):
             self.summary_status.setText("Последний импорт завершён полностью")
             self.summary_body.setText(
                 f"Документ: {result.document_title}\n"
+                f"Профиль: {result.answer_profile_label}\n"
                 f"Создано билетов: {result.tickets_created} • Разделов: {result.sections_created}"
             )
             self.summary_meta.setText(warnings_text or "Все этапы импорта и LLM-структурирования завершены.")
@@ -344,6 +371,7 @@ class ImportView(QWidget):
             self.summary_status.setText("Импорт сохранён, но LLM-хвост не добит")
             self.summary_body.setText(
                 f"Документ: {result.document_title}\n"
+                f"Профиль: {result.answer_profile_label}\n"
                 f"Создано билетов: {result.tickets_created} • Готово LLM: {result.llm_done_tickets}"
             )
             self.summary_meta.setText(

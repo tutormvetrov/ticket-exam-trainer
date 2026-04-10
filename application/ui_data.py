@@ -25,6 +25,7 @@ class StatisticsSnapshot:
 @dataclass(slots=True)
 class TicketMasteryBreakdown:
     ticket_id: str
+    answer_profile_code: str = "standard_ticket"
     definition_mastery: float = 0.0
     structure_mastery: float = 0.0
     examples_mastery: float = 0.0
@@ -34,6 +35,21 @@ class TicketMasteryBreakdown:
     oral_full_mastery: float = 0.0
     followup_mastery: float = 0.0
     confidence_score: float = 0.0
+    intro_mastery: float = 0.0
+    theory_mastery: float = 0.0
+    practice_mastery: float = 0.0
+    skills_mastery: float = 0.0
+    conclusion_mastery: float = 0.0
+    extra_mastery: float = 0.0
+    state_exam_overall_score: float = 0.0
+
+
+@dataclass(slots=True)
+class StateExamStatisticsSnapshot:
+    active: bool = False
+    block_scores: dict[str, int] = field(default_factory=dict)
+    criterion_scores: dict[str, int] = field(default_factory=dict)
+    missing_blocks: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -58,6 +74,8 @@ class ImportExecutionResult:
     document_id: str = ""
     document_title: str = ""
     status: str = ""
+    answer_profile_code: str = "standard_ticket"
+    answer_profile_label: str = "Обычный билет"
     tickets_created: int = 0
     sections_created: int = 0
     warnings: list[str] = field(default_factory=list)
@@ -76,5 +94,8 @@ class TrainingEvaluationResult:
     score_percent: int
     feedback: str
     weak_points: list[str]
+    answer_profile_code: str = "standard_ticket"
+    block_scores: dict[str, int] = field(default_factory=dict)
+    criterion_scores: dict[str, int] = field(default_factory=dict)
     followup_questions: list[str] = field(default_factory=list)
     error: str = ""

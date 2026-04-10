@@ -1,6 +1,6 @@
 # UI Click Audit
 
-- workspace: `C:\Users\tutor\AppData\Local\Temp\tezis-ui-audit-76ly4nwq`
+- workspace: `C:\Users\tutor\AppData\Local\Temp\tezis-ui-audit-xorvecuo`
 
 ## Results
 
@@ -41,7 +41,7 @@
 - `PASS` [training] mode matching: Режим открывает свой workspace с mode-specific CTA
 - `PASS` [training] mode plan: Режим открывает свой workspace с mode-specific CTA
 - `PASS` [training] mode mini-exam: Режим открывает свой workspace с mode-specific CTA
-- `PASS` [training] mode-specific scenarios: Все 6 режимов дают отдельный сценарий и реальный результат
+- `FAIL` [training] mode-specific scenarios: Не все режимы завершили mode-specific сценарий
 - `PASS` [statistics] snapshot: Экран статистики показывает реальные попытки
 - `PASS` [defense] paywall: DLC честно закрыт paywall до активации
 - `PASS` [defense] activate: Ключ активации открывает DLC-workspace
@@ -85,13 +85,14 @@
 - `open-url` file:///D:/OllamaModels
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-76ly4nwq
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-76ly4nwq
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-xorvecuo
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-xorvecuo
 - `message` Резервная копия: Резервная копия создана:
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-76ly4nwq/backups
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-76ly4nwq/audit
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-xorvecuo/backups
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-xorvecuo/audit
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/docs
 - `launch-script` C:\Users\tutor\OneDrive\Документы\Exam_revision\scripts\check_ollama.ps1
 - `message` Ollama: Запущен диагностический скрипт check_ollama.ps1 в PowerShell.
 - `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
 - `message` Настройки: Параметры сохранены и применены.
+- `message` Обновления: GitHub вернул ошибку 403.

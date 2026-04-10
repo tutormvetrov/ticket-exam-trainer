@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from application.ui_data import TicketMasteryBreakdown
+from application.answer_profile_registry import answer_profile_label
 from domain.knowledge import TicketKnowledgeMap
 from ui.components.common import CardFrame, ClickableFrame, IconBadge
 
@@ -194,6 +195,7 @@ class TicketsView(QWidget):
                 widget.deleteLater()
 
         self.detail_layout.addWidget(self._hero_card(ticket))
+        self.detail_layout.addWidget(self._answer_blocks_card(ticket))
         self.detail_layout.addWidget(self._mastery_card(ticket))
         self.detail_layout.addWidget(self._atoms_card(ticket))
         self.detail_layout.addWidget(self._weakness_card(ticket))
@@ -214,7 +216,8 @@ class TicketsView(QWidget):
         layout.addWidget(title)
 
         meta = QLabel(
-            f"Сложность: {ticket.difficulty} • Устный ответ: {ticket.estimated_oral_time_sec} сек. • Уверенность структуры: {int(ticket.source_confidence * 100)}%"
+            f"Профиль: {answer_profile_label(ticket.answer_profile_code)} • Сложность: {ticket.difficulty} • "
+            f"Устный ответ: {ticket.estimated_oral_time_sec} сек. • Уверенность структуры: {int(ticket.source_confidence * 100)}%"
         )
         meta.setProperty("role", "body")
         meta.setWordWrap(True)
@@ -224,6 +227,48 @@ class TicketsView(QWidget):
         summary.setWordWrap(True)
         summary.setProperty("role", "body")
         layout.addWidget(summary)
+        return card
+
+    def _answer_blocks_card(self, ticket: TicketKnowledgeMap) -> QWidget:
+        card = CardFrame(role="card", shadow_color=self.shadow_color)
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setSpacing(10)
+
+        title = QLabel("Структура ответа")
+        title.setProperty("role", "section-title")
+        layout.addWidget(title)
+
+        if not ticket.answer_blocks:
+            body = QLabel("Для этого билета используется обычный профиль без отдельной рубрики госэкзамена.")
+            body.setProperty("role", "body")
+            body.setWordWrap(True)
+            layout.addWidget(body)
+            return card
+
+        for block in ticket.answer_blocks:
+            row = QFrame()
+            row.setProperty("role", "subtle-card")
+            row_layout = QVBoxLayout(row)
+            row_layout.setContentsMargins(14, 12, 14, 12)
+            row_layout.setSpacing(6)
+            head = QLabel(f"{block.title} • уверенность {int(block.confidence * 100)}%")
+            head.setStyleSheet("font-size: 14px; font-weight: 700; color: #243548;")
+            row_layout.addWidget(head)
+            state = "Пробел в источнике" if block.is_missing else ("Уточнено LLM" if block.llm_assisted else "Подтверждено источником")
+            chip = QLabel(state)
+            chip.setProperty("role", "pill")
+            row_layout.addWidget(chip, 0, Qt.AlignmentFlag.AlignLeft)
+            text = QLabel(block.expected_content)
+            text.setProperty("role", "body")
+            text.setWordWrap(True)
+            row_layout.addWidget(text)
+            if block.source_excerpt:
+                excerpt = QLabel("Источник: " + block.source_excerpt)
+                excerpt.setWordWrap(True)
+                excerpt.setProperty("role", "body")
+                row_layout.addWidget(excerpt)
+            layout.addWidget(row)
         return card
 
     def _mastery_card(self, ticket: TicketKnowledgeMap) -> QWidget:

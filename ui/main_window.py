@@ -16,11 +16,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from application.admin_access import AdminAccessStore
 from application.facade import AppFacade
+from application.interface_text_store import InterfaceTextStore
 from application.settings import OllamaSettings
 from application.settings_store import SettingsStore
 from application.defense_ui_data import DefenseProcessingResult
+from application.update_service import UpdateInfo, UpdateService
 from application.ui_data import ImportExecutionResult
+from app.meta import APP_WINDOW_TITLE, GITHUB_RELEASES_URL
 from app.paths import get_readme_path
 from infrastructure.db import connect_initialized, get_database_path
 from infrastructure.ollama.service import OllamaDiagnostics
@@ -28,6 +32,7 @@ from ui.background import FunctionThread, ProgressThread
 from ui.components.sidebar import Sidebar
 from ui.components.topbar import TopBar
 from ui.theme import DARK, LIGHT, set_app_theme
+from ui.text_admin import InterfaceTextEditorDialog, apply_text_overrides, set_debug_mode
 from ui.views.defense_view import DefenseView
 from ui.views.import_view import ImportView
 from ui.views.library_view import LibraryView
@@ -51,9 +56,19 @@ class MainWindow(QMainWindow):
         self._import_thread: ProgressThread | None = None
         self._defense_thread: ProgressThread | None = None
         self._defense_eval_thread: FunctionThread | None = None
+        self._update_thread: FunctionThread | None = None
         self._is_closing = False
+        self.admin_store = AdminAccessStore(self.facade.workspace_root / "app_data" / "admin_access.json")
+        self.text_store = InterfaceTextStore(self.facade.workspace_root / "app_data" / "ui_text_overrides.json")
+        self.update_service = UpdateService()
+        self.admin_state = self.admin_store.load_state()
+        self.admin_unlocked = False
+        self.text_overrides = self.text_store.load()
+        self.latest_update_info = UpdateInfo()
+        self._update_prompted = False
+        self._manual_update_check = False
 
-        self.setWindowTitle("Тезис")
+        self.setWindowTitle(APP_WINDOW_TITLE)
         self.setMinimumSize(1280, 720)
         available = app.primaryScreen().availableGeometry()
         self.resize(
@@ -141,16 +156,26 @@ class MainWindow(QMainWindow):
         self.views["training"].evaluate_requested.connect(self.handle_training_evaluation)
         self.views["settings"].diagnostics_changed.connect(self.apply_ollama_diagnostics)
         self.views["settings"].settings_saved.connect(self.persist_settings)
+        self.views["settings"].admin_login_requested.connect(self.handle_admin_login)
+        self.views["settings"].admin_logout_requested.connect(self.handle_admin_logout)
+        self.views["settings"].admin_editor_requested.connect(self.open_interface_text_editor)
+        self.views["settings"].admin_debug_toggled.connect(self.toggle_admin_debug_mode)
+        self.views["settings"].update_check_requested.connect(lambda: self.check_for_updates(manual=True))
+        self.views["settings"].open_release_requested.connect(self.open_release_page)
 
         self.switch_view("library")
         self.topbar.set_theme_label(self.palette_name)
         self.views["library"].set_dlc_visible(self.facade.settings.show_dlc_teaser)
+        self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
+        self.views["settings"].set_update_info(self.latest_update_info)
         self.refresh_all_views()
 
         if self.facade.settings.auto_check_ollama_on_start:
             QTimer.singleShot(0, self.refresh_sidebar_ollama_status)
         else:
             self._apply_manual_ollama_status()
+        if self.facade.settings.auto_check_updates_on_start:
+            QTimer.singleShot(150, lambda: self.check_for_updates(manual=False))
 
     def switch_view(self, key: str) -> None:
         if key not in self.views:
@@ -161,6 +186,7 @@ class MainWindow(QMainWindow):
         self.sidebar.set_current(key)
         self.stack.setCurrentWidget(self.stack_pages[key])
         self.forward_search(self.topbar.search_input.text())
+        self._apply_interface_text_overrides()
 
     def open_settings_section(self, section: str) -> None:
         self.switch_view("settings")
@@ -203,21 +229,28 @@ class MainWindow(QMainWindow):
 
         self.switch_view("import")
         self.views["import"].set_import_pending(document_path.name)
+        answer_profile_code = self.views["import"].selected_answer_profile_code()
 
-        self._import_thread = ProgressThread(lambda report_progress: self._import_in_background(document_path, report_progress))
+        self._import_thread = ProgressThread(
+            lambda report_progress: self._import_in_background(document_path, answer_profile_code, report_progress)
+        )
         self._import_thread.progress_changed.connect(self.views["import"].set_import_progress)
         self._import_thread.succeeded.connect(self._finish_import)
         self._import_thread.failed.connect(self._fail_import)
         self._import_thread.finished.connect(self._clear_import_thread)
         self._import_thread.start()
 
-    def _import_in_background(self, document_path: Path, progress_callback):
+    def _import_in_background(self, document_path: Path, answer_profile_code: str, progress_callback):
         database_path = get_database_path(self.facade.workspace_root)
         connection = connect_initialized(database_path)
         settings_store = SettingsStore(self.facade.workspace_root / "app_data" / "settings.json")
         worker_facade = AppFacade(self.facade.workspace_root, connection, settings_store)
         try:
-            return worker_facade.import_document_with_progress(document_path, progress_callback=progress_callback)
+            return worker_facade.import_document_with_progress(
+                document_path,
+                answer_profile_code=answer_profile_code,
+                progress_callback=progress_callback,
+            )
         finally:
             connection.close()
 
@@ -260,18 +293,18 @@ class MainWindow(QMainWindow):
             self.facade.activate_defense_dlc(activation_code)
             self.refresh_defense_view(view.current_project_id or None)
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "DLC", str(exc))
+            QMessageBox.critical(self, "Платный модуль", str(exc))
         finally:
             view.set_activation_pending(False)
 
     def create_defense_project(self, payload: dict[str, str]) -> None:
         if not payload.get("title"):
-            QMessageBox.warning(self, "DLC", "Укажите тему работы для проекта защиты.")
+            QMessageBox.warning(self, "Платный модуль", "Укажите тему работы для проекта защиты.")
             return
         try:
             project = self.facade.create_defense_project(payload)
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "DLC", str(exc))
+            QMessageBox.critical(self, "Платный модуль", str(exc))
             return
         self.refresh_defense_view(project.project_id)
         self.switch_view("defense")
@@ -326,7 +359,7 @@ class MainWindow(QMainWindow):
         self.views["defense"].show_processing_result(
             DefenseProcessingResult(ok=False, message="", warnings=[], llm_used=False, error=error_text)
         )
-        QMessageBox.critical(self, "DLC", error_text)
+        QMessageBox.critical(self, "Платный модуль", error_text)
 
     def _clear_defense_thread(self) -> None:
         if self._defense_thread is not None:
@@ -366,7 +399,7 @@ class MainWindow(QMainWindow):
         if self._is_closing:
             return
         self.views["defense"].set_evaluation_pending(False)
-        QMessageBox.critical(self, "DLC", error_text)
+        QMessageBox.critical(self, "Платный модуль", error_text)
 
     def _clear_defense_eval_thread(self) -> None:
         if self._defense_eval_thread is not None:
@@ -401,10 +434,15 @@ class MainWindow(QMainWindow):
 
     def toggle_theme(self) -> None:
         self.palette_name = "dark" if self.palette_name == "light" else "light"
-        self.palette_colors = set_app_theme(self.app, self.palette_name)
-        self.topbar.set_theme_label(self.palette_name)
         settings = self.facade.settings
         settings.theme_name = self.palette_name
+        self.palette_colors = set_app_theme(
+            self.app,
+            self.palette_name,
+            settings.font_preset,
+            settings.font_size,
+        )
+        self.topbar.set_theme_label(self.palette_name)
         self.facade.save_settings(settings)
 
     def refresh_sidebar_ollama_status(self) -> None:
@@ -452,9 +490,16 @@ class MainWindow(QMainWindow):
         self.facade.save_settings(settings)
         if settings.theme_name != self.palette_name:
             self.palette_name = settings.theme_name
-            self.palette_colors = set_app_theme(self.app, self.palette_name)
-            self.topbar.set_theme_label(self.palette_name)
+        self.palette_colors = set_app_theme(
+            self.app,
+            self.palette_name,
+            settings.font_preset,
+            settings.font_size,
+        )
+        self.topbar.set_theme_label(self.palette_name)
         self.views["library"].set_dlc_visible(settings.show_dlc_teaser)
+        self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
+        self.views["settings"].set_update_info(self.latest_update_info)
         self.refresh_all_views()
         if self.current_key == "defense":
             self.refresh_defense_view(self.views["defense"].current_project_id or None)
@@ -462,6 +507,8 @@ class MainWindow(QMainWindow):
             self.refresh_sidebar_ollama_status()
         else:
             self._apply_manual_ollama_status()
+        if settings.auto_check_updates_on_start:
+            self.check_for_updates()
 
     def refresh_all_views(self) -> None:
         if self._is_closing or not self._connection_usable():
@@ -475,6 +522,7 @@ class MainWindow(QMainWindow):
         mastery = self.facade.load_mastery_breakdowns()
         weak_areas = self.facade.load_weak_areas()
         training_snapshot = self.facade.load_training_snapshot()
+        state_exam_statistics = self.facade.load_state_exam_statistics()
         current_diagnostics = self._display_diagnostics()
 
         self.views["library"].set_data(documents, statistics)
@@ -488,7 +536,10 @@ class MainWindow(QMainWindow):
         self.views["tickets"].set_data(tickets, mastery, weak_areas)
         self.views["training"].set_snapshot(training_snapshot)
         self.views["training"].select_mode(self.facade.settings.default_training_mode)
-        self.views["statistics"].set_data(statistics, mastery, weak_areas)
+        self.views["statistics"].set_data(statistics, mastery, weak_areas, state_exam_statistics)
+        self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
+        self.views["settings"].set_update_info(self.latest_update_info)
+        self._apply_interface_text_overrides()
 
     def open_training_mode(self, mode_key: str) -> None:
         self.switch_view("training")
@@ -504,6 +555,107 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import QUrl
 
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(get_readme_path())))
+
+    def open_release_page(self) -> None:
+        from PySide6.QtCore import QUrl
+
+        QDesktopServices.openUrl(QUrl(self.latest_update_info.release_url or GITHUB_RELEASES_URL))
+
+    def handle_admin_login(self, password: str) -> None:
+        if not self.admin_state.configured:
+            QMessageBox.warning(self, "Админ-доступ", "Пароль ещё не задан. Сначала настройте его через локальную утилиту.")
+            return
+        if not self.admin_store.verify_password(password):
+            QMessageBox.warning(self, "Админ-доступ", "Пароль не подошёл.")
+            self.views["settings"].set_admin_state(self.admin_state, False)
+            return
+        self.admin_unlocked = True
+        self.admin_state = self.admin_store.load_state()
+        self.views["settings"].set_admin_state(self.admin_state, True)
+        self._apply_interface_text_overrides()
+        if self.admin_state.debug_mode:
+            set_debug_mode(self, True)
+        QMessageBox.information(self, "Админ-доступ", "Режим администратора включён.")
+
+    def handle_admin_logout(self) -> None:
+        self.admin_unlocked = False
+        self.admin_state = self.admin_store.load_state()
+        set_debug_mode(self, False)
+        self.views["settings"].set_admin_state(self.admin_state, False)
+
+    def toggle_admin_debug_mode(self, enabled: bool) -> None:
+        if not self.admin_unlocked:
+            self.views["settings"].set_admin_state(self.admin_state, False)
+            return
+        self.admin_store.set_debug_mode(enabled)
+        self.admin_state = self.admin_store.load_state()
+        set_debug_mode(self, enabled)
+        self.views["settings"].set_admin_state(self.admin_state, True)
+        self._apply_interface_text_overrides()
+
+    def open_interface_text_editor(self) -> None:
+        if not self.admin_unlocked:
+            QMessageBox.warning(self, "Админ-доступ", "Сначала войдите как администратор.")
+            return
+        dialog = InterfaceTextEditorDialog(self, self.text_overrides)
+        if dialog.exec() != InterfaceTextEditorDialog.DialogCode.Accepted:
+            return
+        self.text_overrides = dialog.current_overrides()
+        self.text_store.save(self.text_overrides)
+        self._apply_interface_text_overrides()
+        QMessageBox.information(self, "Редактор интерфейса", "Подписи интерфейса обновлены.")
+
+    def _apply_interface_text_overrides(self) -> None:
+        apply_text_overrides(self, self.text_overrides)
+        set_debug_mode(self, self.admin_unlocked and self.admin_state.debug_mode)
+
+    def check_for_updates(self, manual: bool = True) -> None:
+        if self._update_thread is not None and self._update_thread.isRunning():
+            return
+        self._manual_update_check = manual
+        self.views["settings"].set_update_info(self.latest_update_info, pending=True)
+        self._update_thread = FunctionThread(self.update_service.check)
+        self._update_thread.succeeded.connect(self._finish_update_check)
+        self._update_thread.failed.connect(self._fail_update_check)
+        self._update_thread.finished.connect(self._clear_update_thread)
+        self._update_thread.start()
+
+    def _finish_update_check(self, update_info: UpdateInfo) -> None:
+        if self._is_closing:
+            return
+        self.latest_update_info = update_info
+        self.views["settings"].set_update_info(update_info)
+        if update_info.error_text:
+            if self._manual_update_check:
+                QMessageBox.warning(self, "Обновления", update_info.error_text)
+            return
+        if update_info.update_available:
+            if self._manual_update_check or not self._update_prompted:
+                self._update_prompted = True
+                answer = QMessageBox.question(
+                    self,
+                    "Обновления",
+                    f"Доступна версия {update_info.latest_version}. Открыть страницу релиза?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if answer == QMessageBox.StandardButton.Yes:
+                    self.open_release_page()
+            return
+        if self._manual_update_check:
+            QMessageBox.information(self, "Обновления", "Установлена актуальная версия.")
+
+    def _fail_update_check(self, error_text: str) -> None:
+        update_info = UpdateInfo(error_text=error_text)
+        self.latest_update_info = update_info
+        self.views["settings"].set_update_info(update_info)
+        if self._manual_update_check:
+            QMessageBox.warning(self, "Обновления", error_text)
+
+    def _clear_update_thread(self) -> None:
+        if self._update_thread is not None:
+            self._update_thread.deleteLater()
+        self._update_thread = None
 
     def show_dlc_teaser(self) -> None:
         self.switch_view("defense")
@@ -610,6 +762,20 @@ class MainWindow(QMainWindow):
                 self._defense_eval_thread.failed.disconnect()
             except Exception:
                 pass
+        if self._update_thread is not None:
+            try:
+                self._update_thread.succeeded.disconnect()
+            except Exception:
+                pass
+            try:
+                self._update_thread.failed.disconnect()
+            except Exception:
+                pass
+            try:
+                self._update_thread.finished.disconnect()
+            except Exception:
+                pass
+            self._update_thread.wait(3500)
         super().closeEvent(event)
 
     def _import_filter(self) -> str:

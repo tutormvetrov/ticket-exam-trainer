@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QRectF, Signal, QSize
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ui.theme import apply_shadow
 
@@ -26,8 +26,9 @@ class LogoMark(QWidget):
         painter.setPen(Qt.PenStyle.NoPen)
 
         gradient = QLinearGradient(8, 8, self.width() - 8, self.height() - 8)
-        gradient.setColorAt(0.0, QColor("#03C77E"))
-        gradient.setColorAt(1.0, QColor("#6CF6B8"))
+        gradient.setColorAt(0.0, QColor("#00A96A"))
+        gradient.setColorAt(0.55, QColor("#10D486"))
+        gradient.setColorAt(1.0, QColor("#5AF0AD"))
 
         def draw_slice(top: float, left: float, right: float, height: float, trim: float) -> None:
             path = QPainterPath()
@@ -39,6 +40,9 @@ class LogoMark(QWidget):
             path.closeSubpath()
             painter.drawPath(path)
 
+        glow_pen = QPen(QColor("#DDFBEC"), 1.6)
+        glow_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(glow_pen)
         painter.setBrush(gradient)
         draw_slice(7, 8, 42, 26, 2)
         draw_slice(23, 15, 46, 19, 4)
@@ -207,11 +211,11 @@ class DonutChart(QWidget):
         painter.drawArc(rect, 90 * 16, span)
 
         painter.setPen(QColor("#1F2A3B"))
-        painter.setFont(QFont("Segoe UI", max(14, int(round(diameter * 0.19))), 800))
+        painter.setFont(QFont(QApplication.font().family(), max(14, int(round(diameter * 0.19))), 800))
         painter.drawText(QRectF(left, top + diameter * 0.18, diameter, diameter * 0.28), Qt.AlignmentFlag.AlignCenter, f"{self.percent}%")
 
         painter.setPen(QColor("#7B8794"))
-        painter.setFont(QFont("Segoe UI", max(8, int(round(diameter * 0.09)))))
+        painter.setFont(QFont(QApplication.font().family(), max(8, int(round(diameter * 0.09)))))
         painter.drawText(
             QRectF(left, top + diameter * 0.45, diameter, diameter * 0.36),
             Qt.AlignmentFlag.AlignCenter,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor, QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication, QGraphicsDropShadowEffect, QWidget
 
 
@@ -21,6 +21,28 @@ RADII = {
     "lg": 18,
     "xl": 22,
 }
+
+FONT_PRESETS = {
+    "trebuchet": {
+        "label": "Trebuchet MS",
+        "families": ["Trebuchet MS", "Segoe UI", "Arial"],
+    },
+    "verdana": {
+        "label": "Verdana",
+        "families": ["Verdana", "Segoe UI", "Arial"],
+    },
+    "arial": {
+        "label": "Arial",
+        "families": ["Arial", "Segoe UI", "Helvetica Neue"],
+    },
+    "segoe": {
+        "label": "Segoe UI",
+        "families": ["Segoe UI", "Arial", "Helvetica Neue"],
+    },
+}
+
+DEFAULT_FONT_PRESET = "trebuchet"
+DEFAULT_FONT_SIZE = 10
 
 
 LIGHT = {
@@ -79,8 +101,47 @@ DARK = {
 }
 
 
-def app_font() -> QFont:
-    font = QFont("Segoe UI", 10)
+def _clamp(value: int, minimum: int, maximum: int) -> int:
+    return max(minimum, min(maximum, int(value)))
+
+
+def resolve_font_family(preset_key: str) -> str:
+    preset = FONT_PRESETS.get(preset_key, FONT_PRESETS[DEFAULT_FONT_PRESET])
+    available = set(QFontDatabase.families())
+    for family in preset["families"]:
+        if family in available:
+            return family
+    return QFont().defaultFamily()
+
+
+def build_typography(font_preset: str, font_size: int) -> dict[str, int | str]:
+    base_point = _clamp(font_size or DEFAULT_FONT_SIZE, 9, 16)
+    body_px = _clamp(round(base_point * 1.4), 13, 22)
+    return {
+        "family": resolve_font_family(font_preset),
+        "base_point": base_point,
+        "window_title": _clamp(body_px, 13, 18),
+        "brand_title": _clamp(body_px + 8, 22, 34),
+        "brand_subtitle": _clamp(body_px - 1, 12, 18),
+        "nav_caption": _clamp(body_px - 1, 12, 17),
+        "hero": _clamp(body_px + 12, 24, 34),
+        "page_subtitle": _clamp(body_px, 13, 20),
+        "section_title": _clamp(body_px + 2, 16, 24),
+        "card_title": _clamp(body_px + 1, 15, 22),
+        "body": body_px,
+        "muted": _clamp(body_px - 1, 12, 18),
+        "pill": _clamp(body_px - 2, 11, 16),
+        "status": _clamp(body_px - 1, 12, 18),
+        "search": _clamp(body_px + 1, 14, 22),
+        "input": body_px,
+        "button": body_px,
+        "editor": body_px,
+        "combo": body_px,
+    }
+
+
+def app_font(font_preset: str = DEFAULT_FONT_PRESET, font_size: int = DEFAULT_FONT_SIZE) -> QFont:
+    font = QFont(resolve_font_family(font_preset), _clamp(font_size or DEFAULT_FONT_SIZE, 9, 16))
     font.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
     return font
 
@@ -93,17 +154,25 @@ def apply_shadow(widget: QWidget, color: QColor, blur: int = 28, y_offset: int =
     widget.setGraphicsEffect(effect)
 
 
-def set_app_theme(app: QApplication, palette_name: str) -> dict:
+def set_app_theme(
+    app: QApplication,
+    palette_name: str,
+    font_preset: str = DEFAULT_FONT_PRESET,
+    font_size: int = DEFAULT_FONT_SIZE,
+) -> dict:
     palette = LIGHT if palette_name == "light" else DARK
-    app.setStyleSheet(build_stylesheet(palette))
+    typography = build_typography(font_preset, font_size)
+    app.setFont(app_font(font_preset, font_size))
+    app.setStyleSheet(build_stylesheet(palette, typography))
     return palette
 
 
-def build_stylesheet(colors: dict) -> str:
+def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
+    family = typography["family"]
     return f"""
     QWidget {{
         color: {colors["text"]};
-        font-family: "Segoe UI";
+        font-family: "{family}";
         background: transparent;
     }}
     QWidget#AppShell {{
@@ -159,56 +228,61 @@ def build_stylesheet(colors: dict) -> str:
         border-bottom: 1px solid {colors["border"]};
     }}
     QLabel[role="window-title"] {{
-        font-size: 14px;
+        font-size: {typography["window_title"]}px;
         font-weight: 700;
+    }}
+    QLabel[role="brand-title"] {{
+        font-size: {typography["brand_title"]}px;
+        font-weight: 800;
+        color: #035F46;
     }}
     QLabel[role="brand-subtitle"] {{
         color: {colors["text_secondary"]};
-        font-size: 13px;
+        font-size: {typography["brand_subtitle"]}px;
     }}
     QLabel[role="nav-caption"] {{
         color: {colors["text_tertiary"]};
-        font-size: 13px;
+        font-size: {typography["nav_caption"]}px;
         font-weight: 700;
         letter-spacing: 1px;
     }}
     QLabel[role="hero"] {{
-        font-size: 29px;
+        font-size: {typography["hero"]}px;
         font-weight: 800;
         color: {colors["text"]};
     }}
     QLabel[role="page-subtitle"] {{
         color: {colors["text_secondary"]};
-        font-size: 14px;
+        font-size: {typography["page_subtitle"]}px;
     }}
     QLabel[role="section-title"] {{
-        font-size: 17px;
+        font-size: {typography["section_title"]}px;
         font-weight: 700;
         color: {colors["text"]};
     }}
     QLabel[role="card-title"] {{
-        font-size: 15px;
+        font-size: {typography["card_title"]}px;
         font-weight: 700;
     }}
     QLabel[role="body"] {{
         color: {colors["text_secondary"]};
-        font-size: 14px;
+        font-size: {typography["body"]}px;
     }}
     QLabel[role="muted"] {{
         color: {colors["text_tertiary"]};
-        font-size: 13px;
+        font-size: {typography["muted"]}px;
     }}
     QLabel[role="pill"] {{
         background: {colors["card_soft"]};
         color: {colors["text_secondary"]};
         border-radius: 999px;
         padding: 4px 10px;
-        font-size: 12px;
+        font-size: {typography["pill"]}px;
         font-weight: 600;
     }}
     QLabel[role="status-ok"] {{
         color: {colors["success"]};
-        font-size: 13px;
+        font-size: {typography["status"]}px;
         font-weight: 600;
     }}
     QLineEdit[role="search"] {{
@@ -216,13 +290,13 @@ def build_stylesheet(colors: dict) -> str:
         border: 1px solid {colors["border_strong"]};
         border-radius: 14px;
         padding: 12px 14px;
-        font-size: 15px;
+        font-size: {typography["search"]}px;
     }}
     QLineEdit[role="search-plain"] {{
         background: transparent;
         border: none;
         padding: 0 14px 0 0;
-        font-size: 15px;
+        font-size: {typography["search"]}px;
     }}
     QLineEdit[role="search"]:focus,
     QLineEdit[role="form-input"]:focus {{
@@ -234,7 +308,7 @@ def build_stylesheet(colors: dict) -> str:
         border: 1px solid {colors["border_strong"]};
         border-radius: 12px;
         padding: 10px 12px;
-        font-size: 14px;
+        font-size: {typography["input"]}px;
         min-height: 20px;
     }}
     QTextEdit[role="editor"] {{
@@ -242,7 +316,7 @@ def build_stylesheet(colors: dict) -> str:
         color: {colors["text"]};
         border: none;
         padding: 4px 6px;
-        font-size: 14px;
+        font-size: {typography["editor"]}px;
         line-height: 1.4;
     }}
     QTextEdit[role="editor"]:focus {{
@@ -255,7 +329,7 @@ def build_stylesheet(colors: dict) -> str:
         border-radius: 12px;
         padding: 9px 12px;
         min-height: 20px;
-        font-size: 14px;
+        font-size: {typography["combo"]}px;
     }}
     QComboBox::drop-down {{
         border: none;
@@ -273,7 +347,7 @@ def build_stylesheet(colors: dict) -> str:
         border: 1px solid {colors["border"]};
         background: {colors["card_bg"]};
         padding: 11px 16px;
-        font-size: 14px;
+        font-size: {typography["button"]}px;
         font-weight: 600;
     }}
     QPushButton:hover {{
@@ -314,7 +388,7 @@ def build_stylesheet(colors: dict) -> str:
         color: {colors["text"]};
         text-align: left;
         padding: 12px 16px;
-        font-size: 15px;
+        font-size: {typography["button"]}px;
         font-weight: 600;
     }}
     QPushButton[variant="nav"]:hover {{
@@ -333,7 +407,7 @@ def build_stylesheet(colors: dict) -> str:
         border-radius: 0;
         padding: 12px 2px 10px 2px;
         color: {colors["text_secondary"]};
-        font-size: 14px;
+        font-size: {typography["body"]}px;
         font-weight: 600;
     }}
     QPushButton[variant="tab"]:checked {{
@@ -352,6 +426,15 @@ def build_stylesheet(colors: dict) -> str:
     QPushButton[variant="settings-nav"]:checked {{
         background: {colors["primary_soft"]};
         border-left: 4px solid {colors["primary"]};
+    }}
+    QLabel[debugText="true"] {{
+        background: rgba(3, 199, 126, 0.08);
+        border-radius: 5px;
+    }}
+    QPushButton[debugText="true"],
+    QLineEdit[debugText="true"],
+    QComboBox[debugText="true"] {{
+        border: 1px dashed #03C77E;
     }}
     QToolButton {{
         border: none;

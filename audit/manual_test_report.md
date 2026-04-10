@@ -66,3 +66,22 @@
 - Базовый тестовый контур отделён от live Ollama integration через `--run-live-ollama`.
 - Windows Ollama bridge теперь сначала уважает `OLLAMA_MODELS`, затем рабочий заполненный каталог моделей, а уже потом platform default.
 - На проверочной Windows-машине `OLLAMA_MODELS` нормализован на фактически заполненный каталог `~/.ollama/models`, после чего `scripts/check_ollama.ps1` снова подтвердил живой endpoint, модель и generate smoke.
+
+## Update 2026-04-10 10:45
+
+- В продукт встроен профиль ответа `Госэкзамен`.
+- Импорт теперь может сохранять билет как `Обычный билет` или `Госэкзамен`.
+- Для профиля `Госэкзамен` строятся 6 блоков ответа, сохраняются block scores, criterion scores и профиль освоения по блокам.
+- В тренировке добавлен отдельный режим `Полный госответ`.
+- Карточка билета показывает структуру ответа по блокам, а статистика показывает отдельный профиль готовности к госэкзамену.
+- Базовые проверки без live Ollama на этот момент: `pytest -q` -> `36 passed, 4 skipped`, `python -m compileall app application infrastructure ui tests` -> `PASS`.
+- Быстрый menu-by-menu click-audit по всему UI не зелёный полностью: в `audit/ui_click_audit.md` остаётся `FAIL` по `training -> mode-specific scenarios`. Это вынесено в `audit/open_issues.md` как открытый честный хвост, а не замаскировано.
+## Update 2026-04-10 11:20
+
+- Пересобран `dist\Tezis\Tezis.exe` и обновлён `dist\Tezis-windows.zip`.
+- Ярлык на рабочем столе пересоздан и снова указывает на `dist\Tezis\Tezis.exe`.
+- Smoke-запуск готовой сборки подтверждён: `HasExited=False`, `Responding=True`, `MainWindowTitle=Тезис`.
+- Быстрый релизный аудит перед тегом подтверждает:
+  - работает профиль `Госэкзамен` на уровне импорта, answer blocks, scoring, карточки билета и статистики;
+  - базовый non-live контур зелёный: `pytest -q` -> `36 passed, 4 skipped`;
+  - открытым остаётся один честный QA-хвост: `audit/ui_click_audit.md` всё ещё даёт `FAIL` по `training -> mode-specific scenarios`.

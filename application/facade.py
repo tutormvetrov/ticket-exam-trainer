@@ -6,14 +6,16 @@ from pathlib import Path
 import sqlite3
 
 from application.adaptive_review import AdaptiveReviewService
+from application.answer_profile_registry import answer_profile_label
 from application.defense_service import DefenseService
 from application.defense_ui_data import DefenseEvaluationResult, DefenseProcessingResult, DefenseWorkspaceSnapshot
 from application.import_service import DocumentImportService, TicketCandidate
 from application.scoring import MicroSkillScoringService
 from application.settings import OllamaSettings
 from application.settings_store import SettingsStore
-from application.ui_data import ImportExecutionResult, StatisticsSnapshot, TicketMasteryBreakdown, TrainingEvaluationResult, TrainingSnapshot
+from application.ui_data import ImportExecutionResult, StateExamStatisticsSnapshot, StatisticsSnapshot, TicketMasteryBreakdown, TrainingEvaluationResult, TrainingSnapshot
 from application.ui_query_service import UiQueryService
+from domain.answer_profile import AnswerProfileCode, TicketBlockMasteryProfile
 from domain.knowledge import Exam, ExerciseType, ReviewMode, Section, TicketMasteryProfile
 from domain.models import DocumentData, SubjectData
 from infrastructure.db import DefenseRepository, KnowledgeRepository
@@ -109,6 +111,9 @@ class AppFacade:
     def load_statistics_snapshot(self) -> StatisticsSnapshot:
         return self.queries.load_statistics_snapshot()
 
+    def load_state_exam_statistics(self) -> StateExamStatisticsSnapshot:
+        return self.queries.load_state_exam_statistics()
+
     def load_latest_import_result(self) -> ImportExecutionResult:
         return self.queries.load_latest_import_result()
 
@@ -129,16 +134,18 @@ class AppFacade:
         self.repository.save_review_queue("local-user", queue)
         return self.queries.load_training_snapshot(limit=self._settings.training_queue_size)
 
-    def import_document(self, path: str | Path) -> ImportExecutionResult:
-        return self.import_document_with_progress(path)
+    def import_document(self, path: str | Path, answer_profile_code: str | AnswerProfileCode = AnswerProfileCode.STANDARD_TICKET) -> ImportExecutionResult:
+        return self.import_document_with_progress(path, answer_profile_code=answer_profile_code)
 
     def import_document_with_progress(
         self,
         path: str | Path,
+        answer_profile_code: str | AnswerProfileCode = AnswerProfileCode.STANDARD_TICKET,
         progress_callback=None,
     ) -> ImportExecutionResult:
         document_path = Path(path)
         stem_title = normalize_import_title(document_path.stem)
+        profile_code = self._normalize_answer_profile_code(answer_profile_code)
         exam = Exam(
             exam_id="local-exam",
             title="Локальная база билетов",
@@ -159,6 +166,7 @@ class AppFacade:
                 exam_id=exam.exam_id,
                 subject_id=subject_slug,
                 default_section_id="imported-section",
+                answer_profile_code=profile_code,
                 progress_callback=progress_callback,
             )
         except Exception as exc:  # noqa: BLE001
@@ -213,6 +221,7 @@ class AppFacade:
                     queue_item.section_id,
                     prepared.source_document.document_id,
                     ticket_id=queue_item.ticket_id,
+                    answer_profile_code=prepared.source_document.answer_profile_code,
                 )
                 self.repository.save_ticket_map(
                     ticket,
@@ -327,6 +336,7 @@ class AppFacade:
                         row["section_id"],
                         document_id,
                         ticket_id=row["ticket_id"],
+                        answer_profile_code=self._normalize_answer_profile_code(source_row["answer_profile_code"]),
                     )
                 else:
                     updated_ticket, used_llm, llm_warning = service.rebuild_ticket_map(existing_ticket, source_text, force_llm=True)
@@ -383,11 +393,16 @@ class AppFacade:
         ticket = self.queries.load_ticket_map(ticket_id)
         exercise = self._pick_exercise(ticket, mode_key)
         profile = self._load_profile(ticket_id)
-        outcome = self.scoring.evaluate(ticket, exercise, answer, profile=profile)
+        block_profile = self._load_block_profile(ticket_id)
+        outcome = self.scoring.evaluate(ticket, exercise, answer, profile=profile, block_profile=block_profile)
         outcome.profile.next_review_at = datetime.now()
         self.repository.save_exercise_instances([exercise])
         self.repository.save_attempt(outcome.attempt)
+        if outcome.attempt_block_scores:
+            self.repository.save_attempt_block_scores(outcome.attempt.attempt_id, outcome.attempt_block_scores)
         self.repository.save_mastery_profile(outcome.profile)
+        if outcome.block_profile is not None:
+            self.repository.save_block_mastery_profile(outcome.block_profile)
         self.repository.save_weak_areas("local-user", ticket_id, outcome.weak_areas)
         self._refresh_review_queue()
 
@@ -410,6 +425,9 @@ class AppFacade:
             score_percent=int(round(outcome.attempt.score * 100)),
             feedback=outcome.attempt.feedback,
             weak_points=[area.title for area in outcome.weak_areas[:4]],
+            answer_profile_code=ticket.answer_profile_code.value,
+            block_scores={code.value: int(round(score * 100)) for code, score in outcome.block_scores.items()},
+            criterion_scores={code.value: int(round(score * 100)) for code, score in outcome.criterion_scores.items()},
             followup_questions=followups,
         )
 
@@ -421,6 +439,7 @@ class AppFacade:
             "matching": ExerciseType.ODD_THESIS,
             "plan": ExerciseType.STRUCTURE_RECONSTRUCTION,
             "mini-exam": ExerciseType.ORAL_FULL,
+            "state-exam-full": ExerciseType.ORAL_FULL,
         }
         target_type = type_map.get(mode_key, ExerciseType.ATOM_RECALL)
         for template in ticket.exercise_templates:
@@ -453,6 +472,27 @@ class AppFacade:
             oral_full_mastery=float(row["oral_full_mastery"]),
             followup_mastery=float(row["followup_mastery"]),
             confidence_score=float(row["confidence_score"]),
+            last_reviewed_at=datetime.fromisoformat(row["last_reviewed_at"]) if row["last_reviewed_at"] else None,
+            next_review_at=datetime.fromisoformat(row["next_review_at"]) if row["next_review_at"] else None,
+        )
+
+    def _load_block_profile(self, ticket_id: str) -> TicketBlockMasteryProfile | None:
+        row = self.connection.execute(
+            "SELECT * FROM ticket_block_mastery_profiles WHERE user_id = ? AND ticket_id = ?",
+            ("local-user", ticket_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return TicketBlockMasteryProfile(
+            user_id=row["user_id"],
+            ticket_id=row["ticket_id"],
+            intro_mastery=float(row["intro_mastery"] or 0.0),
+            theory_mastery=float(row["theory_mastery"] or 0.0),
+            practice_mastery=float(row["practice_mastery"] or 0.0),
+            skills_mastery=float(row["skills_mastery"] or 0.0),
+            conclusion_mastery=float(row["conclusion_mastery"] or 0.0),
+            extra_mastery=float(row["extra_mastery"] or 0.0),
+            overall_score=float(row["overall_score"] or 0.0),
             last_reviewed_at=datetime.fromisoformat(row["last_reviewed_at"]) if row["last_reviewed_at"] else None,
             next_review_at=datetime.fromisoformat(row["next_review_at"]) if row["next_review_at"] else None,
         )
@@ -553,6 +593,7 @@ class AppFacade:
         status = "structured" if pending == 0 and fallback == 0 and failed == 0 else "partial_llm"
         source_row = self.repository.load_source_document_row(document_id)
         ticket_total = int(source_row["ticket_total"] or 0) if source_row is not None else done + pending + fallback + failed
+        profile_code = source_row["answer_profile_code"] if source_row is not None else AnswerProfileCode.STANDARD_TICKET.value
         section_total = int(
             self.connection.execute(
                 "SELECT COUNT(DISTINCT section_id) AS total FROM tickets WHERE source_document_id = ?",
@@ -574,6 +615,8 @@ class AppFacade:
             document_id=document_id,
             document_title=document_title,
             status=status,
+            answer_profile_code=profile_code,
+            answer_profile_label=answer_profile_label(profile_code),
             tickets_created=ticket_total,
             sections_created=section_total,
             warnings=self._deduplicate_warnings(warnings),
@@ -663,6 +706,13 @@ class AppFacade:
         span = max(0, end - start)
         ratio = current / total
         return start + int(round(span * ratio))
+
+    @staticmethod
+    def _normalize_answer_profile_code(code: str | AnswerProfileCode) -> AnswerProfileCode:
+        try:
+            return AnswerProfileCode(code)
+        except ValueError:
+            return AnswerProfileCode.STANDARD_TICKET
 
     @staticmethod
     def _slug(value: str) -> str:

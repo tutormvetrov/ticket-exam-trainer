@@ -4,7 +4,7 @@ import json
 
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from application.ui_data import StatisticsSnapshot, TicketMasteryBreakdown
+from application.ui_data import StateExamStatisticsSnapshot, StatisticsSnapshot, TicketMasteryBreakdown
 from ui.components.common import CardFrame
 from ui.components.stats_panel import StatisticsPanel
 
@@ -57,20 +57,28 @@ class StatisticsView(QWidget):
         self.weak_layout.setSpacing(10)
         side.addWidget(self.weak_card)
 
+        self.state_exam_card = CardFrame(role="card", shadow_color=shadow_color)
+        self.state_exam_layout = QVBoxLayout(self.state_exam_card)
+        self.state_exam_layout.setContentsMargins(18, 18, 18, 18)
+        self.state_exam_layout.setSpacing(10)
+        side.addWidget(self.state_exam_card)
+
         body.addLayout(side, 1)
         layout.addLayout(body)
 
-        self.set_data(StatisticsSnapshot(0, 0, 0, 0, []), {}, [])
+        self.set_data(StatisticsSnapshot(0, 0, 0, 0, []), {}, [], StateExamStatisticsSnapshot())
 
     def set_data(
         self,
         snapshot: StatisticsSnapshot,
         mastery: dict[str, TicketMasteryBreakdown],
         weak_areas: list,
+        state_exam: StateExamStatisticsSnapshot,
     ) -> None:
         self.panel.set_snapshot(snapshot)
         self._render_mastery(mastery)
         self._render_weak_areas(weak_areas)
+        self._render_state_exam(state_exam)
 
     def _render_mastery(self, mastery: dict[str, TicketMasteryBreakdown]) -> None:
         _clear_layout(self.mastery_layout)
@@ -133,6 +141,49 @@ class StatisticsView(QWidget):
 
     def set_search_text(self, text: str) -> None:
         return
+
+    def _render_state_exam(self, state_exam: StateExamStatisticsSnapshot) -> None:
+        _clear_layout(self.state_exam_layout)
+
+        title = QLabel("Госэкзаменационный профиль")
+        title.setProperty("role", "section-title")
+        self.state_exam_layout.addWidget(title)
+
+        if not state_exam.active:
+            empty = QLabel("Профиль госэкзамена появится после импорта билетов с профилем «Госэкзамен».")
+            empty.setProperty("role", "body")
+            empty.setWordWrap(True)
+            self.state_exam_layout.addWidget(empty)
+            self.state_exam_layout.addStretch(1)
+            return
+
+        subtitle = QLabel("Готовность по блокам ответа")
+        subtitle.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+        self.state_exam_layout.addWidget(subtitle)
+        for name, value in state_exam.block_scores.items():
+            label = QLabel(f"• {name}: {value}%")
+            label.setProperty("role", "body")
+            self.state_exam_layout.addWidget(label)
+
+        criteria_title = QLabel("Критерии оценки")
+        criteria_title.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+        self.state_exam_layout.addWidget(criteria_title)
+        if state_exam.criterion_scores:
+            for name, value in state_exam.criterion_scores.items():
+                label = QLabel(f"• {name}: {value}%")
+                label.setProperty("role", "body")
+                label.setWordWrap(True)
+                self.state_exam_layout.addWidget(label)
+
+        if state_exam.missing_blocks:
+            missing_title = QLabel("Пробелы в материалах")
+            missing_title.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+            self.state_exam_layout.addWidget(missing_title)
+            for name, value in state_exam.missing_blocks.items():
+                label = QLabel(f"• {name}: {value} бил.")
+                label.setProperty("role", "body")
+                self.state_exam_layout.addWidget(label)
+        self.state_exam_layout.addStretch(1)
 
     @staticmethod
     def _json_list(raw_value: str | None) -> list[str]:

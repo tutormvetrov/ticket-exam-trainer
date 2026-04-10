@@ -21,14 +21,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from application.admin_access import AdminAccessState
 from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
+from application.update_service import UpdateInfo
 from app import platform as platform_helpers
+from app.meta import APP_VERSION
 from app.paths import get_app_root, get_check_script_path, get_docs_path, get_readme_path, get_setup_script_path
 from infrastructure.ollama.service import OllamaDiagnostics, OllamaService
 from ui.background import FunctionThread
 from ui.components.common import CardFrame, IconBadge
 from ui.components.settings_widgets import DiagnosticTile, NumberStepper, SettingsNavPanel, SettingsToggleCard
 from ui.training_catalog import DEFAULT_TRAINING_MODES
+from ui.theme import FONT_PRESETS
 
 
 SETTINGS_SECTIONS = [
@@ -44,6 +48,12 @@ SETTINGS_SECTIONS = [
 class SettingsView(QWidget):
     diagnostics_changed = Signal(object)
     settings_saved = Signal(object)
+    admin_login_requested = Signal(str)
+    admin_logout_requested = Signal()
+    admin_editor_requested = Signal()
+    admin_debug_toggled = Signal(bool)
+    update_check_requested = Signal()
+    open_release_requested = Signal()
 
     def __init__(
         self,
@@ -76,6 +86,9 @@ class SettingsView(QWidget):
             default_training_mode=DEFAULT_OLLAMA_SETTINGS.default_training_mode,
             review_mode=DEFAULT_OLLAMA_SETTINGS.review_mode,
             training_queue_size=DEFAULT_OLLAMA_SETTINGS.training_queue_size,
+            font_preset=DEFAULT_OLLAMA_SETTINGS.font_preset,
+            font_size=DEFAULT_OLLAMA_SETTINGS.font_size,
+            auto_check_updates_on_start=DEFAULT_OLLAMA_SETTINGS.auto_check_updates_on_start,
         )
         self._diagnostics_thread: FunctionThread | None = None
         self._refresh_models_after_check = False
@@ -209,9 +222,28 @@ class SettingsView(QWidget):
         row.addWidget(startup_block, 1)
         card_layout.addLayout(row)
 
+        typography_row = QHBoxLayout()
+        typography_row.setContentsMargins(0, 0, 0, 0)
+        typography_row.setSpacing(16)
+
+        font_block = self._labeled_block("Шрифт интерфейса")
+        self.font_preset_combo = QComboBox()
+        for preset_key in ("trebuchet", "verdana", "arial", "segoe"):
+            self.font_preset_combo.addItem(FONT_PRESETS[preset_key]["label"], preset_key)
+        self.font_preset_combo.setMinimumHeight(46)
+        font_block.layout().addWidget(self.font_preset_combo)
+        typography_row.addWidget(font_block, 1)
+
+        font_size_block = self._labeled_block("Размер текста")
+        self.font_size_stepper = NumberStepper(self.settings.font_size, minimum=9, maximum=16, step=1, label_width=56)
+        self.font_size_stepper.setMinimumHeight(46)
+        font_size_block.layout().addWidget(self.font_size_stepper)
+        typography_row.addWidget(font_size_block, 1)
+        card_layout.addLayout(typography_row)
+
         self.auto_check_card = SettingsToggleCard(
             "Автопроверка Ollama при старте",
-            "Если включено, приложение само проверяет endpoint и модель при запуске.",
+            "Если включено, приложение само проверяет адрес сервера и модель при запуске.",
             "AI",
             "#2E78E6",
             self.settings.auto_check_ollama_on_start,
@@ -219,10 +251,20 @@ class SettingsView(QWidget):
         )
         card_layout.addWidget(self.auto_check_card)
 
+        self.update_check_card = SettingsToggleCard(
+            "Автопроверка обновлений",
+            "При запуске приложение проверяет свежий релиз на GitHub и честно предлагает обновиться.",
+            "UP",
+            "#0F766E",
+            self.settings.auto_check_updates_on_start,
+            self.shadow_color,
+        )
+        card_layout.addWidget(self.update_check_card)
+
         self.dlc_card = SettingsToggleCard(
-            "Показывать DLC teaser",
-            "Оставлять на главном экране карточку будущего модуля подготовки к защите магистерской.",
-            "DLC",
+            "Показывать карточку платного модуля",
+            "Оставлять на главном экране карточку модуля подготовки к защите магистерской.",
+            "PM",
             "#7C3AED",
             self.settings.show_dlc_teaser,
             self.shadow_color,
@@ -362,7 +404,7 @@ class SettingsView(QWidget):
         note_block = self._labeled_block("Что это меняет")
         note_label = QLabel(
             "Чем больше очередь, тем больше карточек видно сразу. "
-            "Exam crunch сильнее поджимает слабые билеты и устные навыки."
+            "Экстренный режим сильнее поджимает слабые билеты и устные навыки."
         )
         note_label.setProperty("role", "body")
         note_label.setWordWrap(True)
@@ -403,6 +445,7 @@ class SettingsView(QWidget):
         header.addLayout(title_box, 1)
 
         self.status_pill = QLabel("Проверка...")
+        self.status_pill.setProperty("skipTextAdmin", True)
         self.status_pill.setStyleSheet(
             "background: #F4F7FB; color: #64748B; border-radius: 999px; padding: 10px 16px; "
             "font-size: 14px; font-weight: 700;"
@@ -490,7 +533,7 @@ class SettingsView(QWidget):
         card_layout.addWidget(self.rewrite_card)
 
         self.followups_card = SettingsToggleCard(
-            "Генерировать follow-up вопросы экзаменатора",
+            "Генерировать уточняющие вопросы экзаменатора",
             "После ответа система может задавать уточняющие вопросы по слабым местам.",
             "F",
             "#F97316",
@@ -500,8 +543,8 @@ class SettingsView(QWidget):
         card_layout.addWidget(self.followups_card)
 
         self.fallback_card = SettingsToggleCard(
-            "Автоматический fallback на rule-based",
-            "Если Ollama недоступен, приложение честно переключается на локальные правила без ложного success.",
+            "Автоматический переход на локальные правила",
+            "Если Ollama недоступен, приложение честно переключается на локальные правила без ложного сообщения об успехе.",
             "RB",
             "#64748B",
             self.settings.rule_based_fallback,
@@ -540,16 +583,19 @@ class SettingsView(QWidget):
         storage_layout.addWidget(body)
 
         self.database_path_label = QLabel()
+        self.database_path_label.setProperty("skipTextAdmin", True)
         self.database_path_label.setProperty("role", "body")
         self.database_path_label.setWordWrap(True)
         storage_layout.addWidget(self.database_path_label)
 
         self.settings_path_label = QLabel()
+        self.settings_path_label.setProperty("skipTextAdmin", True)
         self.settings_path_label.setProperty("role", "body")
         self.settings_path_label.setWordWrap(True)
         storage_layout.addWidget(self.settings_path_label)
 
         self.backups_path_label = QLabel()
+        self.backups_path_label.setProperty("skipTextAdmin", True)
         self.backups_path_label.setProperty("role", "body")
         self.backups_path_label.setWordWrap(True)
         storage_layout.addWidget(self.backups_path_label)
@@ -589,6 +635,7 @@ class SettingsView(QWidget):
         backup_layout.addWidget(backup_body)
 
         self.backup_status_label = QLabel("Резервная копия ещё не создавалась в этой сессии.")
+        self.backup_status_label.setProperty("skipTextAdmin", True)
         self.backup_status_label.setProperty("role", "body")
         self.backup_status_label.setWordWrap(True)
         backup_layout.addWidget(self.backup_status_label)
@@ -620,6 +667,10 @@ class SettingsView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
 
+        top_row = QHBoxLayout()
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(16)
+
         paths_card = CardFrame(role="card", shadow_color=self.shadow_color)
         paths_layout = QVBoxLayout(paths_card)
         paths_layout.setContentsMargins(24, 22, 24, 22)
@@ -629,17 +680,17 @@ class SettingsView(QWidget):
         title.setProperty("role", "section-title")
         paths_layout.addWidget(title)
 
-        docs_label = QLabel(f"Docs: {get_docs_path()}")
+        docs_label = QLabel(f"Папка документации: {get_docs_path()}")
         docs_label.setProperty("role", "body")
         docs_label.setWordWrap(True)
         paths_layout.addWidget(docs_label)
 
-        audit_label = QLabel(f"Audit: {self.workspace_root / 'audit'}")
+        audit_label = QLabel(f"Папка аудита: {self.workspace_root / 'audit'}")
         audit_label.setProperty("role", "body")
         audit_label.setWordWrap(True)
         paths_layout.addWidget(audit_label)
 
-        check_label = QLabel(f"{self._check_script_display_name()}: {get_check_script_path()}")
+        check_label = QLabel(f"Скрипт проверки Ollama: {get_check_script_path()}")
         check_label.setProperty("role", "body")
         check_label.setWordWrap(True)
         paths_layout.addWidget(check_label)
@@ -659,7 +710,51 @@ class SettingsView(QWidget):
         buttons.addWidget(docs_button)
         buttons.addStretch(1)
         paths_layout.addLayout(buttons)
-        layout.addWidget(paths_card)
+        top_row.addWidget(paths_card, 3)
+
+        update_card = CardFrame(role="card", shadow_color=self.shadow_color)
+        update_layout = QVBoxLayout(update_card)
+        update_layout.setContentsMargins(24, 22, 24, 22)
+        update_layout.setSpacing(14)
+
+        update_title = QLabel("Обновления")
+        update_title.setProperty("role", "section-title")
+        update_layout.addWidget(update_title)
+
+        self.update_status_label = QLabel("Проверка обновлений ещё не выполнялась.")
+        self.update_status_label.setProperty("skipTextAdmin", True)
+        self.update_status_label.setProperty("role", "body")
+        self.update_status_label.setWordWrap(True)
+        update_layout.addWidget(self.update_status_label)
+
+        self.update_meta_label = QLabel(f"Текущая версия: {APP_VERSION}")
+        self.update_meta_label.setProperty("skipTextAdmin", True)
+        self.update_meta_label.setProperty("role", "muted")
+        self.update_meta_label.setWordWrap(True)
+        update_layout.addWidget(self.update_meta_label)
+
+        update_buttons = QVBoxLayout()
+        update_buttons.setContentsMargins(0, 0, 0, 0)
+        update_buttons.setSpacing(10)
+        self.update_check_button = QPushButton("Проверить обновления")
+        self.update_check_button.setObjectName("settings-check-updates")
+        self.update_check_button.setProperty("variant", "primary")
+        self.update_check_button.clicked.connect(self.update_check_requested.emit)
+        update_buttons.addWidget(self.update_check_button)
+
+        self.open_release_button = QPushButton("Открыть страницу релиза")
+        self.open_release_button.setObjectName("settings-open-release")
+        self.open_release_button.setProperty("variant", "secondary")
+        self.open_release_button.clicked.connect(self.open_release_requested.emit)
+        self.open_release_button.setEnabled(False)
+        update_buttons.addWidget(self.open_release_button)
+        update_layout.addLayout(update_buttons)
+        top_row.addWidget(update_card, 2)
+        layout.addLayout(top_row)
+
+        lower_row = QHBoxLayout()
+        lower_row.setContentsMargins(0, 0, 0, 0)
+        lower_row.setSpacing(16)
 
         actions_card = CardFrame(role="card", shadow_color=self.shadow_color)
         actions_layout = QVBoxLayout(actions_card)
@@ -685,12 +780,77 @@ class SettingsView(QWidget):
         run_check_button.clicked.connect(self.run_check_script)
         actions_layout.addWidget(run_check_button)
 
-        open_readme_button = QPushButton("Открыть README")
+        open_readme_button = QPushButton("Открыть инструкцию")
         open_readme_button.setObjectName("settings-open-readme")
         open_readme_button.setProperty("variant", "secondary")
         open_readme_button.clicked.connect(self.open_readme)
         actions_layout.addWidget(open_readme_button)
-        layout.addWidget(actions_card)
+        lower_row.addWidget(actions_card, 3)
+
+        admin_card = CardFrame(role="card", shadow_color=self.shadow_color)
+        admin_layout = QVBoxLayout(admin_card)
+        admin_layout.setContentsMargins(24, 22, 24, 22)
+        admin_layout.setSpacing(14)
+
+        admin_title = QLabel("Админ-доступ")
+        admin_title.setProperty("role", "section-title")
+        admin_layout.addWidget(admin_title)
+
+        self.admin_status_label = QLabel("Пароль администратора не задан.")
+        self.admin_status_label.setProperty("skipTextAdmin", True)
+        self.admin_status_label.setProperty("role", "body")
+        self.admin_status_label.setWordWrap(True)
+        admin_layout.addWidget(self.admin_status_label)
+
+        self.admin_hint_label = QLabel("Пароль задаётся и сбрасывается отдельной локальной утилитой.")
+        self.admin_hint_label.setProperty("skipTextAdmin", True)
+        self.admin_hint_label.setProperty("role", "muted")
+        self.admin_hint_label.setWordWrap(True)
+        admin_layout.addWidget(self.admin_hint_label)
+
+        self.admin_password_input = QLineEdit()
+        self.admin_password_input.setObjectName("settings-admin-password")
+        self.admin_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.admin_password_input.setPlaceholderText("Введите админ-пароль")
+        self.admin_password_input.setProperty("role", "form-input")
+        self.admin_password_input.returnPressed.connect(self._emit_admin_login)
+        admin_layout.addWidget(self.admin_password_input)
+
+        admin_buttons = QHBoxLayout()
+        admin_buttons.setContentsMargins(0, 0, 0, 0)
+        admin_buttons.setSpacing(10)
+
+        self.admin_login_button = QPushButton("Войти")
+        self.admin_login_button.setObjectName("settings-admin-login")
+        self.admin_login_button.setProperty("variant", "primary")
+        self.admin_login_button.clicked.connect(self._emit_admin_login)
+        admin_buttons.addWidget(self.admin_login_button)
+
+        self.admin_logout_button = QPushButton("Выйти")
+        self.admin_logout_button.setObjectName("settings-admin-logout")
+        self.admin_logout_button.setProperty("variant", "secondary")
+        self.admin_logout_button.clicked.connect(self.admin_logout_requested.emit)
+        self.admin_logout_button.setEnabled(False)
+        admin_buttons.addWidget(self.admin_logout_button)
+        admin_layout.addLayout(admin_buttons)
+
+        self.admin_debug_button = QPushButton("Включить режим отладки")
+        self.admin_debug_button.setObjectName("settings-admin-debug")
+        self.admin_debug_button.setProperty("variant", "secondary")
+        self.admin_debug_button.setCheckable(True)
+        self.admin_debug_button.setEnabled(False)
+        self.admin_debug_button.clicked.connect(self._emit_admin_debug)
+        admin_layout.addWidget(self.admin_debug_button)
+
+        self.admin_text_button = QPushButton("Редактор подписей интерфейса")
+        self.admin_text_button.setObjectName("settings-admin-text-editor")
+        self.admin_text_button.setProperty("variant", "secondary")
+        self.admin_text_button.setEnabled(False)
+        self.admin_text_button.clicked.connect(self.admin_editor_requested.emit)
+        admin_layout.addWidget(self.admin_text_button)
+        admin_layout.addStretch(1)
+        lower_row.addWidget(admin_card, 2, Qt.AlignmentFlag.AlignBottom)
+        layout.addLayout(lower_row)
 
         layout.addStretch(1)
         return page
@@ -708,7 +868,7 @@ class SettingsView(QWidget):
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(12)
-        self.endpoint_tile = DiagnosticTile("Endpoint", "Проверка...", "Ожидание ответа сервера", "neutral", self.shadow_color)
+        self.endpoint_tile = DiagnosticTile("Сервер", "Проверка...", "Ожидание ответа сервера", "neutral", self.shadow_color)
         self.model_tile = DiagnosticTile("Модель", "Проверка...", "Ожидание списка моделей", "neutral", self.shadow_color)
         self.last_check_tile = DiagnosticTile("Последняя проверка", "Нет данных", "Проверка ещё не выполнялась", "info", self.shadow_color)
         row.addWidget(self.endpoint_tile, 1)
@@ -722,6 +882,7 @@ class SettingsView(QWidget):
         latency_layout.setSpacing(12)
         latency_layout.addWidget(IconBadge("MS", "#EEF3FF", "#3B82F6", size=28, radius=10, font_size=9))
         self.latency_label = QLabel("Время отклика: Нет данных")
+        self.latency_label.setProperty("skipTextAdmin", True)
         self.latency_label.setStyleSheet("font-size: 14px; font-weight: 600;")
         latency_layout.addWidget(self.latency_label)
         latency_layout.addStretch(1)
@@ -747,7 +908,7 @@ class SettingsView(QWidget):
         info_text.addWidget(info_body)
         info_layout.addLayout(info_text, 1)
 
-        readme_button = QPushButton("Подробнее в README")
+        readme_button = QPushButton("Подробнее в инструкции")
         readme_button.setObjectName("settings-readme-link")
         readme_button.setProperty("variant", "toolbar")
         readme_button.clicked.connect(self.open_readme)
@@ -755,6 +916,7 @@ class SettingsView(QWidget):
         layout.addWidget(info_card)
 
         self.error_label = QLabel("")
+        self.error_label.setProperty("skipTextAdmin", True)
         self.error_label.setStyleSheet("color: #D35469; font-size: 13px;")
         self.error_label.setWordWrap(True)
         layout.addWidget(self.error_label)
@@ -856,6 +1018,9 @@ class SettingsView(QWidget):
             default_training_mode=self._combo_value(self.training_mode_combo, DEFAULT_OLLAMA_SETTINGS.default_training_mode),
             review_mode=self._combo_value(self.review_mode_combo, DEFAULT_OLLAMA_SETTINGS.review_mode),
             training_queue_size=int(self.queue_size_combo.currentData() or DEFAULT_OLLAMA_SETTINGS.training_queue_size),
+            font_preset=self._combo_value(self.font_preset_combo, DEFAULT_OLLAMA_SETTINGS.font_preset),
+            font_size=self.font_size_stepper.value(),
+            auto_check_updates_on_start=self.update_check_card.toggle.isChecked(),
         )
         self.check_connection()
         self.settings_saved.emit(self.settings)
@@ -871,7 +1036,10 @@ class SettingsView(QWidget):
         self.fallback_card.toggle.setChecked(self.settings.rule_based_fallback)
         self._set_combo_value(self.theme_combo, self.settings.theme_name)
         self._set_combo_value(self.startup_view_combo, self.settings.startup_view)
+        self._set_combo_value(self.font_preset_combo, self.settings.font_preset)
+        self.font_size_stepper.set_value(self.settings.font_size)
         self.auto_check_card.toggle.setChecked(self.settings.auto_check_ollama_on_start)
+        self.update_check_card.toggle.setChecked(self.settings.auto_check_updates_on_start)
         self.dlc_card.toggle.setChecked(self.settings.show_dlc_teaser)
         self.default_import_dir_input.setText(str(self.settings.default_import_dir))
         self._set_combo_value(self.import_format_combo, self.settings.preferred_import_format)
@@ -962,7 +1130,7 @@ class SettingsView(QWidget):
         self.last_check_tile.set_content(
             "Последняя проверка",
             diagnostics.last_checked_label,
-            "Диагностика endpoint и модели",
+            "Диагностика сервера и модели",
             "info",
         )
         self.latency_label.setText(f"Время отклика: {diagnostics.latency_label}")
@@ -971,7 +1139,50 @@ class SettingsView(QWidget):
     def _refresh_storage_labels(self) -> None:
         self.database_path_label.setText(f"База данных: {self.database_path}")
         self.settings_path_label.setText(f"Файл настроек: {self.settings_path}")
-        self.backups_path_label.setText(f"Папка backups: {self.backups_dir}")
+        self.backups_path_label.setText(f"Папка резервных копий: {self.backups_dir}")
+
+    def set_admin_state(self, state: AdminAccessState, unlocked: bool) -> None:
+        if state.configured:
+            status = "Админ-пароль задан." if not unlocked else "Админ-доступ открыт."
+        else:
+            status = "Админ-пароль не задан."
+        self.admin_status_label.setText(status)
+        self.admin_hint_label.setText(
+            "Чтобы задать или сбросить пароль, используйте локальную админ-утилиту."
+            if not state.password_hint
+            else f"Подсказка: {state.password_hint}"
+        )
+        self.admin_login_button.setEnabled(state.configured and not unlocked)
+        self.admin_password_input.setEnabled(state.configured and not unlocked)
+        self.admin_logout_button.setEnabled(unlocked)
+        self.admin_debug_button.setEnabled(unlocked)
+        self.admin_text_button.setEnabled(unlocked)
+        self.admin_debug_button.setChecked(state.debug_mode if unlocked else False)
+        self.admin_debug_button.setText("Выключить режим отладки" if state.debug_mode and unlocked else "Включить режим отладки")
+        if not unlocked:
+            self.admin_password_input.clear()
+
+    def set_update_info(self, update_info: UpdateInfo, pending: bool = False) -> None:
+        if pending:
+            self.update_status_label.setText("Проверяем наличие новой версии на GitHub.")
+            self.update_meta_label.setText(f"Текущая версия: {APP_VERSION}")
+            self.open_release_button.setEnabled(False)
+            return
+        if update_info.error_text:
+            self.update_status_label.setText(update_info.error_text)
+            self.update_meta_label.setText(f"Последняя попытка: {update_info.checked_label}")
+            self.open_release_button.setEnabled(True)
+            return
+        if update_info.update_available:
+            self.update_status_label.setText(
+                f"Доступна новая версия {update_info.latest_version}. Можно открыть релиз и обновиться вручную."
+            )
+            self.update_meta_label.setText(f"Сейчас установлена версия {update_info.current_version}. Проверено: {update_info.checked_label}")
+            self.open_release_button.setEnabled(True)
+            return
+        self.update_status_label.setText("Установлена актуальная версия приложения.")
+        self.update_meta_label.setText(f"Проверено: {update_info.checked_label}")
+        self.open_release_button.setEnabled(True)
 
     def _open_path(self, path: Path) -> None:
         target = path
@@ -985,7 +1196,7 @@ class SettingsView(QWidget):
         return platform_helpers.check_script_name() or "diagnostic script"
 
     def _run_check_button_text(self) -> str:
-        return "Запустить диагностику Ollama"
+        return "Запустить проверку Ollama"
 
     def _setup_launch_message(self) -> str:
         host = platform_helpers.script_host_label()
@@ -1003,7 +1214,7 @@ class SettingsView(QWidget):
     def _unsupported_platform_message(self) -> str:
         return (
             "Для этой платформы автоскрипт не подготовлен. "
-            "Откройте README и выполните настройку локального Ollama вручную."
+            "Откройте инструкцию и выполните настройку локального Ollama вручную."
         )
 
     def run_setup_script(self) -> None:
@@ -1040,6 +1251,14 @@ class SettingsView(QWidget):
     def _combo_value(combo: QComboBox, default):
         return combo.currentData() if combo.currentData() is not None else default
 
+    def _emit_admin_login(self) -> None:
+        password = self.admin_password_input.text().strip()
+        if password:
+            self.admin_login_requested.emit(password)
+
+    def _emit_admin_debug(self) -> None:
+        self.admin_debug_toggled.emit(self.admin_debug_button.isChecked())
+
     def set_search_text(self, text: str) -> None:
         return
 
@@ -1069,10 +1288,10 @@ class SettingsView(QWidget):
         return OllamaService(self.url_input.text().strip(), timeout_seconds, models_path)
 
     def check_connection(self) -> None:
-        self._run_diagnostics(refresh_models=False, pending_message="Проверяем endpoint и модель")
+        self._run_diagnostics(refresh_models=False, pending_message="Проверяем адрес сервера и модель")
 
     def refresh_models(self) -> None:
-        self._run_diagnostics(refresh_models=True, pending_message="Проверяем endpoint, при необходимости запускаем Ollama и обновляем модели")
+        self._run_diagnostics(refresh_models=True, pending_message="Проверяем сервер, при необходимости запускаем Ollama и обновляем модели")
 
     def start_ollama_server(self) -> None:
         self._run_diagnostics(refresh_models=True, pending_message="Пробуем запустить Ollama и дождаться готовности сервера")
@@ -1105,7 +1324,7 @@ class SettingsView(QWidget):
         diagnostics = OllamaDiagnostics(
             endpoint_ok=False,
             model_ok=False,
-            endpoint_message="Endpoint недоступен",
+            endpoint_message="Сервер недоступен",
             model_message="Модель не проверена",
             model_name=self.model_combo.currentText().strip() or DEFAULT_OLLAMA_SETTINGS.model,
             error_text=error_text,

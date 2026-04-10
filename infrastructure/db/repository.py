@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from domain.answer_profile import AttemptBlockScore, TicketBlockMasteryProfile
 from domain.knowledge import (
     AttemptRecord,
     Exam,
@@ -69,14 +70,15 @@ class KnowledgeRepository:
         self.connection.execute(
             """
             INSERT INTO source_documents (
-                document_id, exam_id, subject_id, title, file_path, file_type, size_bytes,
+                document_id, exam_id, subject_id, answer_profile_code, title, file_path, file_type, size_bytes,
                 checksum, imported_at, raw_text, status, warnings_json, used_llm_assist,
                 ticket_total, tickets_llm_done, last_attempted_at, last_error
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(document_id) DO UPDATE SET
                 exam_id = excluded.exam_id,
                 subject_id = excluded.subject_id,
+                answer_profile_code = excluded.answer_profile_code,
                 title = excluded.title,
                 file_path = excluded.file_path,
                 file_type = excluded.file_type,
@@ -96,6 +98,7 @@ class KnowledgeRepository:
                 document.document_id,
                 document.exam_id,
                 document.subject_id,
+                document.answer_profile_code.value,
                 document.title,
                 document.file_path,
                 document.file_type,
@@ -119,10 +122,10 @@ class KnowledgeRepository:
             """
             INSERT INTO tickets (
                 ticket_id, exam_id, section_id, source_document_id, title,
-                canonical_answer_summary, difficulty, estimated_oral_time_sec, source_confidence,
+                canonical_answer_summary, difficulty, estimated_oral_time_sec, source_confidence, answer_profile_code,
                 llm_status, llm_error
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(ticket_id) DO UPDATE SET
                 exam_id = excluded.exam_id,
                 section_id = excluded.section_id,
@@ -132,6 +135,7 @@ class KnowledgeRepository:
                 difficulty = excluded.difficulty,
                 estimated_oral_time_sec = excluded.estimated_oral_time_sec,
                 source_confidence = excluded.source_confidence,
+                answer_profile_code = excluded.answer_profile_code,
                 llm_status = excluded.llm_status,
                 llm_error = excluded.llm_error
             """,
@@ -145,6 +149,7 @@ class KnowledgeRepository:
                 ticket.difficulty,
                 ticket.estimated_oral_time_sec,
                 ticket.source_confidence,
+                ticket.answer_profile_code.value,
                 llm_status,
                 llm_error,
             ),
@@ -152,6 +157,7 @@ class KnowledgeRepository:
 
         self._clear_ticket_children(ticket.ticket_id)
         self._save_atoms(ticket)
+        self._save_answer_blocks(ticket)
         self._save_skills(ticket)
         self._save_exercise_templates(ticket)
         self._save_scoring_rubrics(ticket)
@@ -414,6 +420,26 @@ class KnowledgeRepository:
         )
         self.connection.commit()
 
+    def save_attempt_block_scores(self, attempt_id: str, block_scores: list[AttemptBlockScore]) -> None:
+        self.connection.execute("DELETE FROM attempt_block_scores WHERE attempt_id = ?", (attempt_id,))
+        for block_score in block_scores:
+            self.connection.execute(
+                """
+                INSERT INTO attempt_block_scores (
+                    attempt_id, block_code, coverage_score, criterion_scores_json, feedback
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    attempt_id,
+                    block_score.block_code.value,
+                    block_score.coverage_score,
+                    _json_dump({code.value: value for code, value in block_score.criterion_scores.items()}),
+                    block_score.feedback,
+                ),
+            )
+        self.connection.commit()
+
     def save_mastery_profile(self, profile: TicketMasteryProfile) -> None:
         self.connection.execute(
             """
@@ -448,6 +474,42 @@ class KnowledgeRepository:
                 profile.oral_full_mastery,
                 profile.followup_mastery,
                 profile.confidence_score,
+                profile.last_reviewed_at.isoformat() if profile.last_reviewed_at else None,
+                profile.next_review_at.isoformat() if profile.next_review_at else None,
+            ),
+        )
+        self.connection.commit()
+
+    def save_block_mastery_profile(self, profile: TicketBlockMasteryProfile) -> None:
+        self.connection.execute(
+            """
+            INSERT INTO ticket_block_mastery_profiles (
+                user_id, ticket_id, intro_mastery, theory_mastery, practice_mastery,
+                skills_mastery, conclusion_mastery, extra_mastery, overall_score,
+                last_reviewed_at, next_review_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, ticket_id) DO UPDATE SET
+                intro_mastery = excluded.intro_mastery,
+                theory_mastery = excluded.theory_mastery,
+                practice_mastery = excluded.practice_mastery,
+                skills_mastery = excluded.skills_mastery,
+                conclusion_mastery = excluded.conclusion_mastery,
+                extra_mastery = excluded.extra_mastery,
+                overall_score = excluded.overall_score,
+                last_reviewed_at = excluded.last_reviewed_at,
+                next_review_at = excluded.next_review_at
+            """,
+            (
+                profile.user_id,
+                profile.ticket_id,
+                profile.intro_mastery,
+                profile.theory_mastery,
+                profile.practice_mastery,
+                profile.skills_mastery,
+                profile.conclusion_mastery,
+                profile.extra_mastery,
+                profile.overall_score,
                 profile.last_reviewed_at.isoformat() if profile.last_reviewed_at else None,
                 profile.next_review_at.isoformat() if profile.next_review_at else None,
             ),
@@ -511,6 +573,7 @@ class KnowledgeRepository:
     def _clear_ticket_children(self, ticket_id: str) -> None:
         for table_name in [
             "atoms",
+            "ticket_answer_blocks",
             "skills",
             "exercise_templates",
             "scoring_rubrics",
@@ -542,6 +605,28 @@ class KnowledgeRepository:
                     atom.confidence,
                     atom.source_excerpt,
                     index,
+                ),
+            )
+
+    def _save_answer_blocks(self, ticket: TicketKnowledgeMap) -> None:
+        for block in ticket.answer_blocks:
+            self.connection.execute(
+                """
+                INSERT INTO ticket_answer_blocks (
+                    ticket_id, block_code, title, expected_content, source_excerpt,
+                    confidence, llm_assisted, is_missing
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    ticket.ticket_id,
+                    block.block_code.value,
+                    block.title,
+                    block.expected_content,
+                    block.source_excerpt,
+                    block.confidence,
+                    int(block.llm_assisted),
+                    int(block.is_missing),
                 ),
             )
 

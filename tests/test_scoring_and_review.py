@@ -7,6 +7,7 @@ from application.concept_linking import ConceptLinkingService
 from application.exercise_generation import ExerciseGenerator
 from application.import_service import DocumentImportService, TicketCandidate
 from application.scoring import MicroSkillScoringService
+from domain.answer_profile import AnswerProfileCode
 from domain.knowledge import ExerciseType, ReviewMode, TicketMasteryProfile, WeakArea, WeakAreaKind
 
 
@@ -102,3 +103,49 @@ def test_cross_ticket_concept_linking() -> None:
     assert concepts
     assert ticket_a.cross_links_to_other_tickets
     assert ticket_b.cross_links_to_other_tickets
+
+
+def test_state_exam_scoring_adds_block_and_criterion_scores() -> None:
+    service = DocumentImportService()
+    candidate = TicketCandidate(
+        1,
+        "Что представляет собой государственное имущество как объект управления?",
+        (
+            "Актуальность вопроса связана с управлением публичными ресурсами. "
+            "Теоретическая часть включает понятие имущества, правовой режим и управленческий цикл. "
+            "Практическая часть раскрывается через учет, оценку, контроль и выбор управленческих решений. "
+            "Навыки проявляются через анализ, аргументацию и применение методов управления. "
+            "В заключении имущество рассматривается как активный ресурс публичной власти. "
+            "Дополнительно полезны схемы и сравнительный анализ практик."
+        ),
+        0.9,
+        "state-exam",
+    )
+    ticket, _, _ = service.build_ticket_map(
+        candidate,
+        "exam-demo",
+        "state-exam",
+        "doc-demo",
+        answer_profile_code=AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN,
+    )
+    exercise = next(instance for instance in ExerciseGenerator().generate(ticket) if instance.exercise_type is ExerciseType.ORAL_FULL)
+    outcome = MicroSkillScoringService().evaluate(
+        ticket,
+        exercise,
+        (
+            "Проблема управления государственным имуществом связана с эффективностью публичных ресурсов. "
+            "Теоретически важно определить правовой режим, функции и управленческий цикл. "
+            "Практически нужно учитывать имущество, оценивать его использование и предлагать меры повышения эффективности. "
+            "Навыки проявляются через анализ, выбор методов и аргументацию решений. "
+            "Итог состоит в том, что имущество является активным управленческим ресурсом. "
+            "Дополнительно можно показать схему и сравнить подходы."
+        ),
+    )
+
+    assert outcome.block_scores
+    assert len(outcome.block_scores) == 6
+    assert outcome.criterion_scores
+    assert len(outcome.criterion_scores) == 6
+    assert outcome.block_profile is not None
+    assert outcome.attempt_block_scores
+    assert any(area.kind is WeakAreaKind.ANSWER_BLOCK or area.kind is WeakAreaKind.RUBRIC_CRITERION for area in outcome.weak_areas) or outcome.attempt.score > 0

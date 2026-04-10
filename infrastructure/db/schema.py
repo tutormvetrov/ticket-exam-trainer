@@ -42,6 +42,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             document_id TEXT PRIMARY KEY,
             exam_id TEXT NOT NULL,
             subject_id TEXT NOT NULL DEFAULT '',
+            answer_profile_code TEXT NOT NULL DEFAULT 'standard_ticket',
             title TEXT NOT NULL,
             file_path TEXT NOT NULL,
             file_type TEXT NOT NULL,
@@ -76,6 +77,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             exam_id TEXT NOT NULL,
             section_id TEXT NOT NULL,
             source_document_id TEXT NOT NULL,
+            answer_profile_code TEXT NOT NULL DEFAULT 'standard_ticket',
             title TEXT NOT NULL,
             canonical_answer_summary TEXT NOT NULL,
             difficulty INTEGER NOT NULL DEFAULT 1,
@@ -230,6 +232,45 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             used_llm INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             FOREIGN KEY (exercise_id) REFERENCES exercise_instances (exercise_id) ON DELETE CASCADE,
+            FOREIGN KEY (ticket_id) REFERENCES tickets (ticket_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS ticket_answer_blocks (
+            ticket_id TEXT NOT NULL,
+            block_code TEXT NOT NULL,
+            title TEXT NOT NULL,
+            expected_content TEXT NOT NULL DEFAULT '',
+            source_excerpt TEXT NOT NULL DEFAULT '',
+            confidence REAL NOT NULL DEFAULT 0,
+            llm_assisted INTEGER NOT NULL DEFAULT 0,
+            is_missing INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (ticket_id, block_code),
+            FOREIGN KEY (ticket_id) REFERENCES tickets (ticket_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS attempt_block_scores (
+            attempt_id TEXT NOT NULL,
+            block_code TEXT NOT NULL,
+            coverage_score REAL NOT NULL DEFAULT 0,
+            criterion_scores_json TEXT NOT NULL DEFAULT '{}',
+            feedback TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (attempt_id, block_code),
+            FOREIGN KEY (attempt_id) REFERENCES attempts (attempt_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS ticket_block_mastery_profiles (
+            user_id TEXT NOT NULL,
+            ticket_id TEXT NOT NULL,
+            intro_mastery REAL NOT NULL DEFAULT 0,
+            theory_mastery REAL NOT NULL DEFAULT 0,
+            practice_mastery REAL NOT NULL DEFAULT 0,
+            skills_mastery REAL NOT NULL DEFAULT 0,
+            conclusion_mastery REAL NOT NULL DEFAULT 0,
+            extra_mastery REAL NOT NULL DEFAULT 0,
+            overall_score REAL NOT NULL DEFAULT 0,
+            last_reviewed_at TEXT,
+            next_review_at TEXT,
+            PRIMARY KEY (user_id, ticket_id),
             FOREIGN KEY (ticket_id) REFERENCES tickets (ticket_id) ON DELETE CASCADE
         );
 
@@ -420,6 +461,8 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_skills_ticket ON skills (ticket_id);
         CREATE INDEX IF NOT EXISTS idx_templates_ticket ON exercise_templates (ticket_id);
         CREATE INDEX IF NOT EXISTS idx_attempts_ticket ON attempts (ticket_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_ticket_answer_blocks_ticket ON ticket_answer_blocks (ticket_id, block_code);
+        CREATE INDEX IF NOT EXISTS idx_attempt_block_scores_attempt ON attempt_block_scores (attempt_id, block_code);
         CREATE INDEX IF NOT EXISTS idx_weak_areas_user ON weak_areas (user_id, severity DESC);
         CREATE INDEX IF NOT EXISTS idx_review_queue_user_due ON spaced_review_queue (user_id, due_at, priority DESC);
         CREATE INDEX IF NOT EXISTS idx_thesis_sources_project ON thesis_sources (project_id, version, imported_at);
@@ -439,8 +482,10 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     _ensure_column(connection, "source_documents", "tickets_llm_done", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(connection, "source_documents", "last_attempted_at", "TEXT")
     _ensure_column(connection, "source_documents", "last_error", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(connection, "source_documents", "answer_profile_code", "TEXT NOT NULL DEFAULT 'standard_ticket'")
     _ensure_column(connection, "tickets", "llm_status", "TEXT NOT NULL DEFAULT 'pending'")
     _ensure_column(connection, "tickets", "llm_error", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(connection, "tickets", "answer_profile_code", "TEXT NOT NULL DEFAULT 'standard_ticket'")
     connection.commit()
 
 

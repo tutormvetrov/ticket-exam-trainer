@@ -30,7 +30,7 @@ MODE_OPTIONS = [
     ("speech_7", "Доклад на 7 минут"),
     ("speech_10", "Доклад на 10 минут"),
     ("persona_qa", "Вопросы комиссии"),
-    ("full_mock_defense", "Полная mock-защита"),
+    ("full_mock_defense", "Полная репетиция защиты"),
 ]
 
 CLAIM_LABELS = {
@@ -93,7 +93,7 @@ class DefenseView(QWidget):
         header_box = QVBoxLayout()
         header_box.setContentsMargins(0, 0, 0, 0)
         header_box.setSpacing(4)
-        title = QLabel("Тезис DLC")
+        title = QLabel("Подготовка к защите")
         title.setProperty("role", "hero")
         header_box.addWidget(title)
 
@@ -112,7 +112,7 @@ class DefenseView(QWidget):
         status_layout = QHBoxLayout(self.status_card)
         status_layout.setContentsMargins(18, 16, 18, 16)
         status_layout.setSpacing(14)
-        status_layout.addWidget(IconBadge("DLC", "#EEF6FF", "#2E78E6", size=42, radius=13, font_size=11), 0, Qt.AlignmentFlag.AlignTop)
+        status_layout.addWidget(IconBadge("PM", "#EEF6FF", "#2E78E6", size=42, radius=13, font_size=11), 0, Qt.AlignmentFlag.AlignTop)
 
         status_text = QVBoxLayout()
         status_text.setContentsMargins(0, 0, 0, 0)
@@ -138,13 +138,13 @@ class DefenseView(QWidget):
         paywall_layout.setContentsMargins(22, 22, 22, 22)
         paywall_layout.setSpacing(12)
 
-        paywall_title = QLabel("Доступ к DLC")
+        paywall_title = QLabel("Доступ к модулю")
         paywall_title.setProperty("role", "section-title")
         paywall_layout.addWidget(paywall_title)
 
         paywall_body = QLabel(
-            "Этот контур закрыт paywall. Здесь будет локальная подготовка к защите: разбор текста, defense dossier, "
-            "текст доклада, вопросы комиссии и mock-защита."
+            "Этот раздел закрыт платным доступом. Здесь доступна локальная подготовка к защите: разбор текста, "
+            "карта защиты, текст доклада, вопросы комиссии и репетиция защиты."
         )
         paywall_body.setProperty("role", "body")
         paywall_body.setWordWrap(True)
@@ -164,10 +164,10 @@ class DefenseView(QWidget):
         activation_row.setSpacing(10)
         self.activation_input = QLineEdit()
         self.activation_input.setObjectName("defense-code")
-        self.activation_input.setPlaceholderText("Ключ активации DLC")
+        self.activation_input.setPlaceholderText("Ключ активации модуля")
         activation_row.addWidget(self.activation_input, 1)
 
-        self.activate_button = QPushButton("Активировать DLC")
+        self.activate_button = QPushButton("Активировать модуль")
         self.activate_button.setObjectName("defense-activate")
         self.activate_button.setProperty("variant", "primary")
         self.activate_button.clicked.connect(self._emit_activate)
@@ -193,7 +193,7 @@ class DefenseView(QWidget):
         projects_title.setProperty("role", "section-title")
         projects_layout.addWidget(projects_title)
 
-        self.projects_empty = QLabel("Пока нет ни одного проекта DLC.")
+        self.projects_empty = QLabel("Пока нет ни одного проекта подготовки.")
         self.projects_empty.setProperty("role", "body")
         self.projects_empty.setWordWrap(True)
         projects_layout.addWidget(self.projects_empty)
@@ -310,7 +310,7 @@ class DefenseView(QWidget):
         claims_layout = QVBoxLayout(self.claims_card)
         claims_layout.setContentsMargins(20, 20, 20, 20)
         claims_layout.setSpacing(10)
-        claims_title = QLabel("Defense dossier")
+        claims_title = QLabel("Карта защиты")
         claims_title.setProperty("role", "section-title")
         claims_layout.addWidget(claims_title)
         self.claims_label = QLabel("Сначала загрузите материалы проекта.")
@@ -352,7 +352,7 @@ class DefenseView(QWidget):
         slides_layout = QVBoxLayout(slides_card)
         slides_layout.setContentsMargins(20, 20, 20, 20)
         slides_layout.setSpacing(10)
-        slides_title = QLabel("Storyboard слайдов")
+        slides_title = QLabel("План слайдов")
         slides_title.setProperty("role", "section-title")
         slides_layout.addWidget(slides_title)
         self.slides_label = QLabel("План слайдов ещё не собран.")
@@ -410,7 +410,7 @@ class DefenseView(QWidget):
         action_row.addStretch(1)
         mock_layout.addLayout(action_row)
 
-        self.evaluation_label = QLabel("Здесь появится разбор mock-защиты.")
+        self.evaluation_label = QLabel("Здесь появится разбор репетиции защиты.")
         self.evaluation_label.setProperty("role", "body")
         self.evaluation_label.setWordWrap(True)
         mock_layout.addWidget(self.evaluation_label)
@@ -423,7 +423,7 @@ class DefenseView(QWidget):
         weak_title = QLabel("Слабые места")
         weak_title.setProperty("role", "section-title")
         weak_layout.addWidget(weak_title)
-        self.weak_label = QLabel("После mock-защиты здесь появятся рискованные зоны.")
+        self.weak_label = QLabel("После репетиции защиты здесь появятся рискованные зоны.")
         self.weak_label.setProperty("role", "body")
         self.weak_label.setWordWrap(True)
         weak_layout.addWidget(self.weak_label)
@@ -436,12 +436,12 @@ class DefenseView(QWidget):
         self.snapshot = snapshot
         self.current_project_id = snapshot.active_project.project.project_id if snapshot.active_project else ""
         self.paywall_amount.setText(f"Доступ: {snapshot.paywall_amount_label}")
-        self.install_label.setText(f"Install ID: {snapshot.install_id}")
+        self.install_label.setText(f"Идентификатор установки: {snapshot.install_id}")
         self.recommendation_label.setText(snapshot.recommendation.label)
         self.recommendation_body.setText(snapshot.recommendation.rationale)
 
         activated = snapshot.license_state.activated
-        self.license_pill.setText("DLC активно" if activated else "DLC закрыт")
+        self.license_pill.setText("Модуль активирован" if activated else "Модуль закрыт")
         self.paywall_status.setText(
             "Лицензия активирована локально. Материалы проекта остаются на этом компьютере."
             if activated
@@ -457,7 +457,7 @@ class DefenseView(QWidget):
 
     def set_activation_pending(self, pending: bool) -> None:
         self.activate_button.setEnabled(not pending)
-        self.activate_button.setText("Проверяем ключ..." if pending else "Активировать DLC")
+        self.activate_button.setText("Проверяем ключ..." if pending else "Активировать модуль")
 
     def set_processing_pending(self, project_title: str) -> None:
         self._processing = True
@@ -559,7 +559,7 @@ class DefenseView(QWidget):
             self.outline_label.setText("Контур доклада появится после обработки материалов.")
             self.slides_label.setText("План слайдов ещё не собран.")
             self.questions_label.setText("Вопросы появятся после обработки материалов.")
-            self.weak_label.setText("После mock-защиты здесь появятся рискованные зоны.")
+            self.weak_label.setText("После репетиции защиты здесь появятся рискованные зоны.")
             return
 
         self.import_button.setEnabled(not self._processing)
@@ -583,7 +583,7 @@ class DefenseView(QWidget):
             suffix = " • нужна проверка" if claim.needs_review else ""
             claim_label = CLAIM_LABELS.get(claim.kind.value, claim.kind.value)
             claim_lines.append(f"• {claim_label}: {claim.text[:180]} ({int(round(claim.confidence * 100))}%){suffix}")
-        self.claims_label.setText("\n".join(claim_lines) if claim_lines else "Defense dossier пока пуст.")
+        self.claims_label.setText("\n".join(claim_lines) if claim_lines else "Карта защиты пока пуста.")
         self._refresh_outline()
 
         if project.slides:
@@ -607,7 +607,7 @@ class DefenseView(QWidget):
         elif project.latest_score is not None:
             self.weak_label.setText(project.latest_score.summary_text)
         else:
-            self.weak_label.setText("После mock-защиты здесь появятся рискованные зоны.")
+            self.weak_label.setText("После репетиции защиты здесь появятся рискованные зоны.")
 
     def _refresh_outline(self) -> None:
         if self.snapshot is None or self.snapshot.active_project is None:

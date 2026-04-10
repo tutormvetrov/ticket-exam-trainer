@@ -152,16 +152,19 @@ class DiagnosticTile(CardFrame):
         layout.addWidget(self.badge_shell)
 
         self.title_label = QLabel()
+        self.title_label.setProperty("skipTextAdmin", True)
         self.title_label.setStyleSheet("font-size: 13px; font-weight: 700; color: #2B415C;")
         self.title_label.setWordWrap(True)
         layout.addWidget(self.title_label)
 
         self.value_label = QLabel()
+        self.value_label.setProperty("skipTextAdmin", True)
         self.value_label.setStyleSheet("font-size: 16px; font-weight: 800; color: #1F2A3B;")
         self.value_label.setWordWrap(True)
         layout.addWidget(self.value_label)
 
         self.body_label = QLabel()
+        self.body_label.setProperty("skipTextAdmin", True)
         self.body_label.setStyleSheet("font-size: 12px; color: #6B7787;")
         self.body_label.setWordWrap(True)
         self.body_label.setMaximumHeight(42)
@@ -207,9 +210,20 @@ class DiagnosticTile(CardFrame):
 class NumberStepper(QFrame):
     value_changed = Signal(int)
 
-    def __init__(self, value: int = 60) -> None:
+    def __init__(
+        self,
+        value: int = 60,
+        *,
+        minimum: int = 5,
+        maximum: int = 300,
+        step: int = 5,
+        label_width: int = 74,
+    ) -> None:
         super().__init__()
         self._value = value
+        self._minimum = minimum
+        self._maximum = maximum
+        self._step = step
         self.setProperty("role", "subtle-card")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -219,20 +233,20 @@ class NumberStepper(QFrame):
         minus.setObjectName("number-stepper-minus")
         minus.setProperty("variant", "toolbar-ghost")
         minus.setFixedWidth(42)
-        minus.clicked.connect(lambda: self._set_value(self._value - 5))
+        minus.clicked.connect(lambda: self._set_value(self._value - self._step))
         layout.addWidget(minus)
 
         self.label = QLabel(str(self._value))
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label.setStyleSheet("font-size: 15px; font-weight: 700;")
-        self.label.setFixedWidth(74)
+        self.label.setFixedWidth(label_width)
         layout.addWidget(self.label)
 
         plus = QPushButton("+")
         plus.setObjectName("number-stepper-plus")
         plus.setProperty("variant", "toolbar-ghost")
         plus.setFixedWidth(42)
-        plus.clicked.connect(lambda: self._set_value(self._value + 5))
+        plus.clicked.connect(lambda: self._set_value(self._value + self._step))
         layout.addWidget(plus)
 
     def value(self) -> int:
@@ -242,6 +256,6 @@ class NumberStepper(QFrame):
         self._set_value(value)
 
     def _set_value(self, value: int) -> None:
-        self._value = max(5, min(300, value))
+        self._value = max(self._minimum, min(self._maximum, value))
         self.label.setText(str(self._value))
         self.value_changed.emit(self._value)

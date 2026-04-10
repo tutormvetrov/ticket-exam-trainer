@@ -5,6 +5,8 @@ import hashlib
 from random import Random
 import re
 
+from application.answer_profile_registry import STATE_EXAM_PUBLIC_ADMIN_PROFILE, get_answer_profile
+from domain.answer_profile import AnswerBlockCode, AnswerProfileCode
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -44,18 +46,44 @@ def _pick_keyword(atom: KnowledgeAtom) -> str:
     return max(candidates, key=len, default="")
 
 
+def _pick_keyword_from_text(text: str) -> str:
+    candidates = [keyword for keyword in _fallback_keywords(text) if len(keyword) > 2]
+    return max(candidates, key=len, default="")
+
+
 def _seed_for(ticket_id: str, mode_key: str) -> int:
     digest = hashlib.sha256(f"{ticket_id}:{mode_key}".encode("utf-8")).hexdigest()
     return int(digest[:8], 16)
 
 
 def _reference_answer(ticket: TicketKnowledgeMap, limit: int | None = None) -> str:
+    if ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN and ticket.answer_blocks:
+        blocks = ticket.answer_blocks if limit is None else ticket.answer_blocks[:limit]
+        return "\n".join(f"{block.title}: {block.expected_content}" for block in blocks)
     if ticket.canonical_answer_summary.strip():
         return ticket.canonical_answer_summary.strip()
     atoms = [atom.text.strip() for atom in ticket.atoms if atom.text.strip()]
     if limit is not None:
         atoms = atoms[:limit]
     return "\n".join(atoms)
+
+
+def _state_exam_blocks(ticket: TicketKnowledgeMap):
+    return ticket.answer_blocks if ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN else []
+
+
+def _block_display_name(code: str) -> str:
+    for block in STATE_EXAM_PUBLIC_ADMIN_PROFILE.blocks:
+        if block.code.value == code:
+            return block.title
+    return code
+
+
+def _criterion_display_name(code: str) -> str:
+    for criterion in STATE_EXAM_PUBLIC_ADMIN_PROFILE.criteria:
+        if criterion.code.value == code:
+            return criterion.title
+    return code
 
 
 @dataclass(slots=True)
@@ -147,8 +175,34 @@ class TrainingWorkspaceBase(QWidget):
             lines.append(result.feedback)
         if result.weak_points:
             lines.append("Слабые места: " + ", ".join(result.weak_points[:4]))
+        if result.block_scores:
+            lines.append("Р‘Р»РѕРєРё РіРѕСЃРѕС‚РІРµС‚Р°:")
+            lines.extend(f"вЂў {_block_display_name(code)}: {score}%" for code, score in result.block_scores.items())
+        if result.criterion_scores:
+            lines.append("РљСЂРёС‚РµСЂРёРё РѕС†РµРЅРєРё:")
+            lines.extend(f"вЂў {_criterion_display_name(code)}: {score}%" for code, score in result.criterion_scores.items())
         if result.followup_questions:
             lines.append("Follow-up вопросы:")
+            lines.extend(f"• {question}" for question in result.followup_questions[:3])
+        self.result_body.setText("\n".join(lines))
+
+    def show_evaluation(self, result: TrainingEvaluationResult) -> None:
+        if not result.ok:
+            self.result_body.setText(result.error or "Проверка завершилась ошибкой.")
+            return
+        lines = [f"Оценка: {result.score_percent}%"]
+        if result.feedback:
+            lines.append(result.feedback)
+        if result.weak_points:
+            lines.append("Слабые места: " + ", ".join(result.weak_points[:4]))
+        if result.block_scores:
+            lines.append("Блоки госответа:")
+            lines.extend(f"• {_block_display_name(code)}: {score}%" for code, score in result.block_scores.items())
+        if result.criterion_scores:
+            lines.append("Критерии оценки:")
+            lines.extend(f"• {_criterion_display_name(code)}: {score}%" for code, score in result.criterion_scores.items())
+        if result.followup_questions:
+            lines.append("Уточняющие вопросы:")
             lines.extend(f"• {question}" for question in result.followup_questions[:3])
         self.result_body.setText("\n".join(lines))
 
@@ -239,12 +293,18 @@ class ReadingWorkspace(TrainingWorkspaceBase):
             self._show_empty()
             return
         self._show_content()
-        self.key_points.setText(
-            "Ключевые блоки билета: "
-            + ", ".join(atom.label for atom in ticket.atoms[:5])
-            if ticket.atoms
-            else "Ключевые блоки пока не выделены."
-        )
+        if ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN and ticket.answer_blocks:
+            self.key_points.setText(
+                "Структура госответа: "
+                + ", ".join(block.title for block in ticket.answer_blocks)
+            )
+        else:
+            self.key_points.setText(
+                "Ключевые блоки билета: "
+                + ", ".join(atom.label for atom in ticket.atoms[:5])
+                if ticket.atoms
+                else "Ключевые блоки пока не выделены."
+            )
         self.answer_body.setText(_reference_answer(ticket) or "Эталонный ответ пока пуст.")
         self.answer_box.hide()
         self.reveal_button.setText("Раскрыть эталонный ответ")
@@ -338,7 +398,14 @@ class ActiveRecallWorkspace(TrainingWorkspaceBase):
             self._show_empty()
             return
         self._show_content()
-        self.prompt_box.setText(f"Вопрос: {ticket.title}")
+        if ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN and ticket.answer_blocks:
+            target_blocks = ticket.answer_blocks[:2]
+            self.prompt_box.setText(
+                "Вспомните сначала вводную и теоретическую часть ответа: "
+                + ", ".join(block.title.lower() for block in target_blocks)
+            )
+        else:
+            self.prompt_box.setText(f"Вопрос: {ticket.title}")
         self.answer_body.setText(_reference_answer(ticket) or "Эталонный ответ пока пуст.")
         self.recall_input.clear()
         self.assessment_combo.setCurrentIndex(0)
@@ -367,6 +434,18 @@ class ClozeWorkspace(TrainingWorkspaceBase):
 
     def _build_prompts(self, ticket: TicketKnowledgeMap) -> list[ClozePrompt]:
         prompts: list[ClozePrompt] = []
+        if ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN and ticket.answer_blocks:
+            for block in ticket.answer_blocks[:3]:
+                if block.is_missing:
+                    continue
+                answer = _pick_keyword_from_text(block.expected_content)
+                if not answer:
+                    continue
+                masked_text = re.sub(re.escape(answer), "____", block.expected_content, count=1, flags=re.IGNORECASE)
+                if masked_text == block.expected_content:
+                    continue
+                prompts.append(ClozePrompt(block.expected_content, f"{block.title}: {masked_text}", answer))
+            return prompts
         for atom in ticket.atoms[:3]:
             answer = _pick_keyword(atom)
             if not answer:
@@ -477,19 +556,23 @@ class MatchingWorkspace(TrainingWorkspaceBase):
         if ticket is None:
             self._show_empty()
             return
-        atoms = ticket.atoms[:4]
-        if len(atoms) < 2:
+        if ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN and ticket.answer_blocks:
+            pairs = [(block.title, _compact(block.expected_content, 110)) for block in ticket.answer_blocks if not block.is_missing][:4]
+        else:
+            atoms = ticket.atoms[:4]
+            pairs = [(atom.label, _compact(atom.text, 110)) for atom in atoms]
+        if len(pairs) < 2:
             self._show_empty(body="Для сопоставления нужен билет минимум с двумя содержательными атомами знания.")
             return
         self._show_content()
-        definitions = [_compact(atom.text, 110) for atom in atoms]
+        definitions = [definition for _, definition in pairs]
         shuffled = definitions[:]
         Random(_seed_for(ticket.ticket_id, "matching")).shuffle(shuffled)
-        for atom, expected in zip(atoms, definitions):
+        for term_text, expected in pairs:
             row = QHBoxLayout()
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(10)
-            term = QLabel(atom.label)
+            term = QLabel(term_text)
             term.setStyleSheet("font-size: 14px; font-weight: 700; color: #243548;")
             term.setMinimumWidth(180)
             combo = QComboBox()
@@ -499,7 +582,7 @@ class MatchingWorkspace(TrainingWorkspaceBase):
             row.addWidget(term)
             row.addWidget(combo, 1)
             self.rows_layout.addLayout(row)
-            self.controls.append((atom.label, expected, combo))
+            self.controls.append((term_text, expected, combo))
 
 
 class PlanWorkspace(TrainingWorkspaceBase):
@@ -591,7 +674,10 @@ class PlanWorkspace(TrainingWorkspaceBase):
         if ticket is None:
             self._show_empty()
             return
-        blocks = [_compact(atom.text, 120) for atom in ticket.atoms[:5] if atom.text.strip()]
+        if ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN and ticket.answer_blocks:
+            blocks = [block.title for block in ticket.answer_blocks]
+        else:
+            blocks = [_compact(atom.text, 120) for atom in ticket.atoms[:5] if atom.text.strip()]
         if len(blocks) < 2:
             self._show_empty(body="Для сборки плана нужен билет минимум с двумя тезисами или шагами ответа.")
             return
@@ -686,8 +772,107 @@ class MiniExamWorkspace(TrainingWorkspaceBase):
             self._show_empty()
             return
         self._show_content()
-        self.ticket_badge.setText(f"Случайный билет: {ticket.title}")
+        if ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN:
+            self.ticket_badge.setText(f"Госэкзамен: {ticket.title}")
+            self.answer_input.setPlaceholderText("Дайте полный ответ так, чтобы закрыть введение, теорию, практику, навыки, вывод и дополнительные элементы.")
+        else:
+            self.ticket_badge.setText(f"Случайный билет: {ticket.title}")
+            self.answer_input.setPlaceholderText("Дайте полный ответ по билету в экзаменационном режиме.")
         self._restart_timer()
+
+
+class StateExamFullWorkspace(TrainingWorkspaceBase):
+    def __init__(self, spec: TrainingModeSpec) -> None:
+        super().__init__(spec)
+        self.block_inputs: dict[AnswerBlockCode, QTextEdit] = {}
+        self.block_rows: dict[AnswerBlockCode, QLabel] = {}
+
+        self.blocks_layout = QVBoxLayout()
+        self.blocks_layout.setContentsMargins(0, 0, 0, 0)
+        self.blocks_layout.setSpacing(12)
+        self.content_layout.insertLayout(0, self.blocks_layout)
+
+        self.submit_button = QPushButton("Проверить полный госответ")
+        self.submit_button.setObjectName("training-state-exam-submit")
+        self.submit_button.setProperty("variant", "primary")
+        self.submit_button.clicked.connect(self._submit)
+        self.content_layout.insertWidget(1, self.submit_button, 0, Qt.AlignmentFlag.AlignLeft)
+        self._show_empty()
+
+    def show_evaluation(self, result: TrainingEvaluationResult) -> None:
+        super().show_evaluation(result)
+        if not result.ok:
+            return
+        for code, label in self.block_rows.items():
+            score = result.block_scores.get(code.value)
+            if score is None:
+                continue
+            label.setText(f"{label.property('baseTitle')} • {score}%")
+
+    def _clear_blocks(self) -> None:
+        while self.blocks_layout.count():
+            item = self.blocks_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self.block_inputs.clear()
+        self.block_rows.clear()
+
+    def _submit(self) -> None:
+        if self.current_ticket is None or not self.current_ticket.answer_blocks:
+            self.result_body.setText("Для этого режима нужен билет с профилем госэкзамена.")
+            return
+        parts: list[str] = []
+        for block in self.current_ticket.answer_blocks:
+            field = self.block_inputs.get(block.block_code)
+            text = field.toPlainText().strip() if field is not None else ""
+            if text:
+                parts.append(f"{block.title}: {text}")
+        if not parts:
+            self.result_body.setText("Заполните хотя бы один блок ответа перед проверкой.")
+            return
+        self.evaluate_requested.emit("\n\n".join(parts))
+
+    def _set_ticket(self, ticket: TicketKnowledgeMap | None) -> None:
+        self._clear_blocks()
+        self.hint_label.setText(self.spec.workspace_hint)
+        if ticket is None:
+            self._show_empty()
+            return
+        if ticket.answer_profile_code != AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN or not ticket.answer_blocks:
+            self._show_empty(body="Для полного госответа нужен билет, импортированный с профилем «Госэкзамен».")
+            return
+        self._show_content()
+        profile = get_answer_profile(ticket.answer_profile_code)
+        self.hint_label.setText(profile.mode_hints.get("state-exam-full", self.spec.workspace_hint))
+        for block in ticket.answer_blocks:
+            card = QFrame()
+            card.setObjectName("StateExamBlockCard")
+            card.setStyleSheet(
+                "QFrame#StateExamBlockCard { background: #F8FBFF; border: 1px solid #D5E2F0; border-radius: 16px; }"
+            )
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(14, 12, 14, 12)
+            card_layout.setSpacing(8)
+            title = QLabel(block.title)
+            title.setProperty("baseTitle", block.title)
+            title.setStyleSheet("font-size: 14px; font-weight: 800; color: #243548;")
+            hint = QLabel(
+                "Пробел в источнике. Подготовьте этот блок отдельно."
+                if block.is_missing
+                else _compact(block.expected_content, 140)
+            )
+            hint.setProperty("role", "body")
+            hint.setWordWrap(True)
+            field = QTextEdit()
+            field.setPlaceholderText(f"Введите свою часть ответа для блока «{block.title.lower()}».")
+            field.setMinimumHeight(96)
+            card_layout.addWidget(title)
+            card_layout.addWidget(hint)
+            card_layout.addWidget(field)
+            self.blocks_layout.addWidget(card)
+            self.block_inputs[block.block_code] = field
+            self.block_rows[block.block_code] = title
 
 
 def create_training_workspaces() -> dict[str, TrainingWorkspaceBase]:
@@ -698,4 +883,5 @@ def create_training_workspaces() -> dict[str, TrainingWorkspaceBase]:
         "matching": MatchingWorkspace(TRAINING_MODE_SPECS["matching"]),
         "plan": PlanWorkspace(TRAINING_MODE_SPECS["plan"]),
         "mini-exam": MiniExamWorkspace(TRAINING_MODE_SPECS["mini-exam"]),
+        "state-exam-full": StateExamFullWorkspace(TRAINING_MODE_SPECS["state-exam-full"]),
     }

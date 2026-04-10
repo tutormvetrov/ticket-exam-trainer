@@ -91,3 +91,30 @@ def logical_gaps_prompt(question: str, user_answer: str, expected_summary: str) 
         "Identify missing logical links, omitted blocks and strong parts."
     )
     return system, prompt
+
+
+def state_exam_blocks_system_prompt() -> str:
+    return (
+        "You structure a state exam answer into fixed blocks. "
+        "Use only the provided source text. "
+        "Do not invent facts. "
+        "If a block is weak or absent, mark low confidence and keep text conservative. "
+        "Return valid JSON only."
+    )
+
+
+def state_exam_blocks_user_prompt(
+    ticket_title: str,
+    source_text: str,
+    existing_blocks: list[dict[str, object]],
+) -> str:
+    return (
+        "Task: refine the answer structure for a Russian state exam ticket.\n"
+        "Use only facts from SOURCE.\n"
+        "Return JSON with key 'blocks'.\n"
+        "Each block item must contain: block_code, title, expected_content, source_excerpt, confidence, is_missing.\n"
+        "Allowed block_code values: intro, theory, practice, skills, conclusion, extra.\n"
+        f"TICKET_TITLE: {ticket_title}\n"
+        f"CURRENT_BLOCKS: {json.dumps(existing_blocks, ensure_ascii=False)}\n"
+        f"SOURCE: {source_text}"
+    )

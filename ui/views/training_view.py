@@ -5,6 +5,7 @@ from random import Random
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QComboBox, QLabel, QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
+from application.answer_profile_registry import answer_profile_label
 from application.ui_data import TrainingEvaluationResult, TrainingSnapshot
 from domain.knowledge import TicketKnowledgeMap
 from ui.components.common import CardFrame, ClickableFrame
@@ -197,7 +198,7 @@ class TrainingView(QWidget):
 
         self.session_title.setText(ticket.title)
         self.session_meta.setText(
-            f"Атомов: {len(ticket.atoms)} • Навыков: {len(ticket.skills)} • "
+            f"Профиль: {answer_profile_label(ticket.answer_profile_code)} • Атомов: {len(ticket.atoms)} • Навыков: {len(ticket.skills)} • "
             f"Ориентир устного ответа: {ticket.estimated_oral_time_sec} сек."
         )
         self._select_ticket_in_combo(ticket_id)
@@ -322,4 +323,3 @@ class TrainingView(QWidget):
         if self.queue_buttons:
             return list(self.queue_buttons.keys())
         return [ticket.ticket_id for ticket in self.snapshot.tickets]
-

@@ -139,7 +139,7 @@ class LibraryView(QWidget):
         dlc_layout = QHBoxLayout(self.dlc_card)
         dlc_layout.setContentsMargins(18, 16, 18, 16)
         dlc_layout.setSpacing(14)
-        dlc_layout.addWidget(IconBadge("DLC", "#F5EEFF", "#7C3AED", size=44, radius=14, font_size=11), 0, Qt.AlignmentFlag.AlignTop)
+        dlc_layout.addWidget(IconBadge("PM", "#F5EEFF", "#7C3AED", size=44, radius=14, font_size=11), 0, Qt.AlignmentFlag.AlignTop)
 
         dlc_text = QVBoxLayout()
         dlc_text.setContentsMargins(0, 0, 0, 0)
@@ -147,7 +147,7 @@ class LibraryView(QWidget):
         dlc_title_row = QHBoxLayout()
         dlc_title_row.setContentsMargins(0, 0, 0, 0)
         dlc_title_row.setSpacing(10)
-        dlc_title = QLabel("DLC: Подготовка к защите магистерской")
+        dlc_title = QLabel("Платный модуль: подготовка к защите")
         dlc_title.setProperty("role", "section-title")
         dlc_title_row.addWidget(dlc_title)
         dlc_badge = QLabel("Paywall")
@@ -158,7 +158,7 @@ class LibraryView(QWidget):
 
         dlc_body = QLabel(
             "Платный локальный модуль разбирает текст магистерской, собирает defense dossier, "
-            "готовит текст защиты и проводит mock-защиту с вопросами комиссии."
+            "готовит текст защиты и проводит репетицию защиты с вопросами комиссии."
         )
         dlc_body.setProperty("role", "body")
         dlc_body.setWordWrap(True)
@@ -170,7 +170,7 @@ class LibraryView(QWidget):
         dlc_text.addWidget(dlc_meta)
         dlc_layout.addLayout(dlc_text, 1)
 
-        dlc_button = QPushButton("Открыть DLC")
+        dlc_button = QPushButton("Открыть модуль")
         dlc_button.setObjectName("library-dlc-teaser")
         dlc_button.setProperty("variant", "secondary")
         dlc_button.clicked.connect(self.dlc_requested.emit)
@@ -207,7 +207,7 @@ class LibraryView(QWidget):
             self._configure_startup_actions(
                 None,
                 ("Открыть настройки Ollama", self.ollama_settings_requested.emit, "secondary"),
-                ("README", self.readme_requested.emit, "outline"),
+                ("Инструкция", self.readme_requested.emit, "outline"),
             )
             return
 
@@ -216,7 +216,7 @@ class LibraryView(QWidget):
             self.startup_body.setText(
                 "Mistral доступен локально. Следующий шаг: импортируйте один большой DOCX или PDF через кнопку сверху."
             )
-            self.startup_meta.setText(f"Модель: {diagnostics.model_name or 'mistral:instruct'} • Endpoint: OK")
+            self.startup_meta.setText(f"Модель: {diagnostics.model_name or 'mistral:instruct'} • Сервер: OK")
             self._configure_startup_actions(
                 None,
                 ("Проверить снова", self.recheck_requested.emit, "secondary"),

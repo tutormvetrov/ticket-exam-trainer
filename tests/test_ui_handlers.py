@@ -16,6 +16,7 @@ from application.settings_store import SettingsStore
 from application.ui_data import ImportExecutionResult
 from infrastructure.db import connect_initialized, get_database_path
 from ui.main_window import MainWindow
+from ui.text_admin import collect_text_entries
 from ui.theme import set_app_theme
 
 pytestmark = pytest.mark.ui
@@ -35,7 +36,11 @@ def _build_window(tmp_path: Path, settings: OllamaSettings | None = None) -> tup
     database_path = get_database_path(workspace_root)
     connection = connect_initialized(database_path)
     settings_store = SettingsStore(workspace_root / "app_data" / "settings.json")
-    effective_settings = replace(settings or DEFAULT_OLLAMA_SETTINGS, auto_check_ollama_on_start=False)
+    effective_settings = replace(
+        settings or DEFAULT_OLLAMA_SETTINGS,
+        auto_check_ollama_on_start=False,
+        auto_check_updates_on_start=False,
+    )
     settings_store.save(effective_settings)
     facade = AppFacade(workspace_root, connection, settings_store)
     window = MainWindow(_qapp(), facade, "light")
@@ -162,13 +167,15 @@ def test_successful_import_switches_to_import_view_and_shows_handoff(tmp_path: P
     monkeypatch.setattr(
         window,
         "_import_in_background",
-        lambda path, progress_callback: (
+        lambda path, answer_profile_code, progress_callback: (
             progress_callback(42, "Построение карты билета", "Билет 5 из 12"),
             ImportExecutionResult(
                 ok=True,
                 document_id="doc-demo",
                 document_title="Demo Import",
                 status="structured",
+                answer_profile_code="state_exam_public_admin",
+                answer_profile_label="Госэкзамен",
                 tickets_created=12,
                 sections_created=4,
                 warnings=["Часть структуры распознана через fallback."],
@@ -185,6 +192,7 @@ def test_successful_import_switches_to_import_view_and_shows_handoff(tmp_path: P
     assert window.current_key == "import"
     assert import_view.summary_status.text() == "Последний импорт завершён полностью"
     assert "Создано билетов: 12" in import_view.summary_body.text()
+    assert "Госэкзамен" in import_view.summary_body.text()
     assert "LLM:" in import_view.summary_chip.text()
     assert "Откройте библиотеку" in import_view.handoff_body.text()
     assert import_view.resume_button.isHidden()
@@ -235,5 +243,39 @@ def test_import_view_shows_real_progress_state(tmp_path: Path) -> None:
     assert not import_view.progress_bar.isHidden()
     assert not import_view.progress_meta_label.isHidden()
     assert "Осталось примерно" in import_view.progress_meta_label.text() or "Оценка оставшегося времени" in import_view.progress_meta_label.text()
+    window.close()
+    window.facade.connection.close()
+
+
+def test_admin_login_enables_debug_and_text_overrides(tmp_path: Path, monkeypatch) -> None:
+    window, _ = _build_window(tmp_path)
+    window.admin_store.set_password("секрет-123", "локальная подсказка")
+    window.admin_state = window.admin_store.load_state()
+    settings_view = window.views["settings"]
+    settings_view.set_admin_state(window.admin_state, False)
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: QMessageBox.StandardButton.Ok)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.StandardButton.Ok)
+
+    window.handle_admin_login("секрет-123")
+
+    assert window.admin_unlocked is True
+    assert settings_view.admin_text_button.isEnabled()
+    assert settings_view.admin_debug_button.isEnabled()
+    assert "открыт" in settings_view.admin_status_label.text().lower()
+
+    window.toggle_admin_debug_mode(True)
+    assert window.admin_store.load_state().debug_mode is True
+    assert settings_view.admin_debug_button.isChecked() is True
+
+    entries = collect_text_entries(window, {})
+    library_button_entry = next(entry for entry in entries if "sidebar-library" in entry.key and entry.source_text == "Библиотека")
+    window.text_overrides = {library_button_entry.key: "Материалы"}
+    window._apply_interface_text_overrides()
+    assert window.sidebar.buttons["library"].text() == "Материалы"
+
+    window.handle_admin_logout()
+    assert window.admin_unlocked is False
+    assert settings_view.admin_text_button.isEnabled() is False
+
     window.close()
     window.facade.connection.close()

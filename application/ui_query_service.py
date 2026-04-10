@@ -4,7 +4,9 @@ from datetime import datetime
 import json
 import sqlite3
 
-from application.ui_data import ImportExecutionResult, SectionOverviewItem, StatisticsSnapshot, TicketMasteryBreakdown, TrainingQueueItem, TrainingSnapshot
+from application.answer_profile_registry import answer_profile_label
+from application.ui_data import ImportExecutionResult, SectionOverviewItem, StateExamStatisticsSnapshot, StatisticsSnapshot, TicketMasteryBreakdown, TrainingQueueItem, TrainingSnapshot
+from domain.answer_profile import AnswerBlockCode, AnswerCriterionCode, AnswerProfileCode, TicketAnswerBlock
 from domain.knowledge import (
     AtomType,
     CrossTicketLink,
@@ -27,7 +29,7 @@ class UiQueryService:
     def load_documents(self) -> list[DocumentData]:
         rows = self.connection.execute(
             """
-            SELECT document_id, title, file_type, subject_id, imported_at, size_bytes, status
+            SELECT document_id, title, file_type, subject_id, imported_at, size_bytes, status, answer_profile_code
             FROM source_documents
             ORDER BY imported_at DESC
             """
@@ -66,6 +68,7 @@ class UiQueryService:
                     imported_at=self._format_dt(row["imported_at"]),
                     size=self._format_size(int(row["size_bytes"] or 0)),
                     status=self._display_status(row["status"]),
+                    answer_profile_label=answer_profile_label(row["answer_profile_code"]),
                     display_tickets_count=len(tickets),
                     sections=sections,
                     tickets=tickets,
@@ -263,6 +266,23 @@ class UiQueryService:
             for row in concept_rows
         ]
 
+        block_rows = self.connection.execute(
+            "SELECT * FROM ticket_answer_blocks WHERE ticket_id = ? ORDER BY block_code",
+            (ticket_id,),
+        ).fetchall()
+        answer_blocks = [
+            TicketAnswerBlock(
+                block_code=AnswerBlockCode(row["block_code"]),
+                title=row["title"],
+                expected_content=row["expected_content"],
+                source_excerpt=row["source_excerpt"] or "",
+                confidence=float(row["confidence"] or 0.0),
+                llm_assisted=bool(row["llm_assisted"]),
+                is_missing=bool(row["is_missing"]),
+            )
+            for row in block_rows
+        ]
+
         return TicketKnowledgeMap(
             ticket_id=ticket_row["ticket_id"],
             exam_id=ticket_row["exam_id"],
@@ -279,6 +299,8 @@ class UiQueryService:
             difficulty=int(ticket_row["difficulty"]),
             estimated_oral_time_sec=int(ticket_row["estimated_oral_time_sec"]),
             source_confidence=float(ticket_row["source_confidence"] or 0.0),
+            answer_profile_code=AnswerProfileCode(ticket_row["answer_profile_code"] or AnswerProfileCode.STANDARD_TICKET),
+            answer_blocks=answer_blocks,
         )
 
     def load_statistics_snapshot(self) -> StatisticsSnapshot:
@@ -320,6 +342,81 @@ class UiQueryService:
             recent_sessions=recent_sessions,
         )
 
+    def load_state_exam_statistics(self) -> StateExamStatisticsSnapshot:
+        ticket_rows = self.connection.execute(
+            """
+            SELECT ticket_id
+            FROM tickets
+            WHERE answer_profile_code = ?
+            """,
+            (AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN.value,),
+        ).fetchall()
+        if not ticket_rows:
+            return StateExamStatisticsSnapshot(active=False)
+
+        block_rows = self.connection.execute(
+            """
+            SELECT *
+            FROM ticket_block_mastery_profiles
+            JOIN tickets ON tickets.ticket_id = ticket_block_mastery_profiles.ticket_id
+            WHERE tickets.answer_profile_code = ?
+            """,
+            (AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN.value,),
+        ).fetchall()
+        block_scores = {
+            "Введение": self._avg_percent(block_rows, "intro_mastery"),
+            "Теория": self._avg_percent(block_rows, "theory_mastery"),
+            "Практика": self._avg_percent(block_rows, "practice_mastery"),
+            "Навыки": self._avg_percent(block_rows, "skills_mastery"),
+            "Заключение": self._avg_percent(block_rows, "conclusion_mastery"),
+            "Доп. элементы": self._avg_percent(block_rows, "extra_mastery"),
+        }
+
+        criterion_rows = self.connection.execute(
+            """
+            SELECT criterion_scores_json
+            FROM attempt_block_scores
+            JOIN attempts ON attempts.attempt_id = attempt_block_scores.attempt_id
+            JOIN tickets ON tickets.ticket_id = attempts.ticket_id
+            WHERE tickets.answer_profile_code = ?
+            """,
+            (AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN.value,),
+        ).fetchall()
+        criterion_values: dict[str, list[float]] = {
+            criterion.value: [] for criterion in AnswerCriterionCode
+        }
+        for row in criterion_rows:
+            payload = json.loads(row["criterion_scores_json"] or "{}")
+            for key, value in payload.items():
+                if key in criterion_values:
+                    criterion_values[key].append(float(value))
+        criterion_scores = {
+            self._criterion_display_name(code): int(round((sum(values) / len(values)) * 100))
+            for code, values in criterion_values.items()
+            if values
+        }
+
+        missing_rows = self.connection.execute(
+            """
+            SELECT block_code, COUNT(*) AS total
+            FROM ticket_answer_blocks
+            JOIN tickets ON tickets.ticket_id = ticket_answer_blocks.ticket_id
+            WHERE tickets.answer_profile_code = ? AND is_missing = 1
+            GROUP BY block_code
+            """,
+            (AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN.value,),
+        ).fetchall()
+        missing_blocks = {
+            self._block_display_name(row["block_code"]): int(row["total"] or 0)
+            for row in missing_rows
+        }
+        return StateExamStatisticsSnapshot(
+            active=True,
+            block_scores=block_scores,
+            criterion_scores=criterion_scores,
+            missing_blocks=missing_blocks,
+        )
+
     def load_profiles(self) -> dict[str, float]:
         rows = self.connection.execute(
             "SELECT ticket_id, confidence_score FROM ticket_mastery_profiles"
@@ -327,10 +424,27 @@ class UiQueryService:
         return {row["ticket_id"]: float(row["confidence_score"] or 0.0) for row in rows}
 
     def load_mastery_breakdowns(self) -> dict[str, TicketMasteryBreakdown]:
-        rows = self.connection.execute("SELECT * FROM ticket_mastery_profiles").fetchall()
+        rows = self.connection.execute(
+            """
+            SELECT ticket_mastery_profiles.*, tickets.answer_profile_code,
+                   COALESCE(ticket_block_mastery_profiles.intro_mastery, 0) AS intro_mastery,
+                   COALESCE(ticket_block_mastery_profiles.theory_mastery, 0) AS theory_mastery,
+                   COALESCE(ticket_block_mastery_profiles.practice_mastery, 0) AS practice_mastery,
+                   COALESCE(ticket_block_mastery_profiles.skills_mastery, 0) AS skills_mastery,
+                   COALESCE(ticket_block_mastery_profiles.conclusion_mastery, 0) AS conclusion_mastery,
+                   COALESCE(ticket_block_mastery_profiles.extra_mastery, 0) AS extra_mastery,
+                   COALESCE(ticket_block_mastery_profiles.overall_score, 0) AS state_exam_overall_score
+            FROM ticket_mastery_profiles
+            LEFT JOIN tickets ON tickets.ticket_id = ticket_mastery_profiles.ticket_id
+            LEFT JOIN ticket_block_mastery_profiles
+                ON ticket_block_mastery_profiles.user_id = ticket_mastery_profiles.user_id
+               AND ticket_block_mastery_profiles.ticket_id = ticket_mastery_profiles.ticket_id
+            """
+        ).fetchall()
         return {
             row["ticket_id"]: TicketMasteryBreakdown(
                 ticket_id=row["ticket_id"],
+                answer_profile_code=row["answer_profile_code"] or AnswerProfileCode.STANDARD_TICKET.value,
                 definition_mastery=float(row["definition_mastery"] or 0.0),
                 structure_mastery=float(row["structure_mastery"] or 0.0),
                 examples_mastery=float(row["examples_mastery"] or 0.0),
@@ -340,6 +454,13 @@ class UiQueryService:
                 oral_full_mastery=float(row["oral_full_mastery"] or 0.0),
                 followup_mastery=float(row["followup_mastery"] or 0.0),
                 confidence_score=float(row["confidence_score"] or 0.0),
+                intro_mastery=float(row["intro_mastery"] or 0.0),
+                theory_mastery=float(row["theory_mastery"] or 0.0),
+                practice_mastery=float(row["practice_mastery"] or 0.0),
+                skills_mastery=float(row["skills_mastery"] or 0.0),
+                conclusion_mastery=float(row["conclusion_mastery"] or 0.0),
+                extra_mastery=float(row["extra_mastery"] or 0.0),
+                state_exam_overall_score=float(row["state_exam_overall_score"] or 0.0),
             )
             for row in rows
         }
@@ -436,6 +557,8 @@ class UiQueryService:
             document_id=row["document_id"],
             document_title=self._display_document_title(row["title"]),
             status=status,
+            answer_profile_code=row["answer_profile_code"] or AnswerProfileCode.STANDARD_TICKET.value,
+            answer_profile_label=answer_profile_label(row["answer_profile_code"]),
             tickets_created=ticket_total,
             sections_created=int(
                 self.connection.execute(
@@ -517,6 +640,37 @@ class UiQueryService:
         if title.strip().lower() == "imported section":
             return "Основной раздел"
         return title
+
+    @staticmethod
+    def _avg_percent(rows: list[sqlite3.Row], field_name: str) -> int:
+        if not rows:
+            return 0
+        values = [float(row[field_name] or 0.0) for row in rows]
+        return int(round((sum(values) / len(values)) * 100))
+
+    @staticmethod
+    def _criterion_display_name(code: str) -> str:
+        mapping = {
+            AnswerCriterionCode.COMPLETENESS.value: "Полнота",
+            AnswerCriterionCode.DEPTH.value: "Глубина анализа",
+            AnswerCriterionCode.STRUCTURE.value: "Логичность и структура",
+            AnswerCriterionCode.PRACTICAL.value: "Практическая направленность",
+            AnswerCriterionCode.ORIGINALITY.value: "Оригинальность",
+            AnswerCriterionCode.COMPETENCE.value: "Соответствие компетенциям",
+        }
+        return mapping.get(code, code)
+
+    @staticmethod
+    def _block_display_name(code: str) -> str:
+        mapping = {
+            AnswerBlockCode.INTRO.value: "Введение",
+            AnswerBlockCode.THEORY.value: "Теория",
+            AnswerBlockCode.PRACTICE.value: "Практика",
+            AnswerBlockCode.SKILLS.value: "Навыки",
+            AnswerBlockCode.CONCLUSION.value: "Заключение",
+            AnswerBlockCode.EXTRA.value: "Дополнительные элементы",
+        }
+        return mapping.get(code, code)
 
     @staticmethod
     def _display_ticket_title(title: str | None) -> str:

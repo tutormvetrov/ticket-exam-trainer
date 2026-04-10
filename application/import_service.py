@@ -7,7 +7,9 @@ import re
 from typing import Callable
 from uuid import uuid4
 
+from application.answer_block_builder import AnswerBlockBuilder
 from application.exercise_generation import ExerciseGenerator
+from domain.answer_profile import AnswerProfileCode
 from domain.knowledge import (
     AtomType,
     CrossTicketLink,
@@ -98,6 +100,7 @@ class DocumentImportService:
         enable_llm_structuring: bool = False,
     ) -> None:
         self.exercise_generator = ExerciseGenerator()
+        self.answer_block_builder = AnswerBlockBuilder()
         self.ollama_service = ollama_service
         self.llm_model = llm_model
         self.enable_llm_structuring = enable_llm_structuring
@@ -108,6 +111,7 @@ class DocumentImportService:
         exam_id: str,
         subject_id: str,
         default_section_id: str,
+        answer_profile_code: AnswerProfileCode | str = AnswerProfileCode.STANDARD_TICKET,
         progress_callback: ImportProgressCallback | None = None,
     ) -> StructuredImportResult:
         prepared = self.prepare_import(
@@ -115,6 +119,7 @@ class DocumentImportService:
             exam_id,
             subject_id,
             default_section_id,
+            answer_profile_code=answer_profile_code,
             progress_callback=progress_callback,
         )
 
@@ -127,7 +132,13 @@ class DocumentImportService:
             detail = f"Билет {index} из {total_candidates}: {candidate.title[:72]}"
             self._report_progress(progress_callback, self._loop_progress(build_start, build_end, index - 1, total_candidates), "Построение карты билета", detail)
             section_id = self.resolve_section_id(candidate, default_section_id)
-            ticket, used_llm, llm_warning = self.build_ticket_map(candidate, exam_id, section_id, prepared.source_document.document_id)
+            ticket, used_llm, llm_warning = self.build_ticket_map(
+                candidate,
+                exam_id,
+                section_id,
+                prepared.source_document.document_id,
+                answer_profile_code=prepared.source_document.answer_profile_code,
+            )
             used_llm_assist = used_llm_assist or used_llm
             if llm_warning:
                 prepared.warnings.append(llm_warning)
@@ -161,6 +172,7 @@ class DocumentImportService:
         exam_id: str,
         subject_id: str,
         default_section_id: str,
+        answer_profile_code: AnswerProfileCode | str = AnswerProfileCode.STANDARD_TICKET,
         progress_callback: ImportProgressCallback | None = None,
     ) -> PreparedImportBundle:
         self._report_progress(progress_callback, 3, "Чтение документа", "Извлекаем текст из исходного файла")
@@ -188,6 +200,7 @@ class DocumentImportService:
             size_bytes=imported.path.stat().st_size,
             imported_at=datetime.now(),
             checksum="",
+            answer_profile_code=self._normalize_answer_profile_code(answer_profile_code),
         )
         return PreparedImportBundle(
             source_document=source_document,
@@ -245,6 +258,7 @@ class DocumentImportService:
                 ticket.section_id,
                 ticket.source_document_id,
                 ticket_id=ticket.ticket_id,
+                answer_profile_code=ticket.answer_profile_code,
             )
         finally:
             self.enable_llm_structuring = original_flag
@@ -354,8 +368,10 @@ class DocumentImportService:
         section_id: str,
         source_document_id: str,
         ticket_id: str | None = None,
+        answer_profile_code: AnswerProfileCode | str = AnswerProfileCode.STANDARD_TICKET,
     ) -> tuple[TicketKnowledgeMap, bool, str]:
         ticket_key = ticket_id or self.make_ticket_id(candidate, source_document_id)
+        normalized_profile = self._normalize_answer_profile_code(answer_profile_code)
         atoms = self.extract_atoms(candidate.body, ticket_key)
         summary = self.build_summary(atoms)
         examiner_prompts = self.build_examiner_prompts(candidate.title, atoms)
@@ -382,6 +398,19 @@ class DocumentImportService:
             elif llm_result.error:
                 warning = f"LLM structuring fallback: {llm_result.error}"
 
+        answer_block_result = self.answer_block_builder.build(
+            ticket_title=candidate.title,
+            source_text=candidate.body,
+            atoms=atoms,
+            profile_code=normalized_profile,
+            llm_service=self.ollama_service,
+            llm_model=self.llm_model,
+            enable_llm=self.enable_llm_structuring,
+        )
+        used_llm = used_llm or answer_block_result.used_llm
+        if answer_block_result.warning:
+            warning = "; ".join(item for item in [warning, answer_block_result.warning] if item)
+
         skills = self.derive_skills(atoms)
         exercise_templates = self.derive_exercise_templates(atoms, skills)
         scoring_rubric = self.build_scoring_rubric(skills)
@@ -401,6 +430,8 @@ class DocumentImportService:
             difficulty=difficulty,
             estimated_oral_time_sec=estimated_oral_time_sec,
             source_confidence=candidate.confidence,
+            answer_profile_code=normalized_profile,
+            answer_blocks=answer_block_result.blocks,
         )
         ticket.validate()
         return ticket, used_llm, warning
@@ -410,6 +441,13 @@ class DocumentImportService:
 
     def resolve_section_id(self, candidate: TicketCandidate, default_section_id: str) -> str:
         return self._slug(candidate.section_title or default_section_id)
+
+    @staticmethod
+    def _normalize_answer_profile_code(code: AnswerProfileCode | str) -> AnswerProfileCode:
+        try:
+            return AnswerProfileCode(code)
+        except ValueError:
+            return AnswerProfileCode.STANDARD_TICKET
 
     @staticmethod
     def _report_progress(

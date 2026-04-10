@@ -10,6 +10,7 @@ from application.facade import AppFacade
 from application.import_service import DocumentImportService, TicketCandidate
 from application.settings import DEFAULT_OLLAMA_SETTINGS
 from application.settings_store import SettingsStore
+from domain.answer_profile import AnswerBlockCode, AnswerProfileCode
 from domain.knowledge import Exam, Section
 from infrastructure.db import connect_initialized, get_database_path
 
@@ -28,7 +29,16 @@ def _build_facade(tmp_path: Path) -> AppFacade:
     database_path = get_database_path(workspace_root)
     connection = connect_initialized(database_path)
     settings_store = SettingsStore(workspace_root / "app_data" / "settings.json")
-    settings_store.save(replace(DEFAULT_OLLAMA_SETTINGS, auto_check_ollama_on_start=False))
+    settings_store.save(
+        replace(
+            DEFAULT_OLLAMA_SETTINGS,
+            auto_check_ollama_on_start=False,
+            auto_check_updates_on_start=False,
+            import_llm_assist=False,
+            examiner_followups=False,
+            rewrite_questions=False,
+        )
+    )
     return AppFacade(workspace_root, connection, settings_store)
 
 
@@ -47,6 +57,45 @@ def test_build_ticket_model_from_text() -> None:
     assert ticket.skills
     assert not used_llm
     assert warning == ""
+
+
+def test_state_exam_profile_builds_answer_blocks() -> None:
+    service = DocumentImportService()
+    candidate = TicketCandidate(
+        index=1,
+        title="Что представляет собой государственное имущество как объект управления?",
+        body=(
+            "Проблема управления государственным имуществом связана с эффективным использованием публичных ресурсов. "
+            "Теоретическая основа включает понятие публичного имущества, правовой режим и управленческий цикл. "
+            "Практическая часть раскрывается через учет, оценку, контроль использования и выбор мер повышения эффективности. "
+            "Навыки проявляются через анализ, аргументацию и подбор инструментов управления. "
+            "Таким образом, имущество выступает активным управленческим ресурсом. "
+            "Дополнительно можно использовать схемы и сравнение практик."
+        ),
+        confidence=0.9,
+        section_title="state-exam",
+    )
+    ticket, used_llm, warning = service.build_ticket_map(
+        candidate,
+        "exam-demo",
+        "state-exam",
+        "doc-demo",
+        answer_profile_code=AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN,
+    )
+
+    assert not used_llm
+    assert warning == ""
+    assert ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN
+    assert len(ticket.answer_blocks) == 6
+    assert {block.block_code for block in ticket.answer_blocks} == {
+        AnswerBlockCode.INTRO,
+        AnswerBlockCode.THEORY,
+        AnswerBlockCode.PRACTICE,
+        AnswerBlockCode.SKILLS,
+        AnswerBlockCode.CONCLUSION,
+        AnswerBlockCode.EXTRA,
+    }
+    assert not any(block.is_missing for block in ticket.answer_blocks)
 
 
 def test_docx_import_smoke(tmp_path: Path) -> None:
@@ -93,11 +142,27 @@ def test_incremental_import_preserves_saved_tickets_and_resume_finishes_tail(tmp
 
     monkeypatch.setattr(DocumentImportService, "should_use_llm_for_structuring", lambda *args, **kwargs: False)
 
-    def flaky_build(self, candidate, exam_id, section_id, source_document_id, ticket_id=None):
+    def flaky_build(
+        self,
+        candidate,
+        exam_id,
+        section_id,
+        source_document_id,
+        ticket_id=None,
+        answer_profile_code=AnswerProfileCode.STANDARD_TICKET,
+    ):
         if candidate.index == 2 and not state["failed_once"]:
             state["failed_once"] = True
             raise RuntimeError("forced partial failure")
-        return original_build(self, candidate, exam_id, section_id, source_document_id, ticket_id=ticket_id)
+        return original_build(
+            self,
+            candidate,
+            exam_id,
+            section_id,
+            source_document_id,
+            ticket_id=ticket_id,
+            answer_profile_code=answer_profile_code,
+        )
 
     monkeypatch.setattr(DocumentImportService, "build_ticket_map", flaky_build)
 
@@ -187,4 +252,52 @@ def test_import_ollama_timeout_is_unbounded_for_long_import_runs(tmp_path: Path)
     assert service.ollama_service is not None
     assert service.ollama_service.timeout_seconds is None
     assert service.ollama_service.client.timeout_seconds is None
+    facade.connection.close()
+
+
+def test_state_exam_import_persists_block_scores_and_statistics(tmp_path: Path) -> None:
+    document_path = tmp_path / "state-exam.docx"
+    document = Document()
+    document.add_paragraph(
+        "Билет 1. Что представляет собой государственное имущество как объект управления? "
+        "Актуальность темы связана с управлением публичными ресурсами и эффективностью власти. "
+        "Теоретическая часть включает понятие имущества, правовой режим и управленческий цикл. "
+        "Практическая часть раскрывается через учет, оценку, контроль и выбор управленческих решений. "
+        "Навыки проявляются через анализ, аргументацию и применение методов управления. "
+        "В заключении имущество рассматривается как активный управленческий ресурс. "
+        "Дополнительно полезны схемы и сравнительный анализ практик."
+    )
+    document.save(document_path)
+
+    facade = _build_facade(tmp_path)
+    result = facade.import_document_with_progress(document_path, answer_profile_code=AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN)
+
+    assert result.ok
+    assert result.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN.value
+    assert result.answer_profile_label == "Госэкзамен"
+    ticket_id = facade.connection.execute("SELECT ticket_id FROM tickets LIMIT 1").fetchone()["ticket_id"]
+
+    evaluation = facade.evaluate_answer(
+        ticket_id,
+        "state-exam-full",
+        (
+            "Проблема управления государственным имуществом связана с эффективным использованием публичных ресурсов. "
+            "Теоретически важно определить правовой режим имущества и управленческий цикл. "
+            "Практически нужно учитывать имущество, оценивать его использование и предлагать меры повышения эффективности. "
+            "Навыки проявляются через анализ, применение методов и аргументацию решений. "
+            "Вывод состоит в том, что имущество является активным ресурсом публичной власти. "
+            "Дополнительно можно использовать схемы и сравнение практик."
+        ),
+    )
+
+    assert evaluation.ok
+    assert len(evaluation.block_scores) == 6
+    assert len(evaluation.criterion_scores) == 6
+    assert facade.connection.execute("SELECT COUNT(*) AS total FROM attempt_block_scores").fetchone()["total"] == 6
+    assert facade.connection.execute("SELECT COUNT(*) AS total FROM ticket_block_mastery_profiles").fetchone()["total"] == 1
+
+    statistics = facade.load_state_exam_statistics()
+    assert statistics.active is True
+    assert statistics.block_scores
+    assert "Введение" in statistics.block_scores
     facade.connection.close()

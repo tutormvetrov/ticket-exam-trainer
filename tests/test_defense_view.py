@@ -33,7 +33,13 @@ def _build_window(tmp_path: Path) -> tuple[MainWindow, AppFacade]:
     workspace_root.mkdir(parents=True, exist_ok=True)
     connection = connect_initialized(get_database_path(workspace_root))
     settings_store = SettingsStore(workspace_root / "app_data" / "settings.json")
-    settings_store.save(replace(DEFAULT_OLLAMA_SETTINGS, auto_check_ollama_on_start=False))
+    settings_store.save(
+        replace(
+            DEFAULT_OLLAMA_SETTINGS,
+            auto_check_ollama_on_start=False,
+            auto_check_updates_on_start=False,
+        )
+    )
     facade = AppFacade(workspace_root, connection, settings_store)
     window = MainWindow(_qapp(), facade, "light")
     return window, facade

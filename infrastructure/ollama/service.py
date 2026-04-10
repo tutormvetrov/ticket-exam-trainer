@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import json
 
+from domain.answer_profile import AnswerBlockCode, TicketAnswerBlock
 from domain.knowledge import AtomType, ExaminerPrompt, KnowledgeAtom
 from infrastructure.ollama.client import OllamaClient
 from infrastructure.ollama.prompts import (
@@ -12,6 +13,8 @@ from infrastructure.ollama.prompts import (
     oral_answer_prompt,
     outline_prompt,
     rewrite_question_prompt,
+    state_exam_blocks_system_prompt,
+    state_exam_blocks_user_prompt,
     structuring_system_prompt,
     structuring_user_prompt,
 )
@@ -64,6 +67,15 @@ class LLMStructuringResult:
     concepts: list[str]
     difficulty: int
     estimated_oral_time_sec: int
+    latency_ms: int | None
+    error: str = ""
+
+
+@dataclass(slots=True)
+class LLMAnswerBlocksResult:
+    ok: bool
+    blocks: list[TicketAnswerBlock]
+    used_llm: bool
     latency_ms: int | None
     error: str = ""
 
@@ -230,6 +242,63 @@ class OllamaService:
             latency_ms=response.latency_ms,
             error="" if atoms else "LLM returned no valid atoms",
         )
+
+    def refine_answer_blocks(
+        self,
+        *,
+        ticket_title: str,
+        source_text: str,
+        existing_blocks: list[TicketAnswerBlock],
+        model: str,
+    ) -> LLMAnswerBlocksResult:
+        payload_blocks = [
+            {
+                "block_code": block.block_code.value,
+                "title": block.title,
+                "expected_content": block.expected_content,
+                "source_excerpt": block.source_excerpt,
+                "confidence": block.confidence,
+                "is_missing": block.is_missing,
+            }
+            for block in existing_blocks
+        ]
+        response = self.client.generate(
+            model,
+            state_exam_blocks_user_prompt(ticket_title, source_text, payload_blocks),
+            system=state_exam_blocks_system_prompt(),
+            format_name="json",
+            temperature=0.1,
+        )
+        if not response.ok:
+            return LLMAnswerBlocksResult(False, [], False, response.latency_ms, response.error)
+        try:
+            payload = self._parse_json_response(response.payload.get("response", ""))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            return LLMAnswerBlocksResult(False, [], False, response.latency_ms, str(exc))
+
+        blocks: list[TicketAnswerBlock] = []
+        for raw_block in payload.get("blocks", []):
+            if not isinstance(raw_block, dict):
+                continue
+            try:
+                block_code = AnswerBlockCode(str(raw_block.get("block_code", "")))
+            except ValueError:
+                continue
+            text = str(raw_block.get("expected_content", "")).strip()
+            excerpt = str(raw_block.get("source_excerpt", "")).strip()
+            confidence = max(0.0, min(float(raw_block.get("confidence", 0.3) or 0.3), 1.0))
+            blocks.append(
+                TicketAnswerBlock(
+                    block_code=block_code,
+                    title=str(raw_block.get("title", block_code.value)).strip() or block_code.value,
+                    expected_content=text or "В исходном материале этот блок выражен слабо.",
+                    source_excerpt=excerpt[:220],
+                    confidence=confidence,
+                    llm_assisted=True,
+                    is_missing=bool(raw_block.get("is_missing", False)),
+                )
+            )
+        return LLMAnswerBlocksResult(bool(blocks), blocks, bool(blocks), response.latency_ms, "" if blocks else "LLM returned no valid answer blocks")
 
     def _generate_text(self, model: str, prompt: str, *, system: str = "") -> OllamaScenarioResult:
         response = self.client.generate(model, prompt, system=system, temperature=0.3)

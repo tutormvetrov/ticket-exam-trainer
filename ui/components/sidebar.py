@@ -25,7 +25,7 @@ NAV_ITEMS = [
     ("import", "Импорт документов", QStyle.StandardPixmap.SP_ArrowUp),
     ("training", "Тренировка", QStyle.StandardPixmap.SP_MediaPlay),
     ("statistics", "Статистика", QStyle.StandardPixmap.SP_FileDialogInfoView),
-    ("defense", "Защита DLC", QStyle.StandardPixmap.SP_DialogHelpButton),
+    ("defense", "Подготовка к защите", QStyle.StandardPixmap.SP_DialogHelpButton),
     ("settings", "Настройки", QStyle.StandardPixmap.SP_FileDialogContentsView),
 ]
 
@@ -46,7 +46,7 @@ class Sidebar(QWidget):
 
         brand = QFrame()
         brand.setMinimumHeight(76)
-        brand.setStyleSheet("background: #FFFFFF; border: 2px solid #111111; border-radius: 18px;")
+        brand.setStyleSheet("background: #FFFFFF; border: 1.5px solid #111111; border-radius: 18px;")
         brand_layout = QHBoxLayout(brand)
         brand_layout.setContentsMargins(10, 10, 12, 10)
         brand_layout.setSpacing(12)
@@ -57,7 +57,7 @@ class Sidebar(QWidget):
         title_box.setSpacing(0)
 
         title = QLabel("Тезис")
-        title.setStyleSheet("font-size: 24px; font-weight: 800; line-height: 1.05; color: #035F46;")
+        title.setProperty("role", "brand-title")
         title.setWordWrap(True)
         title.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         title_box.addWidget(title)
@@ -126,7 +126,7 @@ class Sidebar(QWidget):
         status_layout.addWidget(self.url_label)
         layout.addWidget(status_card)
 
-        version = QLabel("v1.0.0 • Локальный режим")
+        version = QLabel("v1.1.0-beta • Локальный режим")
         version.setProperty("role", "muted")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(version)

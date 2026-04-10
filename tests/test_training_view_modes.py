@@ -7,7 +7,9 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QTextEdit, QLineEdit, QComboBox
 
+from application.import_service import DocumentImportService, TicketCandidate
 from application.ui_data import TrainingQueueItem, TrainingSnapshot
+from domain.answer_profile import AnswerProfileCode
 from domain.knowledge import AtomType, KnowledgeAtom, TicketKnowledgeMap
 from ui.theme import set_app_theme
 from ui.views.training_view import TrainingView
@@ -44,6 +46,33 @@ def _build_ticket(ticket_id: str, title: str) -> TicketKnowledgeMap:
         difficulty=2,
         estimated_oral_time_sec=180,
     )
+
+
+def _build_state_exam_ticket(ticket_id: str, title: str) -> TicketKnowledgeMap:
+    service = DocumentImportService()
+    candidate = TicketCandidate(
+        1,
+        title,
+        (
+            "Актуальность темы связана с управлением публичными ресурсами. "
+            "Теоретическая часть включает понятие имущества, правовой режим и управленческий цикл. "
+            "Практическая часть раскрывается через учет, оценку и контроль использования имущества. "
+            "Навыки проявляются через анализ, аргументацию и применение методов управления. "
+            "В заключении имущество рассматривается как активный управленческий ресурс. "
+            "Дополнительно полезны схемы и сравнительный анализ практик."
+        ),
+        0.9,
+        "state-exam",
+    )
+    ticket, _, _ = service.build_ticket_map(
+        candidate,
+        "exam-1",
+        "state-exam",
+        "doc-1",
+        ticket_id=ticket_id,
+        answer_profile_code=AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN,
+    )
+    return ticket
 
 
 def test_training_modes_switch_to_real_workspaces() -> None:
@@ -86,3 +115,22 @@ def test_training_modes_switch_to_real_workspaces() -> None:
     assert exam_workspace.findChild(QTextEdit, "training-mini-exam-input") is not None
     assert exam_workspace.findChild(QPushButton, "training-mini-exam-submit") is not None
     assert "Таймер:" in exam_workspace.findChild(QLabel, "training-mini-exam-timer").text()
+
+
+def test_state_exam_mode_opens_separate_workspace() -> None:
+    _qapp()
+    view = TrainingView("#000000")
+    ticket = _build_state_exam_ticket("ticket-state", "Что представляет собой государственное имущество как объект управления?")
+    snapshot = TrainingSnapshot(
+        queue_items=[TrainingQueueItem(ticket.ticket_id, ticket.title, "ticket", ticket.ticket_id, 0.9, "сегодня")],
+        tickets=[ticket],
+    )
+    view.set_snapshot(snapshot)
+
+    view.select_mode("state-exam-full")
+    workspace = view.workspace_stack.currentWidget()
+
+    assert workspace.objectName() == "training-workspace-state-exam-full"
+    assert workspace.findChild(QPushButton, "training-state-exam-submit") is not None
+    assert len(workspace.findChildren(QTextEdit)) >= 6
+    assert "Госэкзамен" in view.session_meta.text()

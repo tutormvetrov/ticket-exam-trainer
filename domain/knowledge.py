@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 
+from domain.answer_profile import AnswerProfileCode, TicketAnswerBlock
+
 
 class AtomType(StrEnum):
     DEFINITION = "definition"
@@ -48,6 +50,8 @@ class WeakAreaKind(StrEnum):
     CONCEPT = "weak_concept"
     SECTION = "weak_section"
     CROSS_TICKET_CONCEPT = "weak_cross_ticket_concept"
+    ANSWER_BLOCK = "weak_answer_block"
+    RUBRIC_CRITERION = "weak_rubric_criterion"
 
 
 class ReviewMode(StrEnum):
@@ -66,6 +70,7 @@ class SourceDocument:
     size_bytes: int
     imported_at: datetime
     checksum: str = ""
+    answer_profile_code: AnswerProfileCode = AnswerProfileCode.STANDARD_TICKET
 
 
 @dataclass(slots=True)
@@ -170,6 +175,8 @@ class TicketKnowledgeMap:
     difficulty: int
     estimated_oral_time_sec: int
     source_confidence: float = 1.0
+    answer_profile_code: AnswerProfileCode = AnswerProfileCode.STANDARD_TICKET
+    answer_blocks: list[TicketAnswerBlock] = field(default_factory=list)
 
     def validate(self) -> None:
         atom_ids = {atom.atom_id for atom in self.atoms}
@@ -192,6 +199,13 @@ class TicketKnowledgeMap:
         for template in self.exercise_templates:
             if not set(template.target_atom_ids).issubset(atom_ids):
                 raise ValueError(f"Exercise template '{template.template_id}' references missing atoms.")
+
+        if self.answer_profile_code is not AnswerProfileCode.STANDARD_TICKET:
+            seen_codes = set()
+            for block in self.answer_blocks:
+                if block.block_code in seen_codes:
+                    raise ValueError(f"Duplicate answer block '{block.block_code.value}'.")
+                seen_codes.add(block.block_code)
 
     def atom_by_id(self, atom_id: str) -> KnowledgeAtom | None:
         return next((atom for atom in self.atoms if atom.atom_id == atom_id), None)

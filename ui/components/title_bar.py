@@ -18,7 +18,7 @@ class AppTitleBar(QFrame):
         layout.setSpacing(8)
 
         icon = LogoMark(24)
-        icon.setToolTip("Тренажёр билетов к вузовским экзаменам")
+        icon.setToolTip("Тезис")
         layout.addWidget(icon)
         layout.addStretch(1)
 

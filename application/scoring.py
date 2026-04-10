@@ -5,6 +5,8 @@ from datetime import datetime
 import re
 from uuid import uuid4
 
+from application.state_exam_scoring import StateExamScoringService
+from domain.answer_profile import AnswerBlockCode, AnswerCriterionCode, AnswerProfileCode, AttemptBlockScore, TicketBlockMasteryProfile
 from domain.knowledge import (
     AttemptRecord,
     ExerciseInstance,
@@ -24,9 +26,13 @@ WORD_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё0-9-]+")
 class ScoringOutcome:
     attempt: AttemptRecord
     profile: TicketMasteryProfile
+    block_profile: TicketBlockMasteryProfile | None
     weak_areas: list[WeakArea]
     atom_scores: dict[str, float]
     skill_scores: dict[str, float]
+    block_scores: dict[AnswerBlockCode, float]
+    criterion_scores: dict[AnswerCriterionCode, float]
+    attempt_block_scores: list[AttemptBlockScore]
 
 
 class MicroSkillScoringService:
@@ -41,6 +47,9 @@ class MicroSkillScoringService:
         SkillCode.ANSWER_FOLLOWUP_QUESTIONS: "followup_mastery",
     }
 
+    def __init__(self) -> None:
+        self.state_exam_scoring = StateExamScoringService()
+
     def evaluate(
         self,
         ticket: TicketKnowledgeMap,
@@ -48,6 +57,7 @@ class MicroSkillScoringService:
         user_answer: str,
         user_id: str = "local-user",
         profile: TicketMasteryProfile | None = None,
+        block_profile: TicketBlockMasteryProfile | None = None,
     ) -> ScoringOutcome:
         current_profile = profile or TicketMasteryProfile(user_id=user_id, ticket_id=ticket.ticket_id)
         answer_tokens = self._normalize(user_answer)
@@ -58,10 +68,35 @@ class MicroSkillScoringService:
 
         updated_profile = self._update_profile(current_profile, skill_scores)
         weak_areas = self._build_weak_areas(ticket, weak_atom_ids, weak_skill_codes, atom_scores, skill_scores, user_id)
-        average_score = sum(skill_scores.values()) / max(len(skill_scores), 1)
-        feedback = self._build_feedback(ticket, atom_scores, skill_scores)
+        block_scores: dict[AnswerBlockCode, float] = {}
+        criterion_scores: dict[AnswerCriterionCode, float] = {}
+        attempt_block_scores: list[AttemptBlockScore] = []
+        updated_block_profile: TicketBlockMasteryProfile | None = None
+        if ticket.answer_profile_code is AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN and ticket.answer_blocks:
+            state_exam = self.state_exam_scoring.evaluate(
+                ticket,
+                user_answer,
+                user_id=user_id,
+                profile=block_profile,
+                attempt_id=f"attempt-{uuid4().hex[:12]}",
+            )
+            block_scores = state_exam.block_scores
+            criterion_scores = state_exam.criterion_scores
+            attempt_block_scores = state_exam.attempt_block_scores
+            updated_block_profile = state_exam.profile
+            weak_areas.extend(state_exam.weak_areas)
+            feedback = self._build_state_exam_feedback(ticket, atom_scores, skill_scores, state_exam.feedback_lines)
+            parts = [
+                sum(skill_scores.values()) / max(len(skill_scores), 1) if skill_scores else 0.0,
+                sum(block_scores.values()) / max(len(block_scores), 1),
+                sum(criterion_scores.values()) / max(len(criterion_scores), 1),
+            ]
+            average_score = sum(parts) / len(parts)
+        else:
+            average_score = sum(skill_scores.values()) / max(len(skill_scores), 1)
+            feedback = self._build_feedback(ticket, atom_scores, skill_scores)
         attempt = AttemptRecord(
-            attempt_id=f"attempt-{uuid4().hex[:12]}",
+            attempt_id=attempt_block_scores[0].attempt_id if attempt_block_scores else f"attempt-{uuid4().hex[:12]}",
             exercise_id=exercise.exercise_id,
             ticket_id=ticket.ticket_id,
             user_answer=user_answer,
@@ -73,7 +108,20 @@ class MicroSkillScoringService:
             used_llm=exercise.used_llm,
             created_at=datetime.now(),
         )
-        return ScoringOutcome(attempt, updated_profile, weak_areas, atom_scores, skill_scores)
+        if attempt_block_scores:
+            for item in attempt_block_scores:
+                item.attempt_id = attempt.attempt_id
+        return ScoringOutcome(
+            attempt,
+            updated_profile,
+            updated_block_profile,
+            weak_areas,
+            atom_scores,
+            skill_scores,
+            block_scores,
+            criterion_scores,
+            attempt_block_scores,
+        )
 
     @staticmethod
     def _normalize(text: str) -> set[str]:
@@ -227,6 +275,20 @@ class MicroSkillScoringService:
             f"Слабый навык: {weakest_skill or 'не определён'}. "
             "Повторите структуру ответа и ключевые смысловые блоки."
         )
+
+    @staticmethod
+    def _build_state_exam_feedback(
+        ticket: TicketKnowledgeMap,
+        atom_scores: dict[str, float],
+        skill_scores: dict[str, float],
+        block_feedback: list[str],
+    ) -> str:
+        base = MicroSkillScoringService._build_feedback(ticket, atom_scores, skill_scores)
+        lines = [base]
+        if block_feedback:
+            lines.append("Госэкзаменационная структура:")
+            lines.extend(f"• {line}" for line in block_feedback[:4])
+        return "\n".join(lines)
 
     @staticmethod
     def _fallback_keywords(text: str) -> list[str]:

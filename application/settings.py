@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.platform import default_models_path
+from ui.theme import DEFAULT_FONT_PRESET, DEFAULT_FONT_SIZE
 
 @dataclass(slots=True)
 class OllamaSettings:
@@ -24,6 +25,9 @@ class OllamaSettings:
     default_training_mode: str = "active-recall"
     review_mode: str = "standard_adaptive"
     training_queue_size: int = 8
+    font_preset: str = DEFAULT_FONT_PRESET
+    font_size: int = DEFAULT_FONT_SIZE
+    auto_check_updates_on_start: bool = True
 
 
 DEFAULT_OLLAMA_SETTINGS = OllamaSettings()

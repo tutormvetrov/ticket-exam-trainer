@@ -38,8 +38,8 @@ def run() -> int:
 
     app = QApplication(sys.argv)
     app.setApplicationName("Тренажёр билетов к вузовским экзаменам")
-    app.setFont(app_font())
-    set_app_theme(app, effective_theme)
+    app.setFont(app_font(facade.settings.font_preset, facade.settings.font_size))
+    set_app_theme(app, effective_theme, facade.settings.font_preset, facade.settings.font_size)
 
     window = MainWindow(app, facade, effective_theme)
     window.switch_view(effective_view)

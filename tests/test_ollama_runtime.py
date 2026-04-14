@@ -12,7 +12,8 @@ def _prepare_models_path(path: Path) -> None:
     (path / "blobs" / "sha256-demo").write_text("blob", encoding="utf-8")
 
 
-def test_runtime_prefers_configured_models_path_when_populated(tmp_path: Path) -> None:
+def test_runtime_prefers_configured_models_path_when_populated(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("OLLAMA_MODELS", raising=False)
     configured = tmp_path / "configured-models"
     _prepare_models_path(configured)
 
@@ -22,6 +23,7 @@ def test_runtime_prefers_configured_models_path_when_populated(tmp_path: Path) -
 
 
 def test_runtime_falls_back_to_legacy_models_path_when_configured_is_empty(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("OLLAMA_MODELS", raising=False)
     configured = tmp_path / "configured-models"
     configured.mkdir(parents=True, exist_ok=True)
     legacy_home = tmp_path / "legacy-home"

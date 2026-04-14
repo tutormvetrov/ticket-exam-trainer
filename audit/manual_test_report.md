@@ -85,3 +85,18 @@
   - работает профиль `Госэкзамен` на уровне импорта, answer blocks, scoring, карточки билета и статистики;
   - базовый non-live контур зелёный: `pytest -q` -> `36 passed, 4 skipped`;
   - открытым остаётся один честный QA-хвост: `audit/ui_click_audit.md` всё ещё даёт `FAIL` по `training -> mode-specific scenarios`.
+
+## Update 2026-04-15
+
+- Базовый контур тестов восстановлен: `python -m pytest -q` → `40 passed, 4 skipped` (4 skipped — `live_ollama`).
+- Починен env-leak в `tests/test_ollama_runtime.py`: `OLLAMA_MODELS` изолирован `monkeypatch.delenv` в двух тестах. Это делает базовый контур зелёным на любой машине, где пользователь уже настроил Ollama.
+- Добавлен smoke-тест `tests/test_dependencies.py` на `PySide6`, `requests`, `python-docx`, `pypdf` — регрессия «забыли строку в requirements.txt» теперь ловится.
+- Зависимости зафиксированы в `requirements.txt` и `requirements-dev.txt`. README-инструкция `pip install -r requirements.txt` теперь воспроизводима.
+- Добавлен `docs/quickstart_state_exam.md` — целевой сценарий для подготовки к письменному госэкзамену.
+
+Что ещё не перепроверено в этой сессии (и не утверждается):
+
+- human visual audit на живом рендере Qt;
+- live Ollama прогон (требует локальной модели);
+- ручной smoke на реальном Mac (см. `MAC-REAL` ниже);
+- закрытие `TRAINING-AUDIT` в `audit/ui_click_audit.md`.

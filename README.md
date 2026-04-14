@@ -31,8 +31,10 @@
 
 Для запуска из исходников:
 - `Python 3.12+`
-- `PySide6`
-- зависимости из проекта
+- `pip install -r requirements.txt` поставит `PySide6`, `requests`, `python-docx`, `pypdf`
+
+Для разработки и сборки:
+- `pip install -r requirements-dev.txt` добавляет `pytest` и `pyinstaller`
 
 Для LLM-функций:
 - локально установленный `Ollama`

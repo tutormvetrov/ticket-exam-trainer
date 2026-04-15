@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from application.ui_defaults import DEFAULT_FONT_PRESET, DEFAULT_FONT_SIZE
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication, QGraphicsDropShadowEffect, QWidget
@@ -23,27 +24,32 @@ RADII = {
 }
 
 FONT_PRESETS = {
+    "segoe": {
+        "label": "Segoe UI",
+        "description": "Нейтральный системный шрифт для долгой работы.",
+        "families": ["Segoe UI", "Arial", "Helvetica Neue"],
+    },
+    "bahnschrift": {
+        "label": "Bahnschrift",
+        "description": "Более собранный и современный акцент без декоративности.",
+        "families": ["Bahnschrift", "Segoe UI", "Arial"],
+    },
     "trebuchet": {
         "label": "Trebuchet MS",
+        "description": "Чуть более живой гуманистический гротеск.",
         "families": ["Trebuchet MS", "Segoe UI", "Arial"],
     },
     "verdana": {
         "label": "Verdana",
+        "description": "Максимально читабельный вариант для плотного текста.",
         "families": ["Verdana", "Segoe UI", "Arial"],
     },
     "arial": {
         "label": "Arial",
+        "description": "Классический запасной нейтральный вариант.",
         "families": ["Arial", "Segoe UI", "Helvetica Neue"],
     },
-    "segoe": {
-        "label": "Segoe UI",
-        "families": ["Segoe UI", "Arial", "Helvetica Neue"],
-    },
 }
-
-DEFAULT_FONT_PRESET = "trebuchet"
-DEFAULT_FONT_SIZE = 10
-
 
 LIGHT = {
     "app_bg": "#EEF3F8",
@@ -115,7 +121,7 @@ def resolve_font_family(preset_key: str) -> str:
 
 
 def build_typography(font_preset: str, font_size: int) -> dict[str, int | str]:
-    base_point = _clamp(font_size or DEFAULT_FONT_SIZE, 9, 16)
+    base_point = _clamp(font_size or DEFAULT_FONT_SIZE, 9, 18)
     body_px = _clamp(round(base_point * 1.4), 13, 22)
     return {
         "family": resolve_font_family(font_preset),
@@ -141,7 +147,7 @@ def build_typography(font_preset: str, font_size: int) -> dict[str, int | str]:
 
 
 def app_font(font_preset: str = DEFAULT_FONT_PRESET, font_size: int = DEFAULT_FONT_SIZE) -> QFont:
-    font = QFont(resolve_font_family(font_preset), _clamp(font_size or DEFAULT_FONT_SIZE, 9, 16))
+    font = QFont(resolve_font_family(font_preset), _clamp(font_size or DEFAULT_FONT_SIZE, 9, 18))
     font.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
     return font
 
@@ -162,9 +168,32 @@ def set_app_theme(
 ) -> dict:
     palette = LIGHT if palette_name == "light" else DARK
     typography = build_typography(font_preset, font_size)
+    app.setProperty("theme_palette_name", palette_name)
     app.setFont(app_font(font_preset, font_size))
     app.setStyleSheet(build_stylesheet(palette, typography))
     return palette
+
+
+def current_palette_name() -> str:
+    app = QApplication.instance()
+    if app is None:
+        return "light"
+    value = str(app.property("theme_palette_name") or "").strip().lower()
+    return "dark" if value == "dark" else "light"
+
+
+def current_colors() -> dict:
+    return DARK if current_palette_name() == "dark" else LIGHT
+
+
+def is_dark_palette() -> bool:
+    return current_palette_name() == "dark"
+
+
+def alpha_color(hex_color: str, alpha: float) -> str:
+    color = QColor(hex_color)
+    color.setAlphaF(max(0.0, min(1.0, alpha)))
+    return f"rgba({color.red()}, {color.green()}, {color.blue()}, {color.alpha()})"
 
 
 def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
@@ -177,6 +206,17 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     }}
     QWidget#AppShell {{
         background: {colors["app_bg"]};
+    }}
+    QMessageBox {{
+        background: {colors["card_bg"]};
+    }}
+    QMessageBox QLabel {{
+        color: {colors["text"]};
+        background: transparent;
+        font-size: {typography["body"]}px;
+    }}
+    QMessageBox QPushButton {{
+        min-width: 92px;
     }}
     QFrame[role="titlebar"] {{
         background: {colors["card_bg"]};
@@ -234,7 +274,7 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     QLabel[role="brand-title"] {{
         font-size: {typography["brand_title"]}px;
         font-weight: 800;
-        color: #035F46;
+        color: {colors["text"]};
     }}
     QLabel[role="brand-subtitle"] {{
         color: {colors["text_secondary"]};

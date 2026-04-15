@@ -1,6 +1,7 @@
 # UI Click Audit
 
-- workspace: `C:\Windows\Temp\tezis-ui-audit-672_j9tf`
+- workspace: `C:\Windows\Temp\tezis-ui-audit-f6v83y2t`
+- theme: `dark`
 
 ## Results
 
@@ -98,13 +99,13 @@
 - `open-url` file:///D:/Coding projects/ticket-exam-trainer/README.md
 - `open-url` file:///D:/Coding projects/ticket-exam-trainer/README.md
 - `open-url` file:///D:/Coding projects/ticket-exam-trainer
-- `open-url` file:///C:/Windows/Temp/tezis-ui-audit-672_j9tf
+- `open-url` file:///C:/Windows/Temp/tezis-ui-audit-f6v83y2t
 - `message` Резервная копия: Резервная копия создана:
-- `open-url` file:///C:/Windows/Temp/tezis-ui-audit-672_j9tf/backups
+- `open-url` file:///C:/Windows/Temp/tezis-ui-audit-f6v83y2t/backups
 - `open-url` file:///D:/Coding projects/ticket-exam-trainer/audit
 - `open-url` file:///D:/Coding projects/ticket-exam-trainer/docs
 - `launch-script` D:\Coding projects\ticket-exam-trainer\scripts\check_ollama.ps1
 - `message` Ollama: Запущен диагностический скрипт check_ollama.ps1 в PowerShell.
 - `open-url` file:///D:/Coding projects/ticket-exam-trainer/README.md
 - `message` Настройки: Параметры сохранены и применены.
-- `message` Обновления: GitHub временно ограничил проверку обновлений (HTTP 403). Это не ломает приложение: повторите позже или откройте страницу релизов вручную.
+- `message` Обновления: GitHub не нашёл опубликованный release API для этого репозитория (HTTP 404).

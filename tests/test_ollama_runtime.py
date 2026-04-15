@@ -16,9 +16,14 @@ def test_runtime_prefers_configured_models_path_when_populated(tmp_path: Path) -
     configured = tmp_path / "configured-models"
     _prepare_models_path(configured)
 
-    manager = OllamaRuntimeManager("http://localhost:11434", configured)
-
-    assert manager.resolve_models_path() == configured
+    import os
+    original_env = os.environ.pop("OLLAMA_MODELS", None)
+    try:
+        manager = OllamaRuntimeManager("http://localhost:11434", configured)
+        assert manager.resolve_models_path() == configured
+    finally:
+        if original_env is not None:
+            os.environ["OLLAMA_MODELS"] = original_env
 
 
 def test_runtime_falls_back_to_legacy_models_path_when_configured_is_empty(tmp_path: Path, monkeypatch) -> None:
@@ -28,6 +33,7 @@ def test_runtime_falls_back_to_legacy_models_path_when_configured_is_empty(tmp_p
     legacy_models = legacy_home / ".ollama" / "models"
     _prepare_models_path(legacy_models)
 
+    monkeypatch.delenv("OLLAMA_MODELS", raising=False)
     monkeypatch.setattr(Path, "home", lambda: legacy_home)
     manager = OllamaRuntimeManager("http://localhost:11434", configured)
 

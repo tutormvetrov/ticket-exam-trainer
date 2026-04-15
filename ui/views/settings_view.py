@@ -7,6 +7,7 @@ import shutil
 from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QBoxLayout,
     QComboBox,
     QFileDialog,
     QGridLayout,
@@ -25,14 +26,15 @@ from application.admin_access import AdminAccessState
 from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
 from application.update_service import UpdateInfo
 from app import platform as platform_helpers
+from app.build_info import get_runtime_build_info
 from app.meta import APP_VERSION
-from app.paths import get_app_root, get_check_script_path, get_docs_path, get_readme_path, get_setup_script_path
+from app.paths import get_app_root, get_check_script_path, get_docs_path, get_readme_path, get_setup_script_path, get_workspace_root
 from infrastructure.ollama.service import OllamaDiagnostics, OllamaService
 from ui.background import FunctionThread
 from ui.components.common import CardFrame, IconBadge
 from ui.components.settings_widgets import DiagnosticTile, NumberStepper, SettingsNavPanel, SettingsToggleCard
 from ui.training_catalog import DEFAULT_TRAINING_MODES
-from ui.theme import FONT_PRESETS
+from ui.theme import FONT_PRESETS, app_font, current_colors, resolve_font_family
 
 
 SETTINGS_SECTIONS = [
@@ -48,6 +50,7 @@ SETTINGS_SECTIONS = [
 class SettingsView(QWidget):
     diagnostics_changed = Signal(object)
     settings_saved = Signal(object)
+    admin_setup_requested = Signal()
     admin_login_requested = Signal(str)
     admin_logout_requested = Signal()
     admin_editor_requested = Signal()
@@ -64,7 +67,9 @@ class SettingsView(QWidget):
         super().__init__()
         self.self_scrolling = True
         self.shadow_color = shadow_color
-        self.workspace_root = workspace_root or get_app_root()
+        self.bundle_root = get_app_root()
+        self.workspace_root = workspace_root or get_workspace_root()
+        self.build_info = get_runtime_build_info(self.bundle_root)
         self.backups_dir = self.workspace_root / "backups"
         self.database_path = self.workspace_root / "exam_trainer.db"
         self.settings_path = self.workspace_root / "app_data" / "settings.json"
@@ -92,6 +97,7 @@ class SettingsView(QWidget):
         )
         self._diagnostics_thread: FunctionThread | None = None
         self._refresh_models_after_check = False
+        self._last_diagnostics: OllamaDiagnostics | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -109,9 +115,9 @@ class SettingsView(QWidget):
         layout.setContentsMargins(28, 22, 28, 28)
         layout.setSpacing(18)
 
-        header_row = QHBoxLayout()
-        header_row.setContentsMargins(0, 0, 0, 0)
-        header_row.setSpacing(16)
+        self.header_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.header_row.setContentsMargins(0, 0, 0, 0)
+        self.header_row.setSpacing(16)
 
         titles = QVBoxLayout()
         titles.setContentsMargins(0, 0, 0, 0)
@@ -123,40 +129,40 @@ class SettingsView(QWidget):
         page_subtitle.setWordWrap(True)
         titles.addWidget(page_title)
         titles.addWidget(page_subtitle)
-        header_row.addLayout(titles)
-        header_row.addStretch(1)
+        self.header_row.addLayout(titles, 1)
+        self.header_row.addStretch(1)
 
-        reset_button = QPushButton("Сбросить")
-        reset_button.setObjectName("settings-reset")
-        reset_button.setProperty("variant", "outline")
-        reset_button.clicked.connect(self.reset_form)
-        header_row.addWidget(reset_button)
+        self.reset_button = QPushButton("Сбросить")
+        self.reset_button.setObjectName("settings-reset")
+        self.reset_button.setProperty("variant", "outline")
+        self.reset_button.clicked.connect(self.reset_form)
+        self.header_row.addWidget(self.reset_button)
 
-        save_button = QPushButton("Сохранить изменения")
-        save_button.setObjectName("settings-save")
-        save_button.setProperty("variant", "primary")
-        save_button.clicked.connect(self.save_settings)
-        header_row.addWidget(save_button)
-        layout.addLayout(header_row)
+        self.save_button = QPushButton("Сохранить изменения")
+        self.save_button.setObjectName("settings-save")
+        self.save_button.setProperty("variant", "primary")
+        self.save_button.clicked.connect(self.save_settings)
+        self.header_row.addWidget(self.save_button)
+        layout.addLayout(self.header_row)
 
         divider = QWidget()
         divider.setFixedHeight(1)
-        divider.setStyleSheet("background: #DFE7F0;")
+        divider.setStyleSheet(f"background: {current_colors()['border']};")
         layout.addWidget(divider)
 
-        main_row = QHBoxLayout()
-        main_row.setContentsMargins(0, 0, 0, 0)
-        main_row.setSpacing(16)
+        self.main_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.main_row.setContentsMargins(0, 0, 0, 0)
+        self.main_row.setSpacing(16)
 
         self.nav_panel = SettingsNavPanel(SETTINGS_SECTIONS, shadow_color)
         self.nav_panel.setMinimumWidth(254)
         self.nav_panel.setMaximumWidth(304)
         self.nav_panel.section_changed.connect(self.switch_section)
-        main_row.addWidget(self.nav_panel, 3)
+        self.main_row.addWidget(self.nav_panel, 3)
 
         self.settings_stack = QStackedWidget()
-        main_row.addWidget(self.settings_stack, 7)
-        layout.addLayout(main_row, 1)
+        self.main_row.addWidget(self.settings_stack, 7)
+        layout.addLayout(self.main_row, 1)
 
         self.settings_stack.addWidget(self._build_general_page())
         self.settings_stack.addWidget(self._build_documents_page())
@@ -167,6 +173,7 @@ class SettingsView(QWidget):
 
         self.switch_section("ollama")
         self.reset_form()
+        self._apply_responsive_layout()
 
     def _build_general_page(self) -> QWidget:
         page = QWidget()
@@ -184,8 +191,8 @@ class SettingsView(QWidget):
         card_layout.addWidget(title)
 
         body = QLabel(
-            "Эти параметры управляют первым запуском, темой интерфейса и стартовым экраном. "
-            "После сохранения изменения применяются сразу."
+            "Эти параметры управляют первым запуском, темой интерфейса, стартовым экраном и типографикой. "
+            "Предпросмотр ниже обновляется сразу, а на всё приложение изменения применяются после сохранения."
         )
         body.setProperty("role", "body")
         body.setWordWrap(True)
@@ -228,18 +235,63 @@ class SettingsView(QWidget):
 
         font_block = self._labeled_block("Шрифт интерфейса")
         self.font_preset_combo = QComboBox()
-        for preset_key in ("trebuchet", "verdana", "arial", "segoe"):
+        for preset_key in ("segoe", "bahnschrift", "trebuchet", "verdana", "arial"):
             self.font_preset_combo.addItem(FONT_PRESETS[preset_key]["label"], preset_key)
         self.font_preset_combo.setMinimumHeight(46)
         font_block.layout().addWidget(self.font_preset_combo)
         typography_row.addWidget(font_block, 1)
 
         font_size_block = self._labeled_block("Размер текста")
-        self.font_size_stepper = NumberStepper(self.settings.font_size, minimum=9, maximum=16, step=1, label_width=56)
+        self.font_size_stepper = NumberStepper(self.settings.font_size, minimum=9, maximum=18, step=1, label_width=56)
         self.font_size_stepper.setMinimumHeight(46)
         font_size_block.layout().addWidget(self.font_size_stepper)
         typography_row.addWidget(font_size_block, 1)
         card_layout.addLayout(typography_row)
+
+        self.font_preset_combo.currentIndexChanged.connect(self._refresh_typography_preview)
+        self.font_size_stepper.value_changed.connect(lambda _value: self._refresh_typography_preview())
+
+        preview_card = CardFrame(role="subtle-card", shadow_color=self.shadow_color, shadow=False)
+        preview_layout = QVBoxLayout(preview_card)
+        preview_layout.setContentsMargins(18, 16, 18, 16)
+        preview_layout.setSpacing(10)
+
+        preview_title = QLabel("Предпросмотр типографики")
+        preview_title.setProperty("role", "card-title")
+        preview_layout.addWidget(preview_title)
+
+        self.typography_preview_meta = QLabel("")
+        self.typography_preview_meta.setProperty("role", "muted")
+        self.typography_preview_meta.setWordWrap(True)
+        preview_layout.addWidget(self.typography_preview_meta)
+
+        self.typography_preview_title = QLabel("Тезис: библиотека, тренировка, статистика и защита")
+        self.typography_preview_title.setWordWrap(True)
+        preview_layout.addWidget(self.typography_preview_title)
+
+        self.typography_preview_body = QLabel(
+            "Текст интерфейса должен легко читаться на длинной сессии: в очереди, в разборе результата и в настройках."
+        )
+        self.typography_preview_body.setWordWrap(True)
+        preview_layout.addWidget(self.typography_preview_body)
+
+        preview_chip_row = QHBoxLayout()
+        preview_chip_row.setContentsMargins(0, 0, 0, 0)
+        preview_chip_row.setSpacing(10)
+
+        self.typography_preview_chip = QLabel("Режим: активное вспоминание")
+        self.typography_preview_chip.setProperty("role", "pill")
+        preview_chip_row.addWidget(self.typography_preview_chip, 0, Qt.AlignmentFlag.AlignLeft)
+
+        self.typography_preview_button = QPushButton("Пример кнопки")
+        self.typography_preview_button.setProperty("variant", "secondary")
+        self.typography_preview_button.setEnabled(False)
+        preview_chip_row.addWidget(self.typography_preview_button, 0, Qt.AlignmentFlag.AlignLeft)
+        preview_chip_row.addStretch(1)
+        preview_layout.addLayout(preview_chip_row)
+
+        card_layout.addWidget(preview_card)
+        self._refresh_typography_preview()
 
         self.auto_check_card = SettingsToggleCard(
             "Автопроверка Ollama при старте",
@@ -286,7 +338,7 @@ class SettingsView(QWidget):
         card_layout.setContentsMargins(24, 22, 24, 22)
         card_layout.setSpacing(16)
 
-        title = QLabel("Импорт документов")
+        title = QLabel("Параметры импорта")
         title.setProperty("role", "section-title")
         card_layout.addWidget(title)
 
@@ -337,7 +389,7 @@ class SettingsView(QWidget):
 
         self.import_llm_card = SettingsToggleCard(
             "LLM-помощь при структурировании",
-            "Разрешить Mistral уточнять структуру билетов, если исходный документ размечен неидеально.",
+            "Разрешить локальной модели уточнять структуру билетов, если исходный документ размечен неидеально.",
             "AI",
             "#18B06A",
             self.settings.import_llm_assist,
@@ -430,14 +482,14 @@ class SettingsView(QWidget):
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(12)
-        header.addWidget(IconBadge("AI", "#EEF5FF", "#2E78E6", size=50, radius=15, font_size=16))
+        header.addWidget(IconBadge("AI", current_colors()["primary_soft"], current_colors()["primary"], size=50, radius=15, font_size=16))
 
         title_box = QVBoxLayout()
         title_box.setContentsMargins(0, 0, 0, 0)
         title_box.setSpacing(3)
         title = QLabel("Ollama")
-        title.setStyleSheet("font-size: 22px; font-weight: 800;")
-        subtitle = QLabel("Реальный центр управления локальной моделью mistral:instruct.")
+        title.setStyleSheet(f"font-size: 22px; font-weight: 800; color: {current_colors()['text']};")
+        subtitle = QLabel("Реальный центр управления локальной LLM через Ollama. По умолчанию используется qwen3:8b.")
         subtitle.setProperty("role", "body")
         subtitle.setWordWrap(True)
         title_box.addWidget(title)
@@ -447,7 +499,7 @@ class SettingsView(QWidget):
         self.status_pill = QLabel("Проверка...")
         self.status_pill.setProperty("skipTextAdmin", True)
         self.status_pill.setStyleSheet(
-            "background: #F4F7FB; color: #64748B; border-radius: 999px; padding: 10px 16px; "
+            f"background: {current_colors()['card_muted']}; color: {current_colors()['text_secondary']}; border-radius: 999px; padding: 10px 16px; "
             "font-size: 14px; font-weight: 700;"
         )
         header.addWidget(self.status_pill, 0, Qt.AlignmentFlag.AlignTop)
@@ -515,7 +567,7 @@ class SettingsView(QWidget):
 
         line = QWidget()
         line.setFixedHeight(1)
-        line.setStyleSheet("background: #E5EBF3;")
+        line.setStyleSheet(f"background: {current_colors()['border']};")
         card_layout.addWidget(line)
 
         usage_title = QLabel("Использование LLM в приложении")
@@ -524,7 +576,7 @@ class SettingsView(QWidget):
 
         self.rewrite_card = SettingsToggleCard(
             "Улучшать формулировки вопросов",
-            "Mistral помогает делать учебные вопросы яснее и плотнее.",
+            "Локальная модель помогает делать учебные вопросы яснее и плотнее.",
             "Q",
             "#7C3AED",
             self.settings.rewrite_questions,
@@ -577,10 +629,22 @@ class SettingsView(QWidget):
         title.setProperty("role", "section-title")
         storage_layout.addWidget(title)
 
-        body = QLabel("Здесь видны реальные пути к базе, настройкам и резервным копиям.")
+        body = QLabel("Здесь видны реальные пути к папке данных, базе, настройкам и резервным копиям.")
         body.setProperty("role", "body")
         body.setWordWrap(True)
         storage_layout.addWidget(body)
+
+        self.workspace_path_label = QLabel()
+        self.workspace_path_label.setProperty("skipTextAdmin", True)
+        self.workspace_path_label.setProperty("role", "body")
+        self.workspace_path_label.setWordWrap(True)
+        storage_layout.addWidget(self.workspace_path_label)
+
+        self.bundle_path_label = QLabel()
+        self.bundle_path_label.setProperty("skipTextAdmin", True)
+        self.bundle_path_label.setProperty("role", "body")
+        self.bundle_path_label.setWordWrap(True)
+        storage_layout.addWidget(self.bundle_path_label)
 
         self.database_path_label = QLabel()
         self.database_path_label.setProperty("skipTextAdmin", True)
@@ -606,8 +670,13 @@ class SettingsView(QWidget):
         open_app_button = QPushButton("Открыть папку приложения")
         open_app_button.setObjectName("settings-open-app-folder")
         open_app_button.setProperty("variant", "secondary")
-        open_app_button.clicked.connect(lambda: self._open_path(self.workspace_root))
+        open_app_button.clicked.connect(lambda: self._open_path(self.bundle_root))
         buttons.addWidget(open_app_button)
+        open_data_button = QPushButton("Открыть папку данных")
+        open_data_button.setObjectName("settings-open-workspace-folder")
+        open_data_button.setProperty("variant", "secondary")
+        open_data_button.clicked.connect(lambda: self._open_path(self.workspace_root))
+        buttons.addWidget(open_data_button)
         open_db_button = QPushButton("Открыть папку базы")
         open_db_button.setObjectName("settings-open-db-folder")
         open_db_button.setProperty("variant", "secondary")
@@ -628,7 +697,7 @@ class SettingsView(QWidget):
 
         backup_body = QLabel(
             "Копия создаётся из текущей SQLite базы в отдельную папку backups. "
-            "Это честная файловая копия, а не декоративная кнопка."
+            "Это обычная файловая копия SQLite, а не декоративная кнопка."
         )
         backup_body.setProperty("role", "body")
         backup_body.setWordWrap(True)
@@ -685,7 +754,7 @@ class SettingsView(QWidget):
         docs_label.setWordWrap(True)
         paths_layout.addWidget(docs_label)
 
-        audit_label = QLabel(f"Папка аудита: {self.workspace_root / 'audit'}")
+        audit_label = QLabel(f"Папка аудита: {self.bundle_root / 'audit'}")
         audit_label.setProperty("role", "body")
         audit_label.setWordWrap(True)
         paths_layout.addWidget(audit_label)
@@ -701,7 +770,7 @@ class SettingsView(QWidget):
         audit_button = QPushButton("Открыть аудит")
         audit_button.setObjectName("settings-open-audit")
         audit_button.setProperty("variant", "secondary")
-        audit_button.clicked.connect(lambda: self._open_path(self.workspace_root / "audit"))
+        audit_button.clicked.connect(lambda: self._open_path(self.bundle_root / "audit"))
         buttons.addWidget(audit_button)
         docs_button = QPushButton("Открыть документацию")
         docs_button.setObjectName("settings-open-docs")
@@ -732,6 +801,14 @@ class SettingsView(QWidget):
         self.update_meta_label.setProperty("role", "muted")
         self.update_meta_label.setWordWrap(True)
         update_layout.addWidget(self.update_meta_label)
+
+        self.build_meta_label = QLabel(
+            f"Текущая сборка: {self.build_info.release_label} • Собрано: {self.build_info.built_at_label}"
+        )
+        self.build_meta_label.setProperty("skipTextAdmin", True)
+        self.build_meta_label.setProperty("role", "muted")
+        self.build_meta_label.setWordWrap(True)
+        update_layout.addWidget(self.build_meta_label)
 
         update_buttons = QVBoxLayout()
         update_buttons.setContentsMargins(0, 0, 0, 0)
@@ -808,6 +885,12 @@ class SettingsView(QWidget):
         self.admin_hint_label.setWordWrap(True)
         admin_layout.addWidget(self.admin_hint_label)
 
+        self.admin_setup_button = QPushButton("Настроить пароль")
+        self.admin_setup_button.setObjectName("settings-admin-setup")
+        self.admin_setup_button.setProperty("variant", "secondary")
+        self.admin_setup_button.clicked.connect(self.admin_setup_requested.emit)
+        admin_layout.addWidget(self.admin_setup_button)
+
         self.admin_password_input = QLineEdit()
         self.admin_password_input.setObjectName("settings-admin-password")
         self.admin_password_input.setEchoMode(QLineEdit.EchoMode.Password)
@@ -842,7 +925,7 @@ class SettingsView(QWidget):
         self.admin_debug_button.clicked.connect(self._emit_admin_debug)
         admin_layout.addWidget(self.admin_debug_button)
 
-        self.admin_text_button = QPushButton("Редактор подписей интерфейса")
+        self.admin_text_button = QPushButton("Открыть редактор подписей")
         self.admin_text_button.setObjectName("settings-admin-text-editor")
         self.admin_text_button.setProperty("variant", "secondary")
         self.admin_text_button.setEnabled(False)
@@ -880,10 +963,10 @@ class SettingsView(QWidget):
         latency_layout = QHBoxLayout(self.latency_card)
         latency_layout.setContentsMargins(16, 14, 16, 14)
         latency_layout.setSpacing(12)
-        latency_layout.addWidget(IconBadge("MS", "#EEF3FF", "#3B82F6", size=28, radius=10, font_size=9))
+        latency_layout.addWidget(IconBadge("MS", current_colors()["primary_soft"], current_colors()["primary"], size=28, radius=10, font_size=9))
         self.latency_label = QLabel("Время отклика: Нет данных")
         self.latency_label.setProperty("skipTextAdmin", True)
-        self.latency_label.setStyleSheet("font-size: 14px; font-weight: 600;")
+        self.latency_label.setStyleSheet(f"font-size: 14px; font-weight: 600; color: {current_colors()['text']};")
         latency_layout.addWidget(self.latency_label)
         latency_layout.addStretch(1)
         layout.addWidget(self.latency_card)
@@ -892,15 +975,15 @@ class SettingsView(QWidget):
         info_layout = QHBoxLayout(info_card)
         info_layout.setContentsMargins(16, 16, 16, 16)
         info_layout.setSpacing(14)
-        info_layout.addWidget(IconBadge("i", "#EEF5FF", "#2E78E6", size=34, radius=12, font_size=16))
+        info_layout.addWidget(IconBadge("i", current_colors()["primary_soft"], current_colors()["primary"], size=34, radius=12, font_size=16))
 
         info_text = QVBoxLayout()
         info_text.setContentsMargins(0, 0, 0, 0)
         info_text.setSpacing(4)
         info_title = QLabel("О локальной LLM")
-        info_title.setStyleSheet("font-size: 15px; font-weight: 700;")
+        info_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {current_colors()['text']};")
         info_body = QLabel(
-            "Ollama и mistral:instruct работают локально. Этот экран показывает только реально проверенные статусы."
+            "Ollama и локальная модель работают полностью локально. Этот экран показывает только реально проверенные статусы."
         )
         info_body.setProperty("role", "body")
         info_body.setWordWrap(True)
@@ -917,7 +1000,7 @@ class SettingsView(QWidget):
 
         self.error_label = QLabel("")
         self.error_label.setProperty("skipTextAdmin", True)
-        self.error_label.setStyleSheet("color: #D35469; font-size: 13px;")
+        self.error_label.setStyleSheet(f"color: {current_colors()['danger']}; font-size: 13px;")
         self.error_label.setWordWrap(True)
         layout.addWidget(self.error_label)
         return card
@@ -983,7 +1066,7 @@ class SettingsView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
         label = QLabel(title)
-        label.setStyleSheet("font-size: 13px; font-weight: 700; color: #2B415C;")
+        label.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {current_colors()['text']};")
         layout.addWidget(label)
         return wrapper
 
@@ -998,6 +1081,29 @@ class SettingsView(QWidget):
             "advanced": 5,
         }
         self.settings_stack.setCurrentIndex(mapping[section])
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        self._apply_responsive_layout()
+        super().resizeEvent(event)
+
+    def _apply_responsive_layout(self) -> None:
+        compact = self.width() < 1080
+        header_direction = QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight
+        if self.header_row.direction() != header_direction:
+            self.header_row.setDirection(header_direction)
+
+        main_direction = QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight
+        if self.main_row.direction() != main_direction:
+            self.main_row.setDirection(main_direction)
+
+        if compact:
+            self.nav_panel.setMinimumWidth(0)
+            self.nav_panel.setMaximumWidth(16777215)
+            self.reset_button.setMinimumWidth(0)
+            self.save_button.setMinimumWidth(0)
+        else:
+            self.nav_panel.setMinimumWidth(254)
+            self.nav_panel.setMaximumWidth(304)
 
     def save_settings(self) -> None:
         self.settings = OllamaSettings(
@@ -1038,6 +1144,7 @@ class SettingsView(QWidget):
         self._set_combo_value(self.startup_view_combo, self.settings.startup_view)
         self._set_combo_value(self.font_preset_combo, self.settings.font_preset)
         self.font_size_stepper.set_value(self.settings.font_size)
+        self._refresh_typography_preview()
         self.auto_check_card.toggle.setChecked(self.settings.auto_check_ollama_on_start)
         self.update_check_card.toggle.setChecked(self.settings.auto_check_updates_on_start)
         self.dlc_card.toggle.setChecked(self.settings.show_dlc_teaser)
@@ -1087,21 +1194,22 @@ class SettingsView(QWidget):
         QMessageBox.information(self, "Резервная копия", f"Резервная копия создана:\n{target}")
 
     def _apply_diagnostics(self, diagnostics: OllamaDiagnostics) -> None:
+        self._last_diagnostics = diagnostics
         if diagnostics.endpoint_ok and diagnostics.model_ok:
             self.status_pill.setStyleSheet(
-                "background: #E7F8ED; color: #189D63; border-radius: 999px; padding: 10px 18px; "
+                f"background: {current_colors()['success_soft']}; color: {current_colors()['success']}; border-radius: 999px; padding: 10px 18px; "
                 "font-size: 14px; font-weight: 700;"
             )
             self.status_pill.setText("Подключено")
         elif diagnostics.endpoint_ok:
             self.status_pill.setStyleSheet(
-                "background: #FFF4E7; color: #D97706; border-radius: 999px; padding: 10px 18px; "
+                f"background: {current_colors()['warning_soft']}; color: {current_colors()['warning']}; border-radius: 999px; padding: 10px 18px; "
                 "font-size: 14px; font-weight: 700;"
             )
             self.status_pill.setText("Сервер отвечает")
         else:
             self.status_pill.setStyleSheet(
-                "background: #FFF0F2; color: #D35469; border-radius: 999px; padding: 10px 18px; "
+                f"background: {current_colors()['danger_soft']}; color: {current_colors()['danger']}; border-radius: 999px; padding: 10px 18px; "
                 "font-size: 14px; font-weight: 700;"
             )
             self.status_pill.setText("Недоступно")
@@ -1137,6 +1245,8 @@ class SettingsView(QWidget):
         self.error_label.setText("" if diagnostics.endpoint_ok else f"Ошибка: {diagnostics.error_text or diagnostics.endpoint_message}")
 
     def _refresh_storage_labels(self) -> None:
+        self.workspace_path_label.setText(f"Папка данных: {self.workspace_root}")
+        self.bundle_path_label.setText(f"Папка приложения: {self.bundle_root}")
         self.database_path_label.setText(f"База данных: {self.database_path}")
         self.settings_path_label.setText(f"Файл настроек: {self.settings_path}")
         self.backups_path_label.setText(f"Папка резервных копий: {self.backups_dir}")
@@ -1148,10 +1258,11 @@ class SettingsView(QWidget):
             status = "Админ-пароль не задан."
         self.admin_status_label.setText(status)
         self.admin_hint_label.setText(
-            "Чтобы задать или сбросить пароль, используйте локальную админ-утилиту."
+            "Пароль можно задать, изменить или сбросить через кнопку «Настроить пароль»."
             if not state.password_hint
             else f"Подсказка: {state.password_hint}"
         )
+        self.admin_setup_button.setText("Изменить или сбросить пароль" if state.configured else "Создать пароль")
         self.admin_login_button.setEnabled(state.configured and not unlocked)
         self.admin_password_input.setEnabled(state.configured and not unlocked)
         self.admin_logout_button.setEnabled(unlocked)
@@ -1163,25 +1274,28 @@ class SettingsView(QWidget):
             self.admin_password_input.clear()
 
     def set_update_info(self, update_info: UpdateInfo, pending: bool = False) -> None:
+        build_line = f"Текущая сборка: {self.build_info.release_label}"
         if pending:
             self.update_status_label.setText("Проверяем наличие новой версии на GitHub.")
-            self.update_meta_label.setText(f"Текущая версия: {APP_VERSION}")
+            self.update_meta_label.setText(f"{build_line}. Канал обновлений: GitHub Releases.")
             self.open_release_button.setEnabled(False)
             return
         if update_info.error_text:
             self.update_status_label.setText(update_info.error_text)
-            self.update_meta_label.setText(f"Последняя попытка: {update_info.checked_label}")
+            self.update_meta_label.setText(f"{build_line}. Последняя попытка: {update_info.checked_label}")
             self.open_release_button.setEnabled(True)
             return
         if update_info.update_available:
             self.update_status_label.setText(
                 f"Доступна новая версия {update_info.latest_version}. Можно открыть релиз и обновиться вручную."
             )
-            self.update_meta_label.setText(f"Сейчас установлена версия {update_info.current_version}. Проверено: {update_info.checked_label}")
+            self.update_meta_label.setText(
+                f"{build_line}. Сейчас установлена версия {update_info.current_version}. Проверено: {update_info.checked_label}"
+            )
             self.open_release_button.setEnabled(True)
             return
         self.update_status_label.setText("Установлена актуальная версия приложения.")
-        self.update_meta_label.setText(f"Проверено: {update_info.checked_label}")
+        self.update_meta_label.setText(f"{build_line}. Проверено: {update_info.checked_label}")
         self.open_release_button.setEnabled(True)
 
     def _open_path(self, path: Path) -> None:
@@ -1259,15 +1373,34 @@ class SettingsView(QWidget):
     def _emit_admin_debug(self) -> None:
         self.admin_debug_toggled.emit(self.admin_debug_button.isChecked())
 
+    def _refresh_typography_preview(self) -> None:
+        preset_key = self._combo_value(self.font_preset_combo, DEFAULT_OLLAMA_SETTINGS.font_preset)
+        font_size = self.font_size_stepper.value()
+        preset = FONT_PRESETS.get(preset_key, FONT_PRESETS[DEFAULT_OLLAMA_SETTINGS.font_preset])
+        resolved_family = resolve_font_family(preset_key)
+
+        title_font = app_font(preset_key, min(font_size + 3, 18))
+        body_font = app_font(preset_key, font_size)
+        meta_font = app_font(preset_key, max(9, font_size - 1))
+        button_font = app_font(preset_key, font_size)
+
+        self.typography_preview_title.setFont(title_font)
+        self.typography_preview_body.setFont(body_font)
+        self.typography_preview_chip.setFont(meta_font)
+        self.typography_preview_button.setFont(button_font)
+        self.typography_preview_meta.setText(
+            f"{preset['label']} • {preset['description']} • активное семейство: {resolved_family} • размер: {font_size} pt"
+        )
+
     def set_search_text(self, text: str) -> None:
         return
 
     def set_diagnostics_pending(self, message: str = "Проверка...") -> None:
         self.status_pill.setStyleSheet(
-            "background: #FFF4E7; color: #D97706; border-radius: 999px; padding: 10px 18px; "
+            f"background: {current_colors()['warning_soft']}; color: {current_colors()['warning']}; border-radius: 999px; padding: 10px 18px; "
             "font-size: 14px; font-weight: 700;"
         )
-        self.status_pill.setText("Проверка...")
+        self.status_pill.setText("Автопроверка отключена" if message == "Автопроверка отключена" else "Проверка...")
         self.endpoint_tile.set_content("Сервер: проверка", "Ожидание ответа", message, "warning")
         self.model_tile.set_content(
             "Статус модели",
@@ -1331,6 +1464,19 @@ class SettingsView(QWidget):
         )
         self._apply_diagnostics(diagnostics)
         self.diagnostics_changed.emit(diagnostics)
+
+    def refresh_theme(self) -> None:
+        self._refresh_typography_preview()
+        self.nav_panel.refresh_theme()
+        self.endpoint_tile.refresh_theme()
+        self.model_tile.refresh_theme()
+        self.last_check_tile.refresh_theme()
+        self.timeout_stepper.refresh_theme()
+        self.font_size_stepper.refresh_theme()
+        if self._last_diagnostics is not None:
+            self._apply_diagnostics(self._last_diagnostics)
+        else:
+            self.set_diagnostics_pending("Автопроверка отключена" if not self.settings.auto_check_ollama_on_start else "Проверка...")
 
     def _clear_diagnostics_thread(self) -> None:
         if self._diagnostics_thread is not None:

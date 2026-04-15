@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.components.common import CardFrame, ClickableFrame, IconBadge
+from ui.theme import alpha_color, current_colors, is_dark_palette
 
 
 class SettingsNavItem(ClickableFrame):
@@ -21,6 +22,7 @@ class SettingsNavItem(ClickableFrame):
     def __init__(self, key: str, title: str, subtitle: str, icon_text: str, icon_bg: str) -> None:
         super().__init__(role="subtle-card", shadow=False)
         self.key = key
+        self.icon_bg = icon_bg
         self.setObjectName(f"settings-nav-{key}")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumHeight(78)
@@ -29,20 +31,20 @@ class SettingsNavItem(ClickableFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(12)
-        layout.addWidget(IconBadge(icon_text, icon_bg, "#4B5B72", size=32, radius=10, font_size=14))
+        self.badge = IconBadge(icon_text, icon_bg, current_colors()["text_secondary"], size=32, radius=10, font_size=14)
+        layout.addWidget(self.badge)
 
         text_box = QVBoxLayout()
         text_box.setContentsMargins(0, 0, 0, 0)
         text_box.setSpacing(2)
-        title_label = QLabel(title)
-        title_label.setStyleSheet("font-size: 14px; font-weight: 700;")
-        title_label.setWordWrap(True)
-        subtitle_label = QLabel(subtitle)
-        subtitle_label.setStyleSheet("font-size: 12px; color: #6B7787;")
-        subtitle_label.setWordWrap(True)
-        text_box.addWidget(title_label)
-        text_box.addWidget(subtitle_label)
+        self.title_label = QLabel(title)
+        self.title_label.setWordWrap(True)
+        self.subtitle_label = QLabel(subtitle)
+        self.subtitle_label.setWordWrap(True)
+        text_box.addWidget(self.title_label)
+        text_box.addWidget(self.subtitle_label)
         layout.addLayout(text_box, 1)
+        self.set_selected(False)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
@@ -50,11 +52,19 @@ class SettingsNavItem(ClickableFrame):
         super().mousePressEvent(event)
 
     def set_selected(self, selected: bool) -> None:
-        border = "#2E78E6" if selected else "#E4EAF2"
-        background = "#EEF5FF" if selected else "#FFFFFF"
+        self.selected = selected
+        colors = current_colors()
+        border = colors["primary"] if selected else colors["border"]
+        background = colors["primary_soft"] if selected else colors["card_bg"]
         self.setStyleSheet(
             f"QFrame#SettingsNavItem {{ background: {background}; border: 1px solid {border}; border-radius: 18px; }}"
         )
+        self.title_label.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {colors['text']};")
+        self.subtitle_label.setStyleSheet(f"font-size: 12px; color: {colors['text_secondary']};")
+        self.badge.set_colors(self.icon_bg, colors["text_secondary"])
+
+    def refresh_theme(self) -> None:
+        self.set_selected(self.selected)
 
 
 class SettingsNavPanel(CardFrame):
@@ -83,6 +93,10 @@ class SettingsNavPanel(CardFrame):
         for item_key, item in self.items.items():
             item.set_selected(item_key == key)
 
+    def refresh_theme(self) -> None:
+        for item in self.items.values():
+            item.refresh_theme()
+
 
 class ToggleSwitch(QPushButton):
     toggled_value = Signal(bool)
@@ -100,45 +114,61 @@ class ToggleSwitch(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        bg = QColor("#1F6FEB") if self.isChecked() else QColor("#D7E1EE")
+        colors = current_colors()
+        bg = QColor(colors["primary"] if self.isChecked() else colors["border_strong"])
         knob_x = 24 if self.isChecked() else 4
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(bg)
         painter.drawRoundedRect(self.rect(), 13, 13)
-        painter.setBrush(QColor("#FFFFFF"))
+        painter.setBrush(QColor(colors["card_bg"]))
         painter.drawEllipse(knob_x, 4, 18, 18)
+
+    def refresh_theme(self) -> None:
+        self.update()
 
 
 class SettingsToggleCard(CardFrame):
     def __init__(self, title: str, description: str, icon_text: str, accent: str, checked: bool, shadow_color) -> None:
         super().__init__(role="subtle-card", shadow_color=shadow_color, shadow=False)
+        self.accent = accent
         self.setMinimumHeight(72)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(14)
-        layout.addWidget(IconBadge(icon_text, f"{accent}22", accent, size=40, radius=12, font_size=16))
+        self.badge = IconBadge(icon_text, alpha_color(accent, 0.14), accent, size=40, radius=12, font_size=16)
+        layout.addWidget(self.badge)
 
         text_box = QVBoxLayout()
         text_box.setContentsMargins(0, 0, 0, 0)
         text_box.setSpacing(4)
-        title_label = QLabel(title)
-        title_label.setStyleSheet("font-size: 15px; font-weight: 700;")
-        description_label = QLabel(description)
-        description_label.setProperty("role", "body")
-        description_label.setWordWrap(True)
-        text_box.addWidget(title_label)
-        text_box.addWidget(description_label)
+        self.title_label = QLabel(title)
+        self.description_label = QLabel(description)
+        self.description_label.setProperty("role", "body")
+        self.description_label.setWordWrap(True)
+        text_box.addWidget(self.title_label)
+        text_box.addWidget(self.description_label)
         layout.addLayout(text_box, 1)
 
         self.toggle = ToggleSwitch(checked)
         layout.addWidget(self.toggle, 0, Qt.AlignmentFlag.AlignVCenter)
         self.toggle.setObjectName(f"settings-toggle-{title.lower().replace(' ', '-').replace('/', '-')}")
+        self.refresh_theme()
+
+    def refresh_theme(self) -> None:
+        colors = current_colors()
+        self.badge.set_colors(alpha_color(self.accent, 0.22 if is_dark_palette() else 0.14), self.accent)
+        self.title_label.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {colors['text']};")
+        self.toggle.refresh_theme()
 
 
 class DiagnosticTile(CardFrame):
     def __init__(self, title: str, value: str, description: str, tone: str, shadow_color) -> None:
         super().__init__(role="subtle-card", shadow_color=shadow_color, shadow=False)
         self.setObjectName("DiagnosticTile")
+        self._title = title
+        self._value = value
+        self._description = description
+        self._tone = tone
         self.setMinimumHeight(122)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
@@ -153,31 +183,33 @@ class DiagnosticTile(CardFrame):
 
         self.title_label = QLabel()
         self.title_label.setProperty("skipTextAdmin", True)
-        self.title_label.setStyleSheet("font-size: 13px; font-weight: 700; color: #2B415C;")
         self.title_label.setWordWrap(True)
         layout.addWidget(self.title_label)
 
         self.value_label = QLabel()
         self.value_label.setProperty("skipTextAdmin", True)
-        self.value_label.setStyleSheet("font-size: 16px; font-weight: 800; color: #1F2A3B;")
         self.value_label.setWordWrap(True)
         layout.addWidget(self.value_label)
 
         self.body_label = QLabel()
         self.body_label.setProperty("skipTextAdmin", True)
-        self.body_label.setStyleSheet("font-size: 12px; color: #6B7787;")
         self.body_label.setWordWrap(True)
         self.body_label.setMaximumHeight(42)
         layout.addWidget(self.body_label)
         self.set_content(title, value, description, tone)
 
     def set_content(self, title: str, value: str, description: str, tone: str) -> None:
+        self._title = title
+        self._value = value
+        self._description = description
+        self._tone = tone
+        palette = current_colors()
         colors = {
-            "success": ("#EAF9F1", "#18B06A"),
-            "info": ("#EEF5FF", "#2E78E6"),
-            "warning": ("#FFF4E7", "#F59A23"),
-            "neutral": ("#F4F7FB", "#7A8899"),
-            "danger": ("#FFF0F2", "#D35469"),
+            "success": (palette["success_soft"], palette["success"]),
+            "info": (palette["primary_soft"], palette["primary"]),
+            "warning": (palette["warning_soft"], palette["warning"]),
+            "neutral": (palette["card_muted"], palette["text_tertiary"]),
+            "danger": (palette["danger_soft"], palette["danger"]),
         }
         icons = {
             "success": "OK",
@@ -188,11 +220,11 @@ class DiagnosticTile(CardFrame):
         }
         bg, fg = colors[tone]
         border = {
-            "success": "#BFEBCF",
-            "info": "#CFE1FF",
-            "warning": "#F7D39C",
-            "neutral": "#DDE6F0",
-            "danger": "#F2B9C5",
+            "success": palette["success"],
+            "info": palette["primary"],
+            "warning": palette["warning"],
+            "neutral": palette["border_strong"],
+            "danger": palette["danger"],
         }[tone]
         self.setStyleSheet(f"QFrame#DiagnosticTile {{ background: {bg}; border: 1px solid {border}; border-radius: 16px; }}")
         while self.badge_holder.count():
@@ -205,6 +237,12 @@ class DiagnosticTile(CardFrame):
         self.title_label.setText(title)
         self.value_label.setText(value)
         self.body_label.setText(description)
+        self.title_label.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {palette['text_secondary']};")
+        self.value_label.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {palette['text']};")
+        self.body_label.setStyleSheet(f"font-size: 12px; color: {palette['text_secondary']};")
+
+    def refresh_theme(self) -> None:
+        self.set_content(self._title, self._value, self._description, self._tone)
 
 
 class NumberStepper(QFrame):
@@ -238,7 +276,6 @@ class NumberStepper(QFrame):
 
         self.label = QLabel(str(self._value))
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label.setStyleSheet("font-size: 15px; font-weight: 700;")
         self.label.setFixedWidth(label_width)
         layout.addWidget(self.label)
 
@@ -248,6 +285,7 @@ class NumberStepper(QFrame):
         plus.setFixedWidth(42)
         plus.clicked.connect(lambda: self._set_value(self._value + self._step))
         layout.addWidget(plus)
+        self.refresh_theme()
 
     def value(self) -> int:
         return self._value
@@ -259,3 +297,6 @@ class NumberStepper(QFrame):
         self._value = max(self._minimum, min(self._maximum, value))
         self.label.setText(str(self._value))
         self.value_changed.emit(self._value)
+
+    def refresh_theme(self) -> None:
+        self.label.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {current_colors()['text']};")

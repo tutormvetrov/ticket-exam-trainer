@@ -5,7 +5,8 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QProgressBar, QPus
 
 from application.ui_data import ImportExecutionResult
 from domain.models import DocumentData
-from ui.components.common import CardFrame, IconBadge
+from ui.components.common import CardFrame, IconBadge, file_badge_colors, tone_pair
+from ui.theme import current_colors
 
 
 class ImportView(QWidget):
@@ -64,9 +65,12 @@ class ImportView(QWidget):
         badges = QHBoxLayout()
         badges.setContentsMargins(0, 0, 0, 0)
         badges.setSpacing(10)
-        badges.addWidget(IconBadge("DOCX", "#EAF2FF", "#2E78E6", size=42, radius=13, font_size=10))
-        badges.addWidget(IconBadge("PDF", "#FFF0F2", "#D94B63", size=42, radius=13, font_size=11))
-        badges.addWidget(IconBadge("AI", "#EAF9F1", "#18B06A", size=42, radius=13, font_size=12))
+        docx_bg, docx_fg = file_badge_colors("DOCX")
+        pdf_bg, pdf_fg = file_badge_colors("PDF")
+        ai_bg, ai_fg = file_badge_colors("AI")
+        badges.addWidget(IconBadge("DOCX", docx_bg, docx_fg, size=42, radius=13, font_size=10))
+        badges.addWidget(IconBadge("PDF", pdf_bg, pdf_fg, size=42, radius=13, font_size=11))
+        badges.addWidget(IconBadge("AI", ai_bg, ai_fg, size=42, radius=13, font_size=12))
         badges.addStretch(1)
         intro_layout.addLayout(badges)
 
@@ -74,7 +78,7 @@ class ImportView(QWidget):
         profile_row.setContentsMargins(0, 0, 0, 0)
         profile_row.setSpacing(10)
         profile_label = QLabel("Профиль ответа")
-        profile_label.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+        profile_label.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {current_colors()['text']};")
         self.answer_profile_combo = QComboBox()
         self.answer_profile_combo.setObjectName("import-answer-profile")
         self.answer_profile_combo.addItem("Обычный билет", "standard_ticket")
@@ -102,7 +106,7 @@ class ImportView(QWidget):
 
         self.summary_status = QLabel("Импорт ещё не выполнялся")
         self.summary_status.setProperty("skipTextAdmin", True)
-        self.summary_status.setStyleSheet("font-size: 15px; font-weight: 700;")
+        self.summary_status.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {current_colors()['text']};")
         summary_layout.addWidget(self.summary_status)
 
         self.summary_body = QLabel(
@@ -127,7 +131,7 @@ class ImportView(QWidget):
 
         self.progress_stage_label = QLabel("")
         self.progress_stage_label.setProperty("skipTextAdmin", True)
-        self.progress_stage_label.setStyleSheet("font-size: 13px; font-weight: 700; color: #2A3B52;")
+        self.progress_stage_label.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {current_colors()['text']};")
         self.progress_stage_label.hide()
         summary_layout.addWidget(self.progress_stage_label)
 
@@ -136,20 +140,7 @@ class ImportView(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(12)
-        self.progress_bar.setStyleSheet(
-            """
-            QProgressBar {
-                background: #ECF2F9;
-                border: 1px solid #D8E2F0;
-                border-radius: 6px;
-            }
-            QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #4E8FF7, stop:1 #2E78E6);
-                border-radius: 5px;
-            }
-            """
-        )
+        self._apply_progress_styles()
         self.progress_bar.hide()
         summary_layout.addWidget(self.progress_bar)
 
@@ -235,6 +226,23 @@ class ImportView(QWidget):
         layout.addStretch(1)
 
         self._refresh()
+
+    def _apply_progress_styles(self) -> None:
+        colors = current_colors()
+        self.progress_bar.setStyleSheet(
+            f"""
+            QProgressBar {{
+                background: {colors["card_muted"]};
+                border: 1px solid {colors["border"]};
+                border-radius: 6px;
+            }}
+            QProgressBar::chunk {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {colors["primary_hover"]}, stop:1 {colors["primary"]});
+                border-radius: 5px;
+            }}
+            """
+        )
 
     def is_busy(self) -> bool:
         return self._import_pending
@@ -409,6 +417,7 @@ class ImportView(QWidget):
         self.progress_meta_label.hide()
 
     def _refresh(self) -> None:
+        colors = current_colors()
         while self.recent_stack.count():
             item = self.recent_stack.takeAt(0)
             widget = item.widget()
@@ -495,15 +504,14 @@ class ImportView(QWidget):
             row_layout.setContentsMargins(16, 14, 16, 14)
             row_layout.setSpacing(12)
 
-            badge_color = "#EAF2FF" if document.file_type == "DOCX" else "#FFF0F2"
-            badge_fg = "#2E78E6" if document.file_type == "DOCX" else "#D94B63"
+            badge_color, badge_fg = file_badge_colors(document.file_type)
             row_layout.addWidget(IconBadge(document.file_type, badge_color, badge_fg, size=38, radius=12, font_size=10))
 
             text_box = QVBoxLayout()
             text_box.setContentsMargins(0, 0, 0, 0)
             text_box.setSpacing(4)
             title = QLabel(document.title)
-            title.setStyleSheet("font-size: 14px; font-weight: 700;")
+            title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {colors['text']};")
             title.setWordWrap(True)
             text_box.addWidget(title)
             meta = QLabel(f"{document.subject} • {document.imported_at} • {document.tickets_count} бил.")
@@ -513,9 +521,19 @@ class ImportView(QWidget):
             row_layout.addLayout(text_box, 1)
 
             status = QLabel(document.status)
-            status.setStyleSheet("font-size: 13px; font-weight: 700; color: #18B06A;")
+            status_bg, status_fg = tone_pair("success" if document.status in {"structured", "ready", "done"} else "warning")
+            status.setStyleSheet(
+                f"background: {status_bg}; color: {status_fg}; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700;"
+            )
             row_layout.addWidget(status, 0, Qt.AlignmentFlag.AlignTop)
             self.recent_stack.addWidget(row)
 
     def set_search_text(self, text: str) -> None:
         return
+
+    def refresh_theme(self) -> None:
+        colors = current_colors()
+        self.summary_status.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {colors['text']};")
+        self.progress_stage_label.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {colors['text']};")
+        self._apply_progress_styles()
+        self._refresh()

@@ -85,7 +85,23 @@ class AppFacade:
         return self.defense.import_project_materials(project_id, paths, progress_callback=progress_callback)
 
     def evaluate_defense_mock(self, project_id: str, mode_key: str, answer_text: str) -> DefenseEvaluationResult:
-        return self.defense.evaluate_mock_defense(project_id, mode_key, answer_text)
+        return self.defense.evaluate_mock_defense(project_id, mode_key, "commission", 0, answer_text)
+
+    def evaluate_defense_mock_with_context(
+        self,
+        project_id: str,
+        mode_key: str,
+        persona_kind: str,
+        timer_profile_sec: int,
+        answer_text: str,
+    ) -> DefenseEvaluationResult:
+        return self.defense.evaluate_mock_defense(project_id, mode_key, persona_kind, timer_profile_sec, answer_text)
+
+    def update_defense_gap_status(self, project_id: str, finding_id: str, status: str) -> None:
+        self.defense.update_gap_status(project_id, finding_id, status)
+
+    def update_defense_repair_task_status(self, project_id: str, task_id: str, status: str) -> None:
+        self.defense.update_repair_task_status(project_id, task_id, status)
 
     def load_documents(self) -> list[DocumentData]:
         return self.queries.load_documents()
@@ -117,22 +133,22 @@ class AppFacade:
     def load_latest_import_result(self) -> ImportExecutionResult:
         return self.queries.load_latest_import_result()
 
-    def load_training_snapshot(self) -> TrainingSnapshot:
-        snapshot = self.queries.load_training_snapshot(limit=self._settings.training_queue_size)
+    def load_training_snapshot(self, tickets: list[TicketKnowledgeMap] | None = None) -> TrainingSnapshot:
+        snapshot = self.queries.load_training_snapshot(limit=self._settings.training_queue_size, tickets=tickets)
         if snapshot.queue_items:
             return snapshot
-        tickets = snapshot.tickets
-        if not tickets:
+        loaded_tickets = snapshot.tickets
+        if not loaded_tickets:
             return snapshot
         queue = self.adaptive.build_queue(
             user_id="local-user",
-            tickets=tickets,
-            profiles=self._load_profiles(tickets),
+            tickets=loaded_tickets,
+            profiles=self._load_profiles(loaded_tickets),
             weak_areas=self._load_weak_areas(),
             mode=self._resolve_review_mode(),
         )
         self.repository.save_review_queue("local-user", queue)
-        return self.queries.load_training_snapshot(limit=self._settings.training_queue_size)
+        return self.queries.load_training_snapshot(limit=self._settings.training_queue_size, tickets=loaded_tickets)
 
     def import_document(self, path: str | Path, answer_profile_code: str | AnswerProfileCode = AnswerProfileCode.STANDARD_TICKET) -> ImportExecutionResult:
         return self.import_document_with_progress(path, answer_profile_code=answer_profile_code)
@@ -154,10 +170,11 @@ class AppFacade:
             subject_area="exam-training",
         )
         subject_slug = self._slug(stem_title) or "default-subject"
+        llm_refinement_enabled = bool(self._settings.import_llm_assist)
         service = DocumentImportService(
-            ollama_service=self.build_import_ollama_service(),
+            ollama_service=None,
             llm_model=self._settings.model,
-            enable_llm_structuring=self._settings.import_llm_assist,
+            enable_llm_structuring=False,
         )
         prepared = None
         try:
@@ -223,17 +240,19 @@ class AppFacade:
                     ticket_id=queue_item.ticket_id,
                     answer_profile_code=prepared.source_document.answer_profile_code,
                 )
+                needs_llm_refinement = llm_refinement_enabled and service.needs_llm_refinement(candidate, ticket)
+                queue_status = "pending" if needs_llm_refinement else ("fallback" if llm_warning else "done")
                 self.repository.save_ticket_map(
                     ticket,
-                    llm_status="fallback" if llm_warning else "done",
+                    llm_status=queue_status,
                     llm_error=llm_warning,
                 )
                 self.repository.save_exercise_instances(service.generate_exercise_instances(ticket))
                 self.repository.update_import_queue_item(
                     queue_item.ticket_id,
-                    llm_status="fallback" if llm_warning else "done",
+                    llm_status=queue_status,
                     llm_error=llm_warning,
-                    llm_attempted=service.should_use_llm_for_structuring(candidate, ticket.atoms),
+                    llm_attempted=used_llm,
                     used_llm=used_llm,
                 )
                 if llm_warning:
@@ -272,8 +291,8 @@ class AppFacade:
         if progress_callback is not None:
             progress_callback(
                 100,
-                "Импорт завершён" if final_result.status == "structured" else "Импорт сохранён частично",
-                "Документ сохранён. При необходимости можно локально доделать хвост.",
+                "Импорт завершён" if final_result.status == "structured" else "Базовый импорт завершён",
+                "Документ и упражнения сохранены. LLM-доработку можно запустить отдельно только для хвоста.",
             )
         return final_result
 
@@ -592,7 +611,15 @@ class AppFacade:
         done = int(queue_counts.get("done", 0))
         status = "structured" if pending == 0 and fallback == 0 and failed == 0 else "partial_llm"
         source_row = self.repository.load_source_document_row(document_id)
-        ticket_total = int(source_row["ticket_total"] or 0) if source_row is not None else done + pending + fallback + failed
+        actual_ticket_total = int(
+            self.connection.execute(
+                "SELECT COUNT(*) AS total FROM tickets WHERE source_document_id = ?",
+                (document_id,),
+            ).fetchone()["total"] or 0
+        )
+        queue_ticket_total = done + pending + fallback + failed
+        source_ticket_total = int(source_row["ticket_total"] or 0) if source_row is not None else 0
+        ticket_total = max(actual_ticket_total, queue_ticket_total, source_ticket_total)
         profile_code = source_row["answer_profile_code"] if source_row is not None else AnswerProfileCode.STANDARD_TICKET.value
         section_total = int(
             self.connection.execute(

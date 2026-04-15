@@ -51,8 +51,8 @@ def test_defense_view_unlocks_and_creates_project(tmp_path: Path, monkeypatch) -
         type(facade.defense),
         "_build_model_recommendation",
         lambda self: ModelRecommendation(
-            model_name="mistral:instruct",
-            label="Рекомендуемая модель: mistral:instruct",
+            model_name="qwen3:8b",
+            label="Рекомендуемая модель: qwen3:8b",
             rationale="Локальный тестовый профиль.",
             available=True,
         ),
@@ -68,6 +68,7 @@ def test_defense_view_unlocks_and_creates_project(tmp_path: Path, monkeypatch) -
 
     assert not view.workspace.isHidden()
     assert view.paywall_card.isHidden()
+    assert "установки" in view.install_label.text().lower()
 
     view.project_title_input.setText("Тестовая защита")
     view.student_input.setText("Студент")
@@ -79,6 +80,9 @@ def test_defense_view_unlocks_and_creates_project(tmp_path: Path, monkeypatch) -
     snapshot = facade.load_defense_workspace_snapshot()
     assert len(snapshot.projects) == 1
     assert snapshot.projects[0].title == "Тестовая защита"
+    assert view.persona_combo.findData("opponent") >= 0
+    assert view.timer_combo.findData(420) >= 0
+    assert view.gap_filter_combo.findData("weak_evidence") >= 0
 
     window.close()
     facade.connection.close()

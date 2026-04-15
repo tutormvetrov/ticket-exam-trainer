@@ -1,14 +1,25 @@
-param()
+param(
+    [switch]$FullClean
+)
 
 $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+Write-Host "Default clean removes only transient build/cache artifacts."
+if ($FullClean) {
+    Write-Host "Full clean enabled: dist output will also be removed."
+}
 
 $dirsToRemove = @(
     (Join-Path $root ".pytest_cache"),
     (Join-Path $root "__pycache__"),
     (Join-Path $root "build")
 )
+
+if ($FullClean) {
+    $dirsToRemove += (Join-Path $root "dist")
+}
 
 $dirsToRemove += Get-ChildItem -Path $root -Recurse -Directory -Force |
     Where-Object { $_.Name -eq "__pycache__" } |
@@ -44,8 +55,7 @@ $filesToRemove = @(
     "user-fix-settings-6.png",
     "user-fix-settings-bottom.png",
     "user-fix-settings.png",
-    "seed-run.log",
-    "dist\\Tezis\\release-smoke.png"
+    "seed-run.log"
 )
 
 foreach ($dir in $dirsToRemove | Select-Object -Unique) {
@@ -62,3 +72,6 @@ foreach ($name in $filesToRemove) {
 }
 
 Write-Host "Project cleanup completed."
+if ($FullClean) {
+    Write-Host "Full clean also removed dist output."
+}

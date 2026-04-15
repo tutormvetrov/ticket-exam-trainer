@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from application.ui_data import TrainingEvaluationResult
 from domain.knowledge import KnowledgeAtom, TicketKnowledgeMap
 from ui.training_mode_registry import TRAINING_MODE_SPECS, TrainingModeSpec
+from ui.theme import current_colors
 
 
 WORD_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё0-9-]+")
@@ -107,26 +108,29 @@ class TrainingWorkspaceBase(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(14)
 
+        colors = current_colors()
         self.header_label = QLabel(spec.workspace_title)
-        self.header_label.setStyleSheet("font-size: 18px; font-weight: 800; color: #1F2A3B;")
+        self.header_label.setStyleSheet(f"font-size: 18px; font-weight: 800; color: {colors['text']};")
         self.header_label.setWordWrap(True)
+        self.header_label.hide()
         root.addWidget(self.header_label)
 
         self.hint_label = QLabel(spec.workspace_hint)
         self.hint_label.setProperty("role", "body")
         self.hint_label.setWordWrap(True)
+        self.hint_label.hide()
         root.addWidget(self.hint_label)
 
         self.empty_box = QFrame()
         self.empty_box.setObjectName("ModeEmptyBox")
         self.empty_box.setStyleSheet(
-            "QFrame#ModeEmptyBox { background: #F8FBFF; border: 1px dashed #C8D8EB; border-radius: 16px; }"
+            f"QFrame#ModeEmptyBox {{ background: {colors['card_soft']}; border: 1px dashed {colors['border_strong']}; border-radius: 16px; }}"
         )
         empty_layout = QVBoxLayout(self.empty_box)
         empty_layout.setContentsMargins(18, 18, 18, 18)
         empty_layout.setSpacing(8)
         self.empty_title = QLabel(spec.empty_title)
-        self.empty_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #253448;")
+        self.empty_title.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {colors['text']};")
         self.empty_body = QLabel(spec.empty_body)
         self.empty_body.setProperty("role", "body")
         self.empty_body.setWordWrap(True)
@@ -143,13 +147,13 @@ class TrainingWorkspaceBase(QWidget):
         self.result_box = QFrame()
         self.result_box.setObjectName("ModeResultBox")
         self.result_box.setStyleSheet(
-            "QFrame#ModeResultBox { background: #F7FAFD; border: 1px solid #D7E3F0; border-radius: 16px; }"
+            f"QFrame#ModeResultBox {{ background: {colors['card_muted']}; border: 1px solid {colors['border']}; border-radius: 16px; }}"
         )
         result_layout = QVBoxLayout(self.result_box)
         result_layout.setContentsMargins(16, 14, 16, 14)
         result_layout.setSpacing(6)
         self.result_title = QLabel("Результат режима")
-        self.result_title.setStyleSheet("font-size: 14px; font-weight: 800; color: #243548;")
+        self.result_title.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {colors['text']};")
         self.result_body = QLabel("Действие ещё не выполнялось.")
         self.result_body.setObjectName("training-mode-result")
         self.result_body.setProperty("role", "body")
@@ -176,26 +180,6 @@ class TrainingWorkspaceBase(QWidget):
         if result.weak_points:
             lines.append("Слабые места: " + ", ".join(result.weak_points[:4]))
         if result.block_scores:
-            lines.append("Р‘Р»РѕРєРё РіРѕСЃРѕС‚РІРµС‚Р°:")
-            lines.extend(f"вЂў {_block_display_name(code)}: {score}%" for code, score in result.block_scores.items())
-        if result.criterion_scores:
-            lines.append("РљСЂРёС‚РµСЂРёРё РѕС†РµРЅРєРё:")
-            lines.extend(f"вЂў {_criterion_display_name(code)}: {score}%" for code, score in result.criterion_scores.items())
-        if result.followup_questions:
-            lines.append("Follow-up вопросы:")
-            lines.extend(f"• {question}" for question in result.followup_questions[:3])
-        self.result_body.setText("\n".join(lines))
-
-    def show_evaluation(self, result: TrainingEvaluationResult) -> None:
-        if not result.ok:
-            self.result_body.setText(result.error or "Проверка завершилась ошибкой.")
-            return
-        lines = [f"Оценка: {result.score_percent}%"]
-        if result.feedback:
-            lines.append(result.feedback)
-        if result.weak_points:
-            lines.append("Слабые места: " + ", ".join(result.weak_points[:4]))
-        if result.block_scores:
             lines.append("Блоки госответа:")
             lines.extend(f"• {_block_display_name(code)}: {score}%" for code, score in result.block_scores.items())
         if result.criterion_scores:
@@ -211,6 +195,7 @@ class TrainingWorkspaceBase(QWidget):
         self.empty_body.setText(body or self.spec.empty_body)
         self.empty_box.show()
         self.content.hide()
+        self.hint_label.hide()
 
     def _show_content(self) -> None:
         self.empty_box.hide()
@@ -218,6 +203,18 @@ class TrainingWorkspaceBase(QWidget):
 
     def _set_ticket(self, ticket: TicketKnowledgeMap | None) -> None:
         raise NotImplementedError
+
+    def refresh_theme(self) -> None:
+        colors = current_colors()
+        self.header_label.setStyleSheet(f"font-size: 18px; font-weight: 800; color: {colors['text']};")
+        self.empty_box.setStyleSheet(
+            f"QFrame#ModeEmptyBox {{ background: {colors['card_soft']}; border: 1px dashed {colors['border_strong']}; border-radius: 16px; }}"
+        )
+        self.empty_title.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {colors['text']};")
+        self.result_box.setStyleSheet(
+            f"QFrame#ModeResultBox {{ background: {colors['card_muted']}; border: 1px solid {colors['border']}; border-radius: 16px; }}"
+        )
+        self.result_title.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {colors['text']};")
 
 
 class ReadingWorkspace(TrainingWorkspaceBase):
@@ -237,13 +234,13 @@ class ReadingWorkspace(TrainingWorkspaceBase):
         self.answer_box = QFrame()
         self.answer_box.setObjectName("ReadingAnswerBox")
         self.answer_box.setStyleSheet(
-            "QFrame#ReadingAnswerBox { background: #F8FBFF; border: 1px solid #D5E2F0; border-radius: 16px; }"
+            f"QFrame#ReadingAnswerBox {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
         )
         answer_layout = QVBoxLayout(self.answer_box)
         answer_layout.setContentsMargins(16, 14, 16, 14)
         answer_layout.setSpacing(8)
         answer_title = QLabel("Эталон ответа")
-        answer_title.setStyleSheet("font-size: 14px; font-weight: 800; color: #243548;")
+        answer_title.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {current_colors()['text']};")
         self.answer_body = QLabel()
         self.answer_body.setWordWrap(True)
         self.answer_body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -309,6 +306,12 @@ class ReadingWorkspace(TrainingWorkspaceBase):
         self.answer_box.hide()
         self.reveal_button.setText("Раскрыть эталонный ответ")
 
+    def refresh_theme(self) -> None:
+        super().refresh_theme()
+        self.answer_box.setStyleSheet(
+            f"QFrame#ReadingAnswerBox {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
+        )
+
 
 class ActiveRecallWorkspace(TrainingWorkspaceBase):
     def __init__(self, spec: TrainingModeSpec) -> None:
@@ -316,11 +319,12 @@ class ActiveRecallWorkspace(TrainingWorkspaceBase):
 
         self.prompt_box = QLabel()
         self.prompt_box.setWordWrap(True)
-        self.prompt_box.setStyleSheet("font-size: 15px; font-weight: 700; color: #243548;")
+        self.prompt_box.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {current_colors()['text']};")
         self.content_layout.insertWidget(0, self.prompt_box)
 
         self.recall_input = QTextEdit()
         self.recall_input.setObjectName("training-active-recall-input")
+        self.recall_input.setProperty("role", "editor")
         self.recall_input.setPlaceholderText("Кратко воспроизведите ответ по памяти, не открывая эталон.")
         self.recall_input.setMinimumHeight(120)
         self.content_layout.insertWidget(1, self.recall_input)
@@ -329,7 +333,7 @@ class ActiveRecallWorkspace(TrainingWorkspaceBase):
         assessment_row.setContentsMargins(0, 0, 0, 0)
         assessment_row.setSpacing(10)
         assessment_label = QLabel("Самооценка:")
-        assessment_label.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+        assessment_label.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {current_colors()['text_secondary']};")
         self.assessment_combo = QComboBox()
         self.assessment_combo.addItem("Выберите самооценку", "")
         self.assessment_combo.addItem("Вспомнил полностью", "full")
@@ -358,13 +362,13 @@ class ActiveRecallWorkspace(TrainingWorkspaceBase):
         self.answer_box = QFrame()
         self.answer_box.setObjectName("RecallAnswerBox")
         self.answer_box.setStyleSheet(
-            "QFrame#RecallAnswerBox { background: #F8FBFF; border: 1px solid #D5E2F0; border-radius: 16px; }"
+            f"QFrame#RecallAnswerBox {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
         )
         answer_layout = QVBoxLayout(self.answer_box)
         answer_layout.setContentsMargins(16, 14, 16, 14)
         answer_layout.setSpacing(8)
         answer_title = QLabel("Эталон после попытки")
-        answer_title.setStyleSheet("font-size: 14px; font-weight: 800; color: #243548;")
+        answer_title.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {current_colors()['text']};")
         self.answer_body = QLabel()
         self.answer_body.setWordWrap(True)
         self.answer_body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -411,6 +415,13 @@ class ActiveRecallWorkspace(TrainingWorkspaceBase):
         self.assessment_combo.setCurrentIndex(0)
         self.answer_box.hide()
         self.reveal_button.setText("Показать ответ")
+
+    def refresh_theme(self) -> None:
+        super().refresh_theme()
+        self.prompt_box.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {current_colors()['text']};")
+        self.answer_box.setStyleSheet(
+            f"QFrame#RecallAnswerBox {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
+        )
 
 
 class ClozeWorkspace(TrainingWorkspaceBase):
@@ -495,8 +506,9 @@ class ClozeWorkspace(TrainingWorkspaceBase):
         for index, prompt in enumerate(self.prompts):
             label = QLabel(prompt.masked_text)
             label.setWordWrap(True)
-            label.setStyleSheet("font-size: 14px; font-weight: 600; color: #243548;")
+            label.setStyleSheet(f"font-size: 14px; font-weight: 600; color: {current_colors()['text']};")
             field = QLineEdit()
+            field.setProperty("role", "form-input")
             field.setPlaceholderText("Заполните пропуск")
             self.cloze_grid.addWidget(label, index, 0)
             self.cloze_grid.addWidget(field, index, 1)
@@ -573,7 +585,7 @@ class MatchingWorkspace(TrainingWorkspaceBase):
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(10)
             term = QLabel(term_text)
-            term.setStyleSheet("font-size: 14px; font-weight: 700; color: #243548;")
+            term.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {current_colors()['text']};")
             term.setMinimumWidth(180)
             combo = QComboBox()
             combo.addItem("Выберите определение", "")
@@ -623,17 +635,17 @@ class PlanWorkspace(TrainingWorkspaceBase):
             card = QFrame()
             card.setObjectName("PlanBlockCard")
             card.setStyleSheet(
-                "QFrame#PlanBlockCard { background: #F8FBFF; border: 1px solid #D5E2F0; border-radius: 14px; }"
+                f"QFrame#PlanBlockCard {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 14px; }}"
             )
             row = QHBoxLayout(card)
             row.setContentsMargins(14, 12, 14, 12)
             row.setSpacing(10)
             position = QLabel(str(index + 1))
             position.setFixedWidth(22)
-            position.setStyleSheet("font-size: 14px; font-weight: 800; color: #4A6DA7;")
+            position.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {current_colors()['primary']};")
             body = QLabel(block)
             body.setWordWrap(True)
-            body.setStyleSheet("font-size: 14px; color: #243548;")
+            body.setStyleSheet(f"font-size: 14px; color: {current_colors()['text']};")
             up = QPushButton("↑")
             down = QPushButton("↓")
             up.setEnabled(index > 0)
@@ -687,6 +699,11 @@ class PlanWorkspace(TrainingWorkspaceBase):
         Random(_seed_for(ticket.ticket_id, "plan")).shuffle(self.blocks)
         self._render_blocks()
 
+    def refresh_theme(self) -> None:
+        super().refresh_theme()
+        if self.blocks:
+            self._render_blocks()
+
 
 class MiniExamWorkspace(TrainingWorkspaceBase):
     def __init__(self, spec: TrainingModeSpec) -> None:
@@ -700,7 +717,7 @@ class MiniExamWorkspace(TrainingWorkspaceBase):
         status_row.setSpacing(10)
         self.timer_badge = QLabel("Таймер: --:--")
         self.timer_badge.setObjectName("training-mini-exam-timer")
-        self.timer_badge.setStyleSheet("font-size: 14px; font-weight: 800; color: #B14C57;")
+        self.timer_badge.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {current_colors()['danger']};")
         self.ticket_badge = QLabel("Экзаменационный билет не выбран")
         self.ticket_badge.setObjectName("training-mini-exam-ticket")
         self.ticket_badge.setProperty("role", "body")
@@ -710,6 +727,7 @@ class MiniExamWorkspace(TrainingWorkspaceBase):
 
         self.answer_input = QTextEdit()
         self.answer_input.setObjectName("training-mini-exam-input")
+        self.answer_input.setProperty("role", "editor")
         self.answer_input.setPlaceholderText("Дайте полный ответ по билету в экзаменационном режиме.")
         self.answer_input.setMinimumHeight(240)
         self.content_layout.insertWidget(1, self.answer_input)
@@ -780,6 +798,10 @@ class MiniExamWorkspace(TrainingWorkspaceBase):
             self.answer_input.setPlaceholderText("Дайте полный ответ по билету в экзаменационном режиме.")
         self._restart_timer()
 
+    def refresh_theme(self) -> None:
+        super().refresh_theme()
+        self.timer_badge.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {current_colors()['danger']};")
+
 
 class StateExamFullWorkspace(TrainingWorkspaceBase):
     def __init__(self, spec: TrainingModeSpec) -> None:
@@ -836,6 +858,7 @@ class StateExamFullWorkspace(TrainingWorkspaceBase):
     def _set_ticket(self, ticket: TicketKnowledgeMap | None) -> None:
         self._clear_blocks()
         self.hint_label.setText(self.spec.workspace_hint)
+        self.hint_label.show()
         if ticket is None:
             self._show_empty()
             return
@@ -849,14 +872,14 @@ class StateExamFullWorkspace(TrainingWorkspaceBase):
             card = QFrame()
             card.setObjectName("StateExamBlockCard")
             card.setStyleSheet(
-                "QFrame#StateExamBlockCard { background: #F8FBFF; border: 1px solid #D5E2F0; border-radius: 16px; }"
+                f"QFrame#StateExamBlockCard {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
             )
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(14, 12, 14, 12)
             card_layout.setSpacing(8)
             title = QLabel(block.title)
             title.setProperty("baseTitle", block.title)
-            title.setStyleSheet("font-size: 14px; font-weight: 800; color: #243548;")
+            title.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {current_colors()['text']};")
             hint = QLabel(
                 "Пробел в источнике. Подготовьте этот блок отдельно."
                 if block.is_missing
@@ -865,6 +888,7 @@ class StateExamFullWorkspace(TrainingWorkspaceBase):
             hint.setProperty("role", "body")
             hint.setWordWrap(True)
             field = QTextEdit()
+            field.setProperty("role", "editor")
             field.setPlaceholderText(f"Введите свою часть ответа для блока «{block.title.lower()}».")
             field.setMinimumHeight(96)
             card_layout.addWidget(title)
@@ -873,6 +897,11 @@ class StateExamFullWorkspace(TrainingWorkspaceBase):
             self.blocks_layout.addWidget(card)
             self.block_inputs[block.block_code] = field
             self.block_rows[block.block_code] = title
+
+    def refresh_theme(self) -> None:
+        super().refresh_theme()
+        if self.current_ticket is not None:
+            self._set_ticket(self.current_ticket)
 
 
 def create_training_workspaces() -> dict[str, TrainingWorkspaceBase]:

@@ -718,7 +718,11 @@ class KnowledgeRepository:
             )
 
     def _save_concepts(self, ticket: TicketKnowledgeMap) -> None:
+        seen_concepts: set[str] = set()
         for link in ticket.cross_links_to_other_tickets:
+            if link.concept_id in seen_concepts:
+                continue
+            seen_concepts.add(link.concept_id)
             normalized = link.concept_label.strip().lower()
             self.connection.execute(
                 """
@@ -747,6 +751,11 @@ class KnowledgeRepository:
                     ticket_id, concept_id, atom_ids_json, related_ticket_ids_json, rationale, strength
                 )
                 VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(ticket_id, concept_id) DO UPDATE SET
+                    atom_ids_json = excluded.atom_ids_json,
+                    related_ticket_ids_json = excluded.related_ticket_ids_json,
+                    rationale = excluded.rationale,
+                    strength = excluded.strength
                 """,
                 (
                     ticket.ticket_id,

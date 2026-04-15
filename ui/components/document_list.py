@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from domain.models import DocumentData
 from ui.components.common import CardFrame, ClickableFrame, IconBadge
+from ui.theme import current_colors
 
 
 class DocumentListItem(ClickableFrame):
@@ -30,17 +31,20 @@ class DocumentListItem(ClickableFrame):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(14)
 
-        badge_color = "#EAF2FF" if document.file_type == "DOCX" else "#FFF0F2"
-        badge_fg = "#2E78E6" if document.file_type == "DOCX" else "#D94B63"
+        colors = current_colors()
+        badge_color = colors["primary_soft"] if document.file_type == "DOCX" else colors["danger_soft"]
+        badge_fg = colors["primary"] if document.file_type == "DOCX" else colors["danger"]
         layout.addWidget(IconBadge(document.file_type, badge_color, badge_fg, size=46, radius=14, font_size=11))
 
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(6)
 
-        title = QLabel(document.title)
-        title.setStyleSheet("font-size: 15px; font-weight: 700;")
-        text_layout.addWidget(title)
+        self.title_label = QLabel(document.title)
+        self.title_label.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {colors['text']};")
+        self.title_label.setWordWrap(True)
+        self.title_label.setMaximumHeight(42)
+        text_layout.addWidget(self.title_label)
 
         meta = QLabel(f"{document.subject} • {document.imported_at.split(' в ')[0]}")
         meta.setProperty("role", "body")
@@ -84,6 +88,7 @@ class DocumentListPanel(CardFrame):
         self.header.setSpacing(12)
         self.title_label = QLabel()
         self.title_label.setProperty("role", "card-title")
+        self.title_label.setWordWrap(True)
         self.header.addWidget(self.title_label)
         self.header.addStretch(1)
 
@@ -96,7 +101,7 @@ class DocumentListPanel(CardFrame):
 
         line = QFrame()
         line.setFixedHeight(1)
-        line.setStyleSheet("background: #E9EEF5;")
+        line.setProperty("role", "table-row")
         layout.addWidget(line)
 
         self.scroll = QScrollArea()
@@ -177,4 +182,8 @@ class DocumentListPanel(CardFrame):
         if self.header.direction() != direction:
             self.header.setDirection(direction)
             self.sort_combo.setMaximumWidth(16777215 if narrow else 190)
+            self.title_label.setMaximumHeight(48 if narrow else 28)
         super().resizeEvent(event)
+
+    def refresh_theme(self) -> None:
+        self._rebuild_items()

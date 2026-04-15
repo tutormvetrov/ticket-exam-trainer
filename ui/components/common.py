@@ -4,7 +4,40 @@ from PySide6.QtCore import Qt, QRectF, Signal, QSize
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from ui.theme import apply_shadow
+from ui.theme import alpha_color, apply_shadow, current_colors, is_dark_palette
+
+
+def tone_pair(tone: str) -> tuple[str, str]:
+    colors = current_colors()
+    mapping = {
+        "primary": (colors["primary_soft"], colors["primary"]),
+        "blue": (colors["primary_soft"], colors["primary"]),
+        "success": (colors["success_soft"], colors["success"]),
+        "green": (colors["success_soft"], colors["success"]),
+        "warning": (colors["warning_soft"], colors["warning"]),
+        "orange": (colors["warning_soft"], colors["warning"]),
+        "danger": (colors["danger_soft"], colors["danger"]),
+        "red": (colors["danger_soft"], colors["danger"]),
+        "violet": (colors["violet_soft"], "#A78BFA" if is_dark_palette() else "#7C3AED"),
+        "cyan": (colors["cyan_soft"], "#5CD6EE" if is_dark_palette() else "#0F766E"),
+        "slate": (colors["card_muted"], colors["text_secondary"]),
+    }
+    return mapping.get(tone, mapping["primary"])
+
+
+def file_badge_colors(file_type: str) -> tuple[str, str]:
+    normalized = (file_type or "").strip().upper()
+    if normalized == "DOCX":
+        return tone_pair("primary")
+    if normalized == "PDF":
+        return tone_pair("danger")
+    if normalized in {"AI", "TXT", "MD"}:
+        return tone_pair("success")
+    if normalized in {"PM", "DLC"}:
+        return tone_pair("violet")
+    if normalized == "PPTX":
+        return tone_pair("warning")
+    return tone_pair("slate")
 
 
 class CardFrame(QFrame):
@@ -25,10 +58,16 @@ class LogoMark(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
 
+        colors = current_colors()
         gradient = QLinearGradient(8, 8, self.width() - 8, self.height() - 8)
-        gradient.setColorAt(0.0, QColor("#00A96A"))
-        gradient.setColorAt(0.55, QColor("#10D486"))
-        gradient.setColorAt(1.0, QColor("#5AF0AD"))
+        if is_dark_palette():
+            gradient.setColorAt(0.0, QColor("#0A8C65"))
+            gradient.setColorAt(0.55, QColor("#23D18B"))
+            gradient.setColorAt(1.0, QColor("#88F2C2"))
+        else:
+            gradient.setColorAt(0.0, QColor("#047857"))
+            gradient.setColorAt(0.55, QColor("#10B981"))
+            gradient.setColorAt(1.0, QColor("#6EE7B7"))
 
         def draw_slice(top: float, left: float, right: float, height: float, trim: float) -> None:
             path = QPainterPath()
@@ -40,7 +79,7 @@ class LogoMark(QWidget):
             path.closeSubpath()
             painter.drawPath(path)
 
-        glow_pen = QPen(QColor("#DDFBEC"), 1.6)
+        glow_pen = QPen(QColor("#23D18B" if is_dark_palette() else "#0F9F6E"), 1.8)
         glow_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(glow_pen)
         painter.setBrush(gradient)
@@ -48,7 +87,7 @@ class LogoMark(QWidget):
         draw_slice(23, 15, 46, 19, 4)
         draw_slice(35, 22, 48, 13, 5)
 
-        cut_pen = QPen(QColor("#FFFFFF"), 4.2)
+        cut_pen = QPen(QColor(colors["card_bg"] if is_dark_palette() else "#ECFFF7"), 4.0)
         cut_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(cut_pen)
         painter.drawArc(QRectF(10, 11, 34, 24), 210 * 16, -70 * 16)
@@ -66,16 +105,28 @@ class IconBadge(QFrame):
         font_size: int = 10,
     ) -> None:
         super().__init__()
+        self._bg_color = bg_color
+        self._fg_color = fg_color
+        self._radius = radius
+        self._font_size = font_size
         self.setFixedSize(size, size)
-        self.setStyleSheet(
-            f"QFrame {{ background: {bg_color}; border-radius: {radius}px; }}"
-            f"QLabel {{ color: {fg_color}; font-size: {font_size}px; font-weight: 700; }}"
-        )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        label = QLabel(text)
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
+        self.label = QLabel(text)
+        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.label)
+        self.refresh_theme()
+
+    def set_colors(self, bg_color: str, fg_color: str) -> None:
+        self._bg_color = bg_color
+        self._fg_color = fg_color
+        self.refresh_theme()
+
+    def refresh_theme(self) -> None:
+        self.setStyleSheet(
+            f"QFrame {{ background: {self._bg_color}; border-radius: {self._radius}px; }}"
+            f"QLabel {{ color: {self._fg_color}; font-size: {self._font_size}px; font-weight: 700; }}"
+        )
 
 
 class StatusDot(QFrame):
@@ -107,6 +158,10 @@ class MetricTile(CardFrame):
     ) -> None:
         super().__init__(role="subtle-card", shadow_color=shadow_color)
         self.compact = compact
+        self.tone = tone
+        self._icon_text = icon_text
+        self._value = value
+        self._label_text = label_text
         self.setMinimumHeight(54 if compact else 64)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10 if compact else 12, 8 if compact else 10, 10 if compact else 12, 8 if compact else 10)
@@ -131,21 +186,18 @@ class MetricTile(CardFrame):
 
         self.text_label = QLabel()
         self.text_label.setWordWrap(True)
-        self.text_label.setStyleSheet(
-            f"font-size: {10 if compact else 11}px; color: #5F6B7A; font-weight: 600; line-height: 1.2;"
-        )
+        self.text_label.setStyleSheet(f"font-size: {10 if compact else 11}px; font-weight: 600; line-height: 1.2;")
         layout.addWidget(self.text_label)
         self.badge: IconBadge | None = None
         self.set_content(icon_text, value, label_text, tone)
 
     def set_content(self, icon_text: str, value: str, label_text: str, tone: str) -> None:
-        tones = {
-            "blue": ("#EEF5FF", "#2E78E6"),
-            "orange": ("#FFF5EA", "#F59A23"),
-            "slate": ("#F1F4F8", "#8FA0B4"),
-            "green": ("#EAF9F1", "#18B06A"),
-        }
-        bg, fg = tones.get(tone, tones["blue"])
+        self._icon_text = icon_text
+        self._value = value
+        self._label_text = label_text
+        colors = current_colors()
+        self.tone = tone
+        bg, fg = tone_pair(tone)
         while self.badge_holder.count():
             item = self.badge_holder.takeAt(0)
             widget = item.widget()
@@ -157,17 +209,19 @@ class MetricTile(CardFrame):
         self.badge_holder.addWidget(self.badge, 0, Qt.AlignmentFlag.AlignLeft)
         self.value_label.setText(value)
         self.text_label.setText(label_text)
+        self.value_label.setStyleSheet(f"font-size: {16 if self.compact else 18}px; font-weight: 800; color: {colors['text']};")
+        self.text_label.setStyleSheet(
+            f"font-size: {10 if self.compact else 11}px; color: {colors['text_secondary']}; font-weight: 600; line-height: 1.2;"
+        )
+
+    def refresh_theme(self) -> None:
+        self.set_content(self._icon_text, self._value, self._label_text, self.tone)
 
 
 class ScoreBadge(QLabel):
     def __init__(self, value: int, tone: str) -> None:
         super().__init__(f"{value}%")
-        styles = {
-            "success": ("#DFF5E8", "#2A9D68"),
-            "warning": ("#FFF1DF", "#E98B19"),
-            "danger": ("#FFE4E8", "#D35469"),
-        }
-        bg, fg = styles.get(tone, styles["success"])
+        bg, fg = tone_pair(tone)
         self.setStyleSheet(
             f"background: {bg}; color: {fg}; border-radius: 12px; padding: 7px 10px; font-size: 13px; font-weight: 700;"
         )
@@ -192,10 +246,11 @@ class DonutChart(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        colors = current_colors()
 
-        diameter = min(self.diameter, max(64, min(self.width() - 28, self.height() - 44)))
+        diameter = min(self.diameter, max(64, min(self.width() - 28, self.height() - 54)))
         left = (self.width() - diameter) / 2
-        top = 12
+        top = 8
         rect = QRectF(left, top, diameter, diameter)
 
         stroke = max(8, int(round(diameter * 0.11)))
@@ -210,16 +265,20 @@ class DonutChart(QWidget):
         span = int(-360 * 16 * (self.percent / 100))
         painter.drawArc(rect, 90 * 16, span)
 
-        painter.setPen(QColor("#1F2A3B"))
-        painter.setFont(QFont(QApplication.font().family(), max(14, int(round(diameter * 0.19))), 800))
-        painter.drawText(QRectF(left, top + diameter * 0.18, diameter, diameter * 0.28), Qt.AlignmentFlag.AlignCenter, f"{self.percent}%")
-
-        painter.setPen(QColor("#7B8794"))
-        painter.setFont(QFont(QApplication.font().family(), max(8, int(round(diameter * 0.09)))))
+        painter.setPen(QColor(colors["text"]))
+        painter.setFont(QFont(QApplication.font().family(), max(15, int(round(diameter * 0.24))), 800))
         painter.drawText(
-            QRectF(left, top + diameter * 0.45, diameter, diameter * 0.36),
+            QRectF(left, top + diameter * 0.26, diameter, diameter * 0.22),
             Qt.AlignmentFlag.AlignCenter,
-            "Средний\nрезультат",
+            f"{self.percent}%",
+        )
+
+        painter.setPen(QColor(colors["text_secondary"]))
+        painter.setFont(QFont(QApplication.font().family(), max(9, int(round(diameter * 0.11))), 600))
+        painter.drawText(
+            QRectF(0, top + diameter + 6, self.width(), 28),
+            Qt.AlignmentFlag.AlignCenter,
+            "Средний результат",
         )
 
 
@@ -244,5 +303,5 @@ class TwoColumnRows(QWidget):
             label.setProperty("role", "body")
             layout.addWidget(label, index, 0)
             value = QLabel(value_text)
-            value.setStyleSheet("font-size: 14px; font-weight: 600;")
+            value.setStyleSheet(f"font-size: 14px; font-weight: 600; color: {current_colors()['text']};")
             layout.addWidget(value, index, 1)

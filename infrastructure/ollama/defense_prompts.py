@@ -84,6 +84,8 @@ def defense_answer_review_prompt(
     questions: list[str],
     answer_text: str,
     mode: str,
+    persona: str,
+    timer_profile_sec: int,
 ) -> tuple[str, str]:
     system = (
         "You review a student's thesis defense answer. "
@@ -96,8 +98,30 @@ def defense_answer_review_prompt(
         "Return JSON with keys scores, weak_points, summary, followups.\n"
         "scores must include: structure_mastery, relevance_clarity, methodology_mastery, novelty_mastery, results_mastery, limitations_honesty, oral_clarity_text_mode, followup_mastery.\n"
         f"MODE: {mode}\n"
+        f"PERSONA: {persona}\n"
+        f"TIMER_PROFILE_SEC: {timer_profile_sec}\n"
         f"DOSSIER: {json.dumps(dossier_json, ensure_ascii=False)}\n"
         f"QUESTIONS: {json.dumps(questions, ensure_ascii=False)}\n"
         f"ANSWER: {answer_text}"
+    )
+    return system, prompt
+
+
+def defense_gap_enrichment_prompt(
+    dossier_json: list[dict[str, object]],
+    findings: list[dict[str, object]],
+) -> tuple[str, str]:
+    system = (
+        "You improve a thesis defense gap report. "
+        "Use only the provided dossier and gap list. "
+        "Do not invent new facts. "
+        "Return valid JSON only."
+    )
+    prompt = (
+        "Task: refine gap findings for a thesis defense.\n"
+        "Return JSON with key findings.\n"
+        "Each finding must contain: finding_id, explanation, suggested_fix.\n"
+        f"DOSSIER: {json.dumps(dossier_json, ensure_ascii=False)}\n"
+        f"FINDINGS: {json.dumps(findings, ensure_ascii=False)}"
     )
     return system, prompt

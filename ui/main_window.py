@@ -29,6 +29,7 @@ from app.paths import get_readme_path
 from infrastructure.db import connect_initialized, get_database_path
 from infrastructure.ollama.service import OllamaDiagnostics
 from ui.background import FunctionThread, ProgressThread
+from ui.admin_password_dialog import AdminPasswordDialog
 from ui.components.sidebar import Sidebar
 from ui.components.topbar import TopBar
 from ui.theme import DARK, LIGHT, set_app_theme
@@ -45,11 +46,19 @@ from ui.views.training_view import TrainingView
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, app, facade: AppFacade, palette_name: str = "light") -> None:
+    def __init__(
+        self,
+        app,
+        facade: AppFacade,
+        palette_name: str = "light",
+        *,
+        suppress_startup_background_tasks: bool = False,
+    ) -> None:
         super().__init__()
         self.app = app
         self.facade = facade
         self.palette_name = palette_name
+        self.suppress_startup_background_tasks = suppress_startup_background_tasks
         self.palette_colors = LIGHT if palette_name == "light" else DARK
         self.latest_diagnostics: OllamaDiagnostics | None = None
         self._diagnostics_thread: FunctionThread | None = None
@@ -67,6 +76,7 @@ class MainWindow(QMainWindow):
         self.latest_update_info = UpdateInfo()
         self._update_prompted = False
         self._manual_update_check = False
+        self._pending_training_mode: str | None = None
 
         self.setWindowTitle(APP_WINDOW_TITLE)
         self.setMinimumSize(1280, 720)
@@ -108,10 +118,10 @@ class MainWindow(QMainWindow):
         self.topbar.search_changed.connect(self.forward_search)
         content_layout.addWidget(self.topbar)
 
-        separator = QWidget()
-        separator.setFixedHeight(1)
-        separator.setStyleSheet("background: #DFE7F0;")
-        content_layout.addWidget(separator)
+        self.separator = QWidget()
+        self.separator.setFixedHeight(1)
+        self.separator.setStyleSheet(f"background: {self.palette_colors['border']};")
+        content_layout.addWidget(self.separator)
 
         self.stack = QStackedWidget()
         content_layout.addWidget(self.stack, 1)
@@ -146,6 +156,8 @@ class MainWindow(QMainWindow):
         self.views["defense"].project_selected.connect(self.refresh_defense_view)
         self.views["defense"].import_requested.connect(self.open_defense_import_dialog)
         self.views["defense"].evaluate_requested.connect(self.evaluate_defense_mock)
+        self.views["defense"].gap_status_requested.connect(self.update_defense_gap_status)
+        self.views["defense"].repair_task_status_requested.connect(self.update_defense_repair_task_status)
 
         self.views["import"].import_requested.connect(self.open_import_dialog)
         self.views["import"].resume_requested.connect(self.resume_partial_import)
@@ -156,6 +168,7 @@ class MainWindow(QMainWindow):
         self.views["training"].evaluate_requested.connect(self.handle_training_evaluation)
         self.views["settings"].diagnostics_changed.connect(self.apply_ollama_diagnostics)
         self.views["settings"].settings_saved.connect(self.persist_settings)
+        self.views["settings"].admin_setup_requested.connect(self.open_admin_password_dialog)
         self.views["settings"].admin_login_requested.connect(self.handle_admin_login)
         self.views["settings"].admin_logout_requested.connect(self.handle_admin_logout)
         self.views["settings"].admin_editor_requested.connect(self.open_interface_text_editor)
@@ -170,11 +183,13 @@ class MainWindow(QMainWindow):
         self.views["settings"].set_update_info(self.latest_update_info)
         self.refresh_all_views()
 
-        if self.facade.settings.auto_check_ollama_on_start:
+        if self.suppress_startup_background_tasks:
+            self._apply_manual_ollama_status()
+        elif self.facade.settings.auto_check_ollama_on_start:
             QTimer.singleShot(0, self.refresh_sidebar_ollama_status)
         else:
             self._apply_manual_ollama_status()
-        if self.facade.settings.auto_check_updates_on_start:
+        if not self.suppress_startup_background_tasks and self.facade.settings.auto_check_updates_on_start:
             QTimer.singleShot(150, lambda: self.check_for_updates(manual=False))
 
     def switch_view(self, key: str) -> None:
@@ -185,6 +200,8 @@ class MainWindow(QMainWindow):
         self.current_key = key
         self.sidebar.set_current(key)
         self.stack.setCurrentWidget(self.stack_pages[key])
+        if key in {"tickets", "training"}:
+            QTimer.singleShot(0, self._refresh_heavy_views)
         self.forward_search(self.topbar.search_input.text())
         self._apply_interface_text_overrides()
 
@@ -366,27 +383,60 @@ class MainWindow(QMainWindow):
             self._defense_thread.deleteLater()
         self._defense_thread = None
 
-    def evaluate_defense_mock(self, project_id: str, mode_key: str, answer_text: str) -> None:
+    def evaluate_defense_mock(self, project_id: str, mode_key: str, persona_kind: str, timer_profile_sec: int, answer_text: str) -> None:
         if self._defense_eval_thread is not None and self._defense_eval_thread.isRunning():
             return
         self.views["defense"].set_evaluation_pending(True)
         self._defense_eval_thread = FunctionThread(
-            lambda: self._evaluate_defense_in_background(project_id, mode_key, answer_text)
+            lambda: self._evaluate_defense_in_background(project_id, mode_key, persona_kind, timer_profile_sec, answer_text)
         )
         self._defense_eval_thread.succeeded.connect(self._finish_defense_evaluation)
         self._defense_eval_thread.failed.connect(self._fail_defense_evaluation)
         self._defense_eval_thread.finished.connect(self._clear_defense_eval_thread)
         self._defense_eval_thread.start()
 
-    def _evaluate_defense_in_background(self, project_id: str, mode_key: str, answer_text: str):
+    def _evaluate_defense_in_background(
+        self,
+        project_id: str,
+        mode_key: str,
+        persona_kind: str,
+        timer_profile_sec: int,
+        answer_text: str,
+    ):
         database_path = get_database_path(self.facade.workspace_root)
         connection = connect_initialized(database_path)
         settings_store = SettingsStore(self.facade.workspace_root / "app_data" / "settings.json")
         worker_facade = AppFacade(self.facade.workspace_root, connection, settings_store)
         try:
-            return worker_facade.evaluate_defense_mock(project_id, mode_key, answer_text)
+            return worker_facade.evaluate_defense_mock_with_context(
+                project_id,
+                mode_key,
+                persona_kind,
+                timer_profile_sec,
+                answer_text,
+            )
         finally:
             connection.close()
+
+    def update_defense_gap_status(self, project_id: str, finding_id: str, status: str) -> None:
+        if not project_id or not finding_id:
+            return
+        try:
+            self.facade.update_defense_gap_status(project_id, finding_id, status)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Платный модуль", str(exc))
+            return
+        self.refresh_defense_view(project_id)
+
+    def update_defense_repair_task_status(self, project_id: str, task_id: str, status: str) -> None:
+        if not project_id or not task_id:
+            return
+        try:
+            self.facade.update_defense_repair_task_status(project_id, task_id, status)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Платный модуль", str(exc))
+            return
+        self.refresh_defense_view(project_id)
 
     def _finish_defense_evaluation(self, result) -> None:
         if self._is_closing:
@@ -443,6 +493,8 @@ class MainWindow(QMainWindow):
             settings.font_size,
         )
         self.topbar.set_theme_label(self.palette_name)
+        self._refresh_theme_widgets()
+        self.refresh_all_views()
         self.facade.save_settings(settings)
 
     def refresh_sidebar_ollama_status(self) -> None:
@@ -497,6 +549,7 @@ class MainWindow(QMainWindow):
             settings.font_size,
         )
         self.topbar.set_theme_label(self.palette_name)
+        self._refresh_theme_widgets()
         self.views["library"].set_dlc_visible(settings.show_dlc_teaser)
         self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
         self.views["settings"].set_update_info(self.latest_update_info)
@@ -511,6 +564,16 @@ class MainWindow(QMainWindow):
             self.check_for_updates()
 
     def refresh_all_views(self) -> None:
+        self._refresh_lightweight_views(include_heavy=self.current_key in {"tickets", "training"})
+
+    def _refresh_theme_widgets(self) -> None:
+        self.separator.setStyleSheet(f"background: {self.palette_colors['border']};")
+        for widget in [self, *self.findChildren(QWidget)]:
+            refresh = getattr(widget, "refresh_theme", None)
+            if callable(refresh):
+                refresh()
+
+    def _refresh_lightweight_views(self, *, include_heavy: bool) -> None:
         if self._is_closing or not self._connection_usable():
             return
         documents = self.facade.load_documents()
@@ -518,10 +581,8 @@ class MainWindow(QMainWindow):
         statistics = self.facade.load_statistics_snapshot()
         subjects = self.facade.load_subjects()
         sections = self.facade.load_sections_overview()
-        tickets = self.facade.load_ticket_maps()
         mastery = self.facade.load_mastery_breakdowns()
         weak_areas = self.facade.load_weak_areas()
-        training_snapshot = self.facade.load_training_snapshot()
         state_exam_statistics = self.facade.load_state_exam_statistics()
         current_diagnostics = self._display_diagnostics()
 
@@ -533,15 +594,33 @@ class MainWindow(QMainWindow):
             self.views["import"].set_last_result(latest_import)
         self.views["subjects"].set_subjects(subjects)
         self.views["sections"].set_sections(sections)
-        self.views["tickets"].set_data(tickets, mastery, weak_areas)
-        self.views["training"].set_snapshot(training_snapshot)
-        self.views["training"].select_mode(self.facade.settings.default_training_mode)
         self.views["statistics"].set_data(statistics, mastery, weak_areas, state_exam_statistics)
         self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
         self.views["settings"].set_update_info(self.latest_update_info)
         self._apply_interface_text_overrides()
+        if include_heavy:
+            self._refresh_heavy_views(mastery=mastery, weak_areas=weak_areas)
+
+    def _refresh_heavy_views(
+        self,
+        *,
+        mastery: dict[str, TicketMasteryBreakdown] | None = None,
+        weak_areas=None,
+    ) -> None:
+        if self._is_closing or not self._connection_usable():
+            return
+        resolved_mastery = mastery if mastery is not None else self.facade.load_mastery_breakdowns()
+        resolved_weak_areas = weak_areas if weak_areas is not None else self.facade.load_weak_areas()
+        tickets = self.facade.load_ticket_maps()
+        training_snapshot = self.facade.load_training_snapshot(tickets=tickets)
+        self.views["tickets"].set_data(tickets, resolved_mastery, resolved_weak_areas)
+        self.views["training"].set_snapshot(training_snapshot)
+        target_mode = self._pending_training_mode or self.views["training"].selected_mode or self.facade.settings.default_training_mode
+        self.views["training"].select_mode(target_mode)
+        self._pending_training_mode = None
 
     def open_training_mode(self, mode_key: str) -> None:
+        self._pending_training_mode = mode_key
         self.switch_view("training")
         self.views["training"].select_mode(mode_key)
 
@@ -563,7 +642,7 @@ class MainWindow(QMainWindow):
 
     def handle_admin_login(self, password: str) -> None:
         if not self.admin_state.configured:
-            QMessageBox.warning(self, "Админ-доступ", "Пароль ещё не задан. Сначала настройте его через локальную утилиту.")
+            QMessageBox.warning(self, "Админ-доступ", "Пароль ещё не задан. Сначала создайте его через кнопку «Настроить пароль».")
             return
         if not self.admin_store.verify_password(password):
             QMessageBox.warning(self, "Админ-доступ", "Пароль не подошёл.")
@@ -582,6 +661,15 @@ class MainWindow(QMainWindow):
         self.admin_state = self.admin_store.load_state()
         set_debug_mode(self, False)
         self.views["settings"].set_admin_state(self.admin_state, False)
+
+    def open_admin_password_dialog(self) -> None:
+        dialog = AdminPasswordDialog(self.admin_store, self.facade.workspace_root, self)
+        if dialog.exec():
+            self.admin_unlocked = False
+            self.admin_state = self.admin_store.load_state()
+            set_debug_mode(self, False)
+            self.views["settings"].set_admin_state(self.admin_state, False)
+            QMessageBox.information(self, "Админ-доступ", "Параметры админ-доступа обновлены.")
 
     def toggle_admin_debug_mode(self, enabled: bool) -> None:
         if not self.admin_unlocked:
@@ -627,7 +715,11 @@ class MainWindow(QMainWindow):
         self.views["settings"].set_update_info(update_info)
         if update_info.error_text:
             if self._manual_update_check:
-                QMessageBox.warning(self, "Обновления", update_info.error_text)
+                QMessageBox.warning(
+                    self,
+                    "Обновления",
+                    f"{update_info.error_text}\n\nСтраница релизов остаётся доступной из раздела «Настройки -> Продвинутые».",
+                )
             return
         if update_info.update_available:
             if self._manual_update_check or not self._update_prompted:
@@ -718,6 +810,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self._is_closing = True
+        self._wait_for_thread_shutdown(self._diagnostics_thread)
         if self._diagnostics_thread is not None:
             try:
                 self._diagnostics_thread.succeeded.disconnect()
@@ -727,6 +820,7 @@ class MainWindow(QMainWindow):
                 self._diagnostics_thread.failed.disconnect()
             except Exception:
                 pass
+        self._wait_for_thread_shutdown(self._import_thread)
         if self._import_thread is not None:
             try:
                 self._import_thread.succeeded.disconnect()
@@ -740,6 +834,7 @@ class MainWindow(QMainWindow):
                 self._import_thread.progress_changed.disconnect()
             except Exception:
                 pass
+        self._wait_for_thread_shutdown(self._defense_thread)
         if self._defense_thread is not None:
             try:
                 self._defense_thread.succeeded.disconnect()
@@ -753,6 +848,7 @@ class MainWindow(QMainWindow):
                 self._defense_thread.progress_changed.disconnect()
             except Exception:
                 pass
+        self._wait_for_thread_shutdown(self._defense_eval_thread)
         if self._defense_eval_thread is not None:
             try:
                 self._defense_eval_thread.succeeded.disconnect()
@@ -762,6 +858,7 @@ class MainWindow(QMainWindow):
                 self._defense_eval_thread.failed.disconnect()
             except Exception:
                 pass
+        self._wait_for_thread_shutdown(self._update_thread)
         if self._update_thread is not None:
             try:
                 self._update_thread.succeeded.disconnect()
@@ -775,8 +872,13 @@ class MainWindow(QMainWindow):
                 self._update_thread.finished.disconnect()
             except Exception:
                 pass
-            self._update_thread.wait(3500)
         super().closeEvent(event)
+
+    @staticmethod
+    def _wait_for_thread_shutdown(thread: FunctionThread | ProgressThread | None, timeout_ms: int = 3500) -> None:
+        if thread is None or not thread.isRunning():
+            return
+        thread.wait(timeout_ms)
 
     def _import_filter(self) -> str:
         if self.facade.settings.preferred_import_format == "pdf":

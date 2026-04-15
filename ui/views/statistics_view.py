@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from application.ui_data import StateExamStatisticsSnapshot, StatisticsSnapshot, TicketMasteryBreakdown
 from ui.components.common import CardFrame
 from ui.components.stats_panel import StatisticsPanel
+from ui.theme import current_colors
 
 
 def _clear_layout(layout: QVBoxLayout) -> None:
@@ -25,6 +26,10 @@ class StatisticsView(QWidget):
     def __init__(self, shadow_color) -> None:
         super().__init__()
         self.shadow_color = shadow_color
+        self._snapshot = StatisticsSnapshot(0, 0, 0, 0, [])
+        self._mastery_data: dict[str, TicketMasteryBreakdown] = {}
+        self._weak_areas_data: list = []
+        self._state_exam_data = StateExamStatisticsSnapshot()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 28)
@@ -34,39 +39,41 @@ class StatisticsView(QWidget):
         title.setProperty("role", "hero")
         layout.addWidget(title)
 
-        body = QHBoxLayout()
-        body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(16)
+        self.body = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.body.setContentsMargins(0, 0, 0, 0)
+        self.body.setSpacing(16)
 
         self.panel = StatisticsPanel(shadow_color)
-        body.addWidget(self.panel, 1)
+        self.body.addWidget(self.panel, 1)
 
-        side = QVBoxLayout()
-        side.setContentsMargins(0, 0, 0, 0)
-        side.setSpacing(16)
+        self.side_host = QWidget()
+        self.side = QVBoxLayout(self.side_host)
+        self.side.setContentsMargins(0, 0, 0, 0)
+        self.side.setSpacing(16)
 
         self.mastery_card = CardFrame(role="card", shadow_color=shadow_color)
         self.mastery_layout = QVBoxLayout(self.mastery_card)
         self.mastery_layout.setContentsMargins(18, 18, 18, 18)
         self.mastery_layout.setSpacing(10)
-        side.addWidget(self.mastery_card)
+        self.side.addWidget(self.mastery_card)
 
         self.weak_card = CardFrame(role="card", shadow_color=shadow_color)
         self.weak_layout = QVBoxLayout(self.weak_card)
         self.weak_layout.setContentsMargins(18, 18, 18, 18)
         self.weak_layout.setSpacing(10)
-        side.addWidget(self.weak_card)
+        self.side.addWidget(self.weak_card)
 
         self.state_exam_card = CardFrame(role="card", shadow_color=shadow_color)
         self.state_exam_layout = QVBoxLayout(self.state_exam_card)
         self.state_exam_layout.setContentsMargins(18, 18, 18, 18)
         self.state_exam_layout.setSpacing(10)
-        side.addWidget(self.state_exam_card)
+        self.side.addWidget(self.state_exam_card)
 
-        body.addLayout(side, 1)
-        layout.addLayout(body)
+        self.body.addWidget(self.side_host, 1)
+        layout.addLayout(self.body)
 
-        self.set_data(StatisticsSnapshot(0, 0, 0, 0, []), {}, [], StateExamStatisticsSnapshot())
+        self.set_data(self._snapshot, self._mastery_data, self._weak_areas_data, self._state_exam_data)
+        self._apply_responsive_layout()
 
     def set_data(
         self,
@@ -75,6 +82,10 @@ class StatisticsView(QWidget):
         weak_areas: list,
         state_exam: StateExamStatisticsSnapshot,
     ) -> None:
+        self._snapshot = snapshot
+        self._mastery_data = mastery
+        self._weak_areas_data = weak_areas
+        self._state_exam_data = state_exam
         self.panel.set_snapshot(snapshot)
         self._render_mastery(mastery)
         self._render_weak_areas(weak_areas)
@@ -143,6 +154,7 @@ class StatisticsView(QWidget):
         return
 
     def _render_state_exam(self, state_exam: StateExamStatisticsSnapshot) -> None:
+        colors = current_colors()
         _clear_layout(self.state_exam_layout)
 
         title = QLabel("Госэкзаменационный профиль")
@@ -158,7 +170,7 @@ class StatisticsView(QWidget):
             return
 
         subtitle = QLabel("Готовность по блокам ответа")
-        subtitle.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+        subtitle.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {colors['text']};")
         self.state_exam_layout.addWidget(subtitle)
         for name, value in state_exam.block_scores.items():
             label = QLabel(f"• {name}: {value}%")
@@ -166,7 +178,7 @@ class StatisticsView(QWidget):
             self.state_exam_layout.addWidget(label)
 
         criteria_title = QLabel("Критерии оценки")
-        criteria_title.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+        criteria_title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {colors['text']};")
         self.state_exam_layout.addWidget(criteria_title)
         if state_exam.criterion_scores:
             for name, value in state_exam.criterion_scores.items():
@@ -177,7 +189,7 @@ class StatisticsView(QWidget):
 
         if state_exam.missing_blocks:
             missing_title = QLabel("Пробелы в материалах")
-            missing_title.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+            missing_title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {colors['text']};")
             self.state_exam_layout.addWidget(missing_title)
             for name, value in state_exam.missing_blocks.items():
                 label = QLabel(f"• {name}: {value} бил.")
@@ -190,3 +202,16 @@ class StatisticsView(QWidget):
         if not raw_value:
             return []
         return list(json.loads(raw_value))
+
+    def refresh_theme(self) -> None:
+        self.panel.refresh_theme()
+        self.set_data(self._snapshot, self._mastery_data, self._weak_areas_data, self._state_exam_data)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        self._apply_responsive_layout()
+        super().resizeEvent(event)
+
+    def _apply_responsive_layout(self) -> None:
+        direction = QBoxLayout.Direction.TopToBottom if self.width() < 1180 else QBoxLayout.Direction.LeftToRight
+        if self.body.direction() != direction:
+            self.body.setDirection(direction)

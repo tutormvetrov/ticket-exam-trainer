@@ -3,12 +3,12 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QBoxLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from application.ui_data import StatisticsSnapshot
 from domain.models import DocumentData
 from infrastructure.ollama.service import OllamaDiagnostics
-from ui.components.common import CardFrame, IconBadge
+from ui.components.common import CardFrame, IconBadge, file_badge_colors
 from ui.components.document_detail import DocumentDetailPanel
 from ui.components.document_list import DocumentListPanel
 from ui.components.stats_panel import StatisticsPanel
@@ -65,8 +65,9 @@ class LibraryView(QWidget):
         startup_layout = QHBoxLayout(self.startup_card)
         startup_layout.setContentsMargins(16, 14, 16, 14)
         startup_layout.setSpacing(14)
+        ai_bg, ai_fg = file_badge_colors("AI")
         startup_layout.addWidget(
-            IconBadge("AI", "#EEF5FF", "#2E78E6", size=42, radius=13, font_size=12),
+            IconBadge("AI", ai_bg, ai_fg, size=42, radius=13, font_size=12),
             0,
             Qt.AlignmentFlag.AlignTop,
         )
@@ -112,24 +113,24 @@ class LibraryView(QWidget):
         startup_layout.addLayout(startup_actions)
         layout.addWidget(self.startup_card)
 
-        content_row = QHBoxLayout()
-        content_row.setContentsMargins(0, 0, 0, 0)
-        content_row.setSpacing(16)
+        self.content_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.content_row.setContentsMargins(0, 0, 0, 0)
+        self.content_row.setSpacing(16)
 
         self.document_list = DocumentListPanel([], shadow_color)
         self.document_list.setMinimumWidth(320)
         self.document_list.setMaximumWidth(388)
-        content_row.addWidget(self.document_list, 4)
+        self.content_row.addWidget(self.document_list, 4)
 
         self.detail_panel = DocumentDetailPanel(shadow_color)
         self.detail_panel.setMinimumWidth(300)
-        content_row.addWidget(self.detail_panel, 5)
+        self.content_row.addWidget(self.detail_panel, 5)
 
         self.stats_panel = StatisticsPanel(shadow_color, compact=True)
         self.stats_panel.setMinimumWidth(282)
         self.stats_panel.setMaximumWidth(348)
-        content_row.addWidget(self.stats_panel, 3)
-        layout.addLayout(content_row, 1)
+        self.content_row.addWidget(self.stats_panel, 3)
+        layout.addLayout(self.content_row, 1)
 
         self.training_panel = TrainingModesPanel(DEFAULT_TRAINING_MODES, shadow_color)
         self.training_panel.mode_selected.connect(self.training_mode_selected.emit)
@@ -139,7 +140,8 @@ class LibraryView(QWidget):
         dlc_layout = QHBoxLayout(self.dlc_card)
         dlc_layout.setContentsMargins(18, 16, 18, 16)
         dlc_layout.setSpacing(14)
-        dlc_layout.addWidget(IconBadge("PM", "#F5EEFF", "#7C3AED", size=44, radius=14, font_size=11), 0, Qt.AlignmentFlag.AlignTop)
+        pm_bg, pm_fg = file_badge_colors("PM")
+        dlc_layout.addWidget(IconBadge("PM", pm_bg, pm_fg, size=44, radius=14, font_size=11), 0, Qt.AlignmentFlag.AlignTop)
 
         dlc_text = QVBoxLayout()
         dlc_text.setContentsMargins(0, 0, 0, 0)
@@ -179,6 +181,7 @@ class LibraryView(QWidget):
 
         self.document_list.document_selected.connect(self._select_document)
         self.startup_card.hide()
+        self._apply_responsive_layout()
 
     def set_data(self, documents: list[DocumentData], snapshot: StatisticsSnapshot) -> None:
         self.documents = documents[:]
@@ -203,7 +206,7 @@ class LibraryView(QWidget):
         if diagnostics.endpoint_message == "Проверка...":
             self.startup_title.setText("Проверяем локальный ИИ")
             self.startup_body.setText("Проверка Ollama идёт в фоне. Интерфейс уже доступен, ждать блокировки не нужно.")
-            self.startup_meta.setText(f"Модель по умолчанию: {diagnostics.model_name or 'mistral:instruct'}")
+            self.startup_meta.setText(f"Модель по умолчанию: {diagnostics.model_name or 'локальная Qwen-модель'}")
             self._configure_startup_actions(
                 None,
                 ("Открыть настройки Ollama", self.ollama_settings_requested.emit, "secondary"),
@@ -214,9 +217,9 @@ class LibraryView(QWidget):
         if diagnostics.endpoint_ok and diagnostics.model_ok:
             self.startup_title.setText("Локальный ИИ готов")
             self.startup_body.setText(
-                "Mistral доступен локально. Следующий шаг: импортируйте один большой DOCX или PDF через кнопку сверху."
+                "Локальная модель доступна. Следующий шаг: импортируйте один большой DOCX или PDF через кнопку сверху."
             )
-            self.startup_meta.setText(f"Модель: {diagnostics.model_name or 'mistral:instruct'} • Сервер: OK")
+            self.startup_meta.setText(f"Модель: {diagnostics.model_name or 'локальная Qwen-модель'} • Сервер: OK")
             self._configure_startup_actions(
                 None,
                 ("Проверить снова", self.recheck_requested.emit, "secondary"),
@@ -226,7 +229,7 @@ class LibraryView(QWidget):
 
         self.startup_title.setText("Локальный ИИ пока не готов")
         self.startup_body.setText(
-            "До полноценной AI-тренировки нужно привести в порядок локальную среду Ollama и модель mistral:instruct."
+            "До полноценной AI-тренировки нужно привести в порядок локальную среду Ollama и совместимую локальную модель."
         )
         self.startup_meta.setText(diagnostics.error_text or diagnostics.model_message or diagnostics.endpoint_message)
         self._configure_startup_actions(
@@ -283,3 +286,25 @@ class LibraryView(QWidget):
 
     def _handle_startup_tertiary(self) -> None:
         self._startup_tertiary_action()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        self._apply_responsive_layout()
+        super().resizeEvent(event)
+
+    def _apply_responsive_layout(self) -> None:
+        narrow = self.width() < 1060
+        target_direction = QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight
+        if self.content_row.direction() != target_direction:
+            self.content_row.setDirection(target_direction)
+        if narrow:
+            self.document_list.setMinimumWidth(0)
+            self.document_list.setMaximumWidth(16777215)
+            self.detail_panel.setMinimumWidth(0)
+            self.stats_panel.setMinimumWidth(0)
+            self.stats_panel.setMaximumWidth(16777215)
+        else:
+            self.document_list.setMinimumWidth(320)
+            self.document_list.setMaximumWidth(388)
+            self.detail_panel.setMinimumWidth(300)
+            self.stats_panel.setMinimumWidth(282)
+            self.stats_panel.setMaximumWidth(348)

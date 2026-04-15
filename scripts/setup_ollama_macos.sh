@@ -3,6 +3,7 @@ set -euo pipefail
 
 MODELS_PATH="${OLLAMA_MODELS:-$HOME/.ollama}"
 OLLAMA_BIN="${OLLAMA_BIN:-$(command -v ollama || true)}"
+export OLLAMA_MODELS="$MODELS_PATH"
 
 echo "Preparing Ollama models directory: $MODELS_PATH"
 mkdir -p "$MODELS_PATH"
@@ -35,8 +36,8 @@ if ! curl -fsS "http://localhost:11434/api/tags" >/dev/null 2>&1; then
   sleep 8
 fi
 
-echo "Pulling mistral:instruct"
-"$OLLAMA_BIN" pull mistral:instruct
+echo "Pulling qwen3:8b"
+"$OLLAMA_BIN" pull qwen3:8b
 
 echo "Installed models:"
 "$OLLAMA_BIN" list

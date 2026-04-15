@@ -18,7 +18,8 @@ from PySide6.QtWidgets import (
 from application.ui_data import TicketMasteryBreakdown
 from application.answer_profile_registry import answer_profile_label
 from domain.knowledge import TicketKnowledgeMap
-from ui.components.common import CardFrame, ClickableFrame, IconBadge
+from ui.components.common import CardFrame, ClickableFrame, IconBadge, file_badge_colors, tone_pair
+from ui.theme import current_colors
 
 
 class TicketListItem(ClickableFrame):
@@ -37,9 +38,10 @@ class TicketListItem(ClickableFrame):
         top = QHBoxLayout()
         top.setContentsMargins(0, 0, 0, 0)
         top.setSpacing(10)
-        top.addWidget(IconBadge(str(len(ticket.atoms)), "#EEF5FF", "#2E78E6", size=34, radius=11, font_size=11))
+        badge_bg, badge_fg = file_badge_colors("DOCX")
+        top.addWidget(IconBadge(str(len(ticket.atoms)), badge_bg, badge_fg, size=34, radius=11, font_size=11))
         title = QLabel(ticket.title)
-        title.setStyleSheet("font-size: 14px; font-weight: 700;")
+        title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {current_colors()['text']};")
         title.setWordWrap(True)
         top.addWidget(title, 1)
         layout.addLayout(top)
@@ -205,13 +207,14 @@ class TicketsView(QWidget):
         self.detail_scroll.verticalScrollBar().setValue(0)
 
     def _hero_card(self, ticket: TicketKnowledgeMap) -> QWidget:
+        colors = current_colors()
         card = CardFrame(role="card", shadow_color=self.shadow_color)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(12)
 
         title = QLabel(ticket.title)
-        title.setStyleSheet("font-size: 22px; font-weight: 800;")
+        title.setStyleSheet(f"font-size: 22px; font-weight: 800; color: {colors['text']};")
         title.setWordWrap(True)
         layout.addWidget(title)
 
@@ -230,6 +233,7 @@ class TicketsView(QWidget):
         return card
 
     def _answer_blocks_card(self, ticket: TicketKnowledgeMap) -> QWidget:
+        colors = current_colors()
         card = CardFrame(role="card", shadow_color=self.shadow_color)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 20)
@@ -253,7 +257,7 @@ class TicketsView(QWidget):
             row_layout.setContentsMargins(14, 12, 14, 12)
             row_layout.setSpacing(6)
             head = QLabel(f"{block.title} • уверенность {int(block.confidence * 100)}%")
-            head.setStyleSheet("font-size: 14px; font-weight: 700; color: #243548;")
+            head.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {colors['text']};")
             row_layout.addWidget(head)
             state = "Пробел в источнике" if block.is_missing else ("Уточнено LLM" if block.llm_assisted else "Подтверждено источником")
             chip = QLabel(state)
@@ -272,6 +276,7 @@ class TicketsView(QWidget):
         return card
 
     def _mastery_card(self, ticket: TicketKnowledgeMap) -> QWidget:
+        colors = current_colors()
         profile = self.mastery.get(ticket.ticket_id, TicketMasteryBreakdown(ticket.ticket_id))
         rows = [
             ("Определения", profile.definition_mastery),
@@ -294,7 +299,7 @@ class TicketsView(QWidget):
         layout.addWidget(title)
 
         overall = QLabel(f"Общая уверенность: {int(profile.confidence_score * 100)}%")
-        overall.setStyleSheet("font-size: 15px; font-weight: 700;")
+        overall.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {colors['text']};")
         layout.addWidget(overall)
 
         for label_text, value in rows:
@@ -303,6 +308,7 @@ class TicketsView(QWidget):
             row_layout.setContentsMargins(0, 0, 0, 0)
             row_layout.setSpacing(12)
             label = QLabel(label_text)
+            label.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {colors['text_secondary']};")
             label.setFixedWidth(140)
             row_layout.addWidget(label)
             bar = QProgressBar()
@@ -311,17 +317,18 @@ class TicketsView(QWidget):
             bar.setTextVisible(False)
             bar.setFixedHeight(10)
             bar.setStyleSheet(
-                "QProgressBar { background: #EEF3F8; border: none; border-radius: 5px; }"
-                "QProgressBar::chunk { background: #2E78E6; border-radius: 5px; }"
+                f"QProgressBar {{ background: {colors['card_muted']}; border: none; border-radius: 5px; }}"
+                f"QProgressBar::chunk {{ background: {colors['primary']}; border-radius: 5px; }}"
             )
             row_layout.addWidget(bar, 1)
             percent = QLabel(f"{int(round(value * 100))}%")
-            percent.setStyleSheet("font-size: 13px; font-weight: 700;")
+            percent.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {colors['text']};")
             row_layout.addWidget(percent)
             layout.addWidget(row)
         return card
 
     def _atoms_card(self, ticket: TicketKnowledgeMap) -> QWidget:
+        colors = current_colors()
         card = CardFrame(role="card", shadow_color=self.shadow_color)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 20)
@@ -338,12 +345,13 @@ class TicketsView(QWidget):
             row_layout.setContentsMargins(14, 12, 14, 12)
             row_layout.setSpacing(6)
             chip = QLabel(atom.type.value.replace("_", " "))
+            chip_bg, chip_fg = tone_pair("primary")
             chip.setStyleSheet(
-                "background: #EEF5FF; color: #2E78E6; border-radius: 11px; padding: 4px 10px; font-size: 12px; font-weight: 700;"
+                f"background: {chip_bg}; color: {chip_fg}; border-radius: 11px; padding: 4px 10px; font-size: 12px; font-weight: 700;"
             )
             row_layout.addWidget(chip, 0, Qt.AlignmentFlag.AlignLeft)
             label = QLabel(atom.label)
-            label.setStyleSheet("font-size: 14px; font-weight: 700;")
+            label.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {colors['text']};")
             row_layout.addWidget(label)
             text = QLabel(atom.text)
             text.setWordWrap(True)
@@ -429,6 +437,14 @@ class TicketsView(QWidget):
             text.setProperty("role", "body")
             layout.addWidget(text)
         return card
+
+    def refresh_theme(self) -> None:
+        self._rebuild_list()
+        if self.filtered:
+            selected = self.current_ticket_id if self.current_ticket_id in {ticket.ticket_id for ticket in self.filtered} else self.filtered[0].ticket_id
+            self._select_ticket(selected)
+        else:
+            self._render_placeholder()
 
     def set_search_text(self, text: str) -> None:
         query = text.strip().lower()

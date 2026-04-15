@@ -4,12 +4,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.platform import default_models_path
-from ui.theme import DEFAULT_FONT_PRESET, DEFAULT_FONT_SIZE
+from application.ui_defaults import DEFAULT_FONT_PRESET, DEFAULT_FONT_SIZE
+
+DEFAULT_OLLAMA_MODEL = "qwen3:8b"
 
 @dataclass(slots=True)
 class OllamaSettings:
     base_url: str = "http://localhost:11434"
-    model: str = "mistral:instruct"
+    model: str = DEFAULT_OLLAMA_MODEL
     models_path: Path = field(default_factory=default_models_path)
     timeout_seconds: int = 60
     rewrite_questions: bool = True
@@ -21,7 +23,7 @@ class OllamaSettings:
     show_dlc_teaser: bool = True
     default_import_dir: Path = Path.home()
     preferred_import_format: str = "docx"
-    import_llm_assist: bool = True
+    import_llm_assist: bool = False
     default_training_mode: str = "active-recall"
     review_mode: str = "standard_adaptive"
     training_queue_size: int = 8

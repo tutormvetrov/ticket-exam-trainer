@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QBoxLayout, QComboBox, QGridLayout, QHBoxLayout, Q
 from application.ui_data import StatisticsSnapshot
 from domain.models import SessionData
 from ui.components.common import CardFrame, DonutChart, MetricTile, ScoreBadge
+from ui.theme import current_colors
 
 
 def _clear_layout(layout: QVBoxLayout) -> None:
@@ -34,7 +35,7 @@ class StatisticsPanel(QWidget):
 
         overall = CardFrame(role="card", shadow_color=shadow_color, shadow=not compact)
         overall.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        overall.setMinimumHeight(304 if compact else 382)
+        overall.setMinimumHeight(338 if compact else 382)
         overall_layout = QVBoxLayout(overall)
         overall_layout.setContentsMargins(0, 0, 0, 0)
         overall_layout.setSpacing(0)
@@ -56,14 +57,14 @@ class StatisticsPanel(QWidget):
 
         line = QWidget()
         line.setFixedHeight(1)
-        line.setStyleSheet("background: #E9EEF5;")
+        line.setStyleSheet(f"background: {current_colors()['border']};")
         overall_layout.addWidget(line)
 
         body = QVBoxLayout()
         body.setContentsMargins(12 if compact else 14, 12 if compact else 10, 12 if compact else 14, 14 if compact else 12)
         body.setSpacing(10 if compact else 10)
         self.chart = DonutChart(0, diameter=70 if compact else 96)
-        self.chart.setFixedSize(118 if compact else 132, 92 if compact else 126)
+        self.chart.setFixedSize(118 if compact else 132, 126 if compact else 126)
         body.addWidget(self.chart, 0, Qt.AlignmentFlag.AlignHCenter)
 
         grid = QGridLayout()
@@ -103,7 +104,7 @@ class StatisticsPanel(QWidget):
         recent_header.addWidget(recent_title)
         recent_header.addStretch(1)
         more = QLabel("Все →")
-        more.setStyleSheet("color: #2E78E6; font-size: 13px; font-weight: 600;")
+        more.setStyleSheet(f"color: {current_colors()['primary']}; font-size: 13px; font-weight: 600;")
         recent_header.addWidget(more)
         recent_layout.addLayout(recent_header)
 
@@ -138,7 +139,9 @@ class StatisticsPanel(QWidget):
         text_box.setContentsMargins(0, 0, 0, 0)
         text_box.setSpacing(2 if self.compact else 3)
         title = QLabel(session.title)
-        title.setStyleSheet(f"font-size: {13 if self.compact else 14}px; font-weight: 700;")
+        title.setStyleSheet(
+            f"font-size: {13 if self.compact else 14}px; font-weight: 700; color: {current_colors()['text']};"
+        )
         title.setWordWrap(True)
         title.setMaximumHeight(40 if self.compact else 40)
         meta = QLabel(session.timestamp)
@@ -157,3 +160,6 @@ class StatisticsPanel(QWidget):
                 self.header_layout.setDirection(direction)
                 self.subject_combo.setMaximumWidth(16777215 if narrow else 132)
         super().resizeEvent(event)
+
+    def refresh_theme(self) -> None:
+        self.set_snapshot(self.snapshot)

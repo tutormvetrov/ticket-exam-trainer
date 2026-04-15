@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from application.answer_block_builder import AnswerBlockBuilder
 from application.exercise_generation import ExerciseGenerator
+from application.settings import DEFAULT_OLLAMA_MODEL
 from domain.answer_profile import AnswerProfileCode
 from domain.knowledge import (
     AtomType,
@@ -35,6 +36,9 @@ STOP_WORDS = {
 SECTION_PATTERN = re.compile(r"^(?:раздел|section)\s*(\d+)?[\.\): -]*(.+)$", re.IGNORECASE)
 TICKET_PATTERN = re.compile(r"^(?:[^\W\d_]+\s*)?(\d+)[\.\): -]*(.+)$", re.UNICODE)
 NUMBERED_PATTERN = re.compile(r"^(\d{1,3})[\.\)]\s+(.+)$")
+TOC_SECTION_PATTERN = re.compile(r"^\d{1,2}\.\d{1,2}\.\s+(.+?)\s+(\d{1,3})$")
+TOC_TICKET_PATTERN = re.compile(r"^\d{1,3}\.\s+(.+?)\s+(\d{1,3})$")
+SECTION_NUMBER_PATTERN = re.compile(r"^\d{1,2}\.\d{1,2}\.\s+(.+)$")
 ImportProgressCallback = Callable[[int, str, str], None]
 
 
@@ -96,7 +100,7 @@ class DocumentImportService:
     def __init__(
         self,
         ollama_service: OllamaService | None = None,
-        llm_model: str = "mistral:instruct",
+        llm_model: str = DEFAULT_OLLAMA_MODEL,
         enable_llm_structuring: bool = False,
     ) -> None:
         self.exercise_generator = ExerciseGenerator()
@@ -298,6 +302,10 @@ class DocumentImportService:
         return chunks
 
     def extract_ticket_candidates(self, normalized_text: str) -> list[TicketCandidate]:
+        toc_candidates = self._extract_ticket_candidates_from_toc(normalized_text)
+        if toc_candidates:
+            return toc_candidates
+
         lines = [line.strip() for line in normalized_text.splitlines() if line.strip()]
         current_section = "default-section"
         current_title = ""
@@ -321,34 +329,106 @@ class DocumentImportService:
                 )
 
         for line in lines:
+            if self._looks_like_toc_entry(line):
+                continue
+
+            numbered_section_match = SECTION_NUMBER_PATTERN.match(line)
+            if numbered_section_match and len(line) < 220 and "?" not in line:
+                current_section = numbered_section_match.group(1).strip() or current_section
+                continue
+
             section_match = SECTION_PATTERN.match(line)
             if section_match and len(line.split()) <= 10 and "?" not in line:
                 current_section = section_match.group(2).strip() or current_section
                 continue
 
             title_match = TICKET_PATTERN.match(line)
-            if title_match and "?" in line:
+            if title_match:
                 flush()
                 raw_title = title_match.group(2).strip() or f"Билет {title_match.group(1)}"
                 current_title, inline_body = self.split_inline_title_and_body(raw_title)
-                current_body = [inline_body] if inline_body else []
-                current_confidence = 0.95
-                continue
+                if self._looks_like_ticket_heading(current_title, inline_body, line):
+                    current_body = [inline_body] if inline_body else []
+                    current_confidence = 0.95 if "?" in line else 0.84
+                    continue
+                current_title = ""
+                current_body = []
 
             numbered_match = NUMBERED_PATTERN.match(line)
-            if numbered_match and len(line) < 220 and "?" in line:
+            if numbered_match and len(line) < 420:
                 flush()
                 raw_title = numbered_match.group(2).strip()
                 current_title, inline_body = self.split_inline_title_and_body(raw_title)
-                current_body = [inline_body] if inline_body else []
-                current_confidence = 0.82
-                continue
+                if self._looks_like_ticket_heading(current_title, inline_body, line):
+                    current_body = [inline_body] if inline_body else []
+                    current_confidence = 0.82 if "?" in line else 0.72
+                    continue
+                current_title = ""
+                current_body = []
 
             if current_title:
                 current_body.append(line)
 
         flush()
         return candidates
+
+    def _extract_ticket_candidates_from_toc(self, normalized_text: str) -> list[TicketCandidate]:
+        lines = [line.strip() for line in normalized_text.splitlines() if line.strip()]
+        if not any("оглавление" in line.lower() for line in lines[:200]):
+            return []
+
+        entries: list[tuple[str, str]] = []
+        current_section = "default-section"
+        for line in lines[:800]:
+            section_match = TOC_SECTION_PATTERN.match(line)
+            if section_match:
+                current_section = self._clean_toc_text(section_match.group(1)) or current_section
+                continue
+
+            ticket_match = TOC_TICKET_PATTERN.match(line)
+            if ticket_match:
+                title = self._clean_toc_text(ticket_match.group(1))
+                if title and not self._looks_like_toc_noise(title):
+                    entries.append((current_section, title))
+
+        if len(entries) < 2:
+            return []
+
+        content_start = self._find_toc_content_start(normalized_text, entries)
+        if content_start < 0:
+            return []
+
+        candidates: list[TicketCandidate] = []
+        cursor = content_start
+        for index, (section_title, title) in enumerate(entries, start=1):
+            title_pos = normalized_text.find(title, cursor)
+            if title_pos < 0:
+                continue
+            body_start = title_pos + len(title)
+            next_pos = len(normalized_text)
+            for next_section, next_title in entries[index:index + 5]:
+                candidate_next = normalized_text.find(next_title, body_start)
+                if candidate_next >= 0:
+                    next_pos = candidate_next
+                    break
+
+            body = self._clean_candidate_body(normalized_text[body_start:next_pos])
+            cursor = body_start
+            if len(body) < 40:
+                continue
+            candidates.append(
+                TicketCandidate(
+                    index=len(candidates) + 1,
+                    title=title,
+                    body=body,
+                    confidence=0.93,
+                    section_title=section_title,
+                )
+            )
+
+        if len(candidates) >= max(2, min(len(entries) // 2, 12)):
+            return candidates
+        return []
 
     @staticmethod
     def split_inline_title_and_body(raw_title: str) -> tuple[str, str]:
@@ -357,9 +437,65 @@ class DocumentImportService:
             return title.strip() + "?", remainder.strip()
         if ". " in raw_title:
             title, remainder = raw_title.split(". ", 1)
-            if len(title.split()) >= 4:
+            if 2 <= len(title.split()) <= 20 and len(remainder.split()) >= 4:
                 return title.strip(), remainder.strip()
         return raw_title.strip(), ""
+
+    @staticmethod
+    def _looks_like_ticket_heading(title: str, inline_body: str, original_line: str) -> bool:
+        if not title:
+            return False
+        if "?" in original_line:
+            return True
+        if inline_body and len(title.split()) >= 2 and len(title) <= 220:
+            return True
+        if len(title.split()) >= 4 and len(original_line) <= 180 and original_line.rstrip().endswith("."):
+            return True
+        return False
+
+    @staticmethod
+    def _looks_like_toc_entry(line: str) -> bool:
+        compact = line.strip()
+        if not compact:
+            return False
+        if "...." in compact:
+            return True
+        if re.fullmatch(r"[.\s\d]+", compact):
+            return True
+        if TOC_SECTION_PATTERN.match(compact) or TOC_TICKET_PATTERN.match(compact):
+            return True
+        return False
+
+    @staticmethod
+    def _clean_toc_text(text: str) -> str:
+        cleaned = re.sub(r"\.{3,}", " ", text)
+        cleaned = re.sub(r"\s+", " ", cleaned)
+        return cleaned.strip(" .")
+
+    @staticmethod
+    def _looks_like_toc_noise(text: str) -> bool:
+        lowered = text.lower()
+        if lowered in {"оглавление", "содержание"}:
+            return True
+        return False
+
+    def _find_toc_content_start(self, normalized_text: str, entries: list[tuple[str, str]]) -> int:
+        starts: list[int] = []
+        for _, title in entries[:8]:
+            first = normalized_text.find(title)
+            if first < 0:
+                continue
+            second = normalized_text.find(title, first + len(title))
+            if second >= 0:
+                starts.append(second)
+        return min(starts) if starts else -1
+
+    @staticmethod
+    def _clean_candidate_body(body: str) -> str:
+        text = re.sub(r"\n\s*\d{1,3}\s*(?=\n)", "\n\n", body)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = re.sub(r"[ \t]+", " ", text)
+        return text.strip(" .\n")
 
     def build_ticket_map(
         self,
@@ -476,6 +612,13 @@ class DocumentImportService:
         if len(atoms) < 4:
             return True
         return any(atom.confidence < 0.65 for atom in atoms)
+
+    def needs_llm_refinement(self, candidate: TicketCandidate, ticket: TicketKnowledgeMap) -> bool:
+        if self.should_use_llm_for_structuring(candidate, ticket.atoms):
+            return True
+        if ticket.answer_blocks and any(block.is_missing or block.confidence < 0.55 for block in ticket.answer_blocks):
+            return True
+        return False
 
     def extract_atoms(self, text: str, ticket_key: str) -> list[KnowledgeAtom]:
         paragraphs = self.split_into_atom_fragments(text)

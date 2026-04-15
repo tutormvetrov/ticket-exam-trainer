@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QProgressBar, QV
 
 from domain.models import SubjectData
 from ui.components.common import CardFrame, IconBadge, MetricTile
+from ui.theme import alpha_color, current_colors, is_dark_palette
 
 
 class SubjectsView(QWidget):
@@ -73,6 +74,7 @@ class SubjectsView(QWidget):
         self._rebuild()
 
     def _rebuild(self) -> None:
+        colors = current_colors()
         while self.grid.count():
             item = self.grid.takeAt(0)
             widget = item.widget()
@@ -84,7 +86,7 @@ class SubjectsView(QWidget):
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(18, 18, 18, 18)
             card_layout.setSpacing(12)
-            badge = IconBadge(subject.name[:2].upper(), subject.accent, "#FFFFFF", size=42, radius=13, font_size=12)
+            badge = IconBadge(subject.name[:2].upper(), alpha_color(subject.accent, 0.22 if is_dark_palette() else 0.14), "#FFFFFF", size=42, radius=13, font_size=12)
             card_layout.addWidget(badge, 0, Qt.AlignmentFlag.AlignLeft)
 
             name = QLabel(subject.name)
@@ -96,7 +98,7 @@ class SubjectsView(QWidget):
             card_layout.addWidget(meta)
 
             progress = QLabel(f"Прогресс: {subject.progress}%")
-            progress.setStyleSheet("font-size: 14px; font-weight: 700;")
+            progress.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {colors['text']};")
             card_layout.addWidget(progress)
 
             bar = QProgressBar()
@@ -105,7 +107,7 @@ class SubjectsView(QWidget):
             bar.setTextVisible(False)
             bar.setFixedHeight(8)
             bar.setStyleSheet(
-                f"QProgressBar {{ background: #EEF3F8; border: none; border-radius: 4px; }}"
+                f"QProgressBar {{ background: {colors['card_muted']}; border: none; border-radius: 4px; }}"
                 f"QProgressBar::chunk {{ background: {subject.accent}; border-radius: 4px; }}"
             )
             card_layout.addWidget(bar)
@@ -115,6 +117,12 @@ class SubjectsView(QWidget):
             empty = QLabel("Предметы появятся после первого импорта документов.")
             empty.setProperty("role", "body")
             self.grid.addWidget(empty, 0, 0)
+
+    def refresh_theme(self) -> None:
+        self.summary_subjects.refresh_theme()
+        self.summary_docs.refresh_theme()
+        self.summary_tickets.refresh_theme()
+        self._rebuild()
 
     def set_search_text(self, text: str) -> None:
         query = text.strip().lower()

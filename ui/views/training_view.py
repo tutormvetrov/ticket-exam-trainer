@@ -3,7 +3,7 @@ from __future__ import annotations
 from random import Random
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QComboBox, QLabel, QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QGridLayout, QLabel, QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from application.answer_profile_registry import answer_profile_label
 from application.ui_data import TrainingEvaluationResult, TrainingSnapshot
@@ -13,6 +13,7 @@ from ui.components.training_modes import TrainingModesPanel
 from ui.components.training_workspaces import TrainingWorkspaceBase, create_training_workspaces
 from ui.training_catalog import DEFAULT_TRAINING_MODES
 from ui.training_mode_registry import TRAINING_MODE_SPECS
+from ui.theme import current_colors
 
 
 class AdaptiveQueueCard(ClickableFrame):
@@ -27,28 +28,33 @@ class AdaptiveQueueCard(ClickableFrame):
         layout.setSpacing(6)
 
         self.title_label = QLabel(title)
-        self.title_label.setStyleSheet("font-size: 14px; font-weight: 700; color: #1F2A3B;")
         self.title_label.setWordWrap(True)
         layout.addWidget(self.title_label)
 
         self.priority_label = QLabel(priority_text)
-        self.priority_label.setStyleSheet("font-size: 12px; color: #5F6B7A; font-weight: 600;")
         self.priority_label.setWordWrap(True)
         layout.addWidget(self.priority_label)
 
         self.repeat_label = QLabel(repeat_text)
-        self.repeat_label.setStyleSheet("font-size: 12px; color: #7A8899;")
         self.repeat_label.setWordWrap(True)
         layout.addWidget(self.repeat_label)
 
         self.set_selected(False)
 
     def set_selected(self, selected: bool) -> None:
-        border = "#7FAEFF" if selected else "#E2EAF3"
-        background = "#F6FAFF" if selected else "#FFFFFF"
+        self.setProperty("selected", selected)
+        colors = current_colors()
+        border = colors["primary"] if selected else colors["border"]
+        background = colors["primary_soft"] if selected else colors["card_bg"]
         self.setStyleSheet(
             f"QFrame#AdaptiveQueueCard {{ background: {background}; border: 1px solid {border}; border-radius: 16px; }}"
         )
+        self.title_label.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {colors['text']};")
+        self.priority_label.setStyleSheet(f"font-size: 12px; color: {colors['text_secondary']}; font-weight: 600;")
+        self.repeat_label.setStyleSheet(f"font-size: 12px; color: {colors['text_tertiary']};")
+
+    def refresh_theme(self) -> None:
+        self.set_selected(self.property("selected") is True)
 
 
 class TrainingView(QWidget):
@@ -80,9 +86,10 @@ class TrainingView(QWidget):
         self.modes_panel.mode_selected.connect(self.select_mode)
         layout.addWidget(self.modes_panel)
 
-        body = QHBoxLayout()
-        body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(16)
+        self.body = QGridLayout()
+        self.body.setContentsMargins(0, 0, 0, 0)
+        self.body.setHorizontalSpacing(16)
+        self.body.setVerticalSpacing(16)
 
         self.queue_card = CardFrame(role="card", shadow_color=shadow_color)
         self.queue_card.setMinimumWidth(320)
@@ -98,7 +105,7 @@ class TrainingView(QWidget):
         self.queue_stack.setSpacing(10)
         queue_layout.addLayout(self.queue_stack)
         queue_layout.addStretch(1)
-        body.addWidget(self.queue_card, 4)
+        self.body.addWidget(self.queue_card, 0, 0)
 
         self.session_card = CardFrame(role="card", shadow_color=shadow_color)
         session_layout = QVBoxLayout(self.session_card)
@@ -106,7 +113,7 @@ class TrainingView(QWidget):
         session_layout.setSpacing(14)
 
         self.session_title = QLabel("Выберите билет")
-        self.session_title.setStyleSheet("font-size: 20px; font-weight: 800;")
+        self.session_title.setStyleSheet(f"font-size: 20px; font-weight: 800; color: {current_colors()['text']};")
         session_layout.addWidget(self.session_title)
 
         self.session_meta = QLabel("Сначала выберите билет из очереди или вручную.")
@@ -118,7 +125,7 @@ class TrainingView(QWidget):
         selector_row.setContentsMargins(0, 0, 0, 0)
         selector_row.setSpacing(10)
         selector_label = QLabel("Билет")
-        selector_label.setStyleSheet("font-size: 13px; font-weight: 700; color: #243548;")
+        selector_label.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {current_colors()['text_secondary']};")
         self.ticket_selector = QComboBox()
         self.ticket_selector.currentIndexChanged.connect(self._ticket_selector_changed)
         selector_row.addWidget(selector_label)
@@ -126,7 +133,7 @@ class TrainingView(QWidget):
         session_layout.addLayout(selector_row)
 
         self.workspace_title = QLabel(TRAINING_MODE_SPECS[self.selected_mode].workspace_title)
-        self.workspace_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #243548;")
+        self.workspace_title.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {current_colors()['text']};")
         self.workspace_title.setWordWrap(True)
         session_layout.addWidget(self.workspace_title)
 
@@ -144,11 +151,14 @@ class TrainingView(QWidget):
             self.workspace_stack.addWidget(workspace)
         session_layout.addWidget(self.workspace_stack, 1)
 
-        body.addWidget(self.session_card, 6)
-        layout.addLayout(body, 1)
+        self.body.addWidget(self.session_card, 0, 1)
+        self.body.setColumnStretch(0, 4)
+        self.body.setColumnStretch(1, 6)
+        layout.addLayout(self.body, 1)
 
         self.modes_panel.set_selected_mode(self.selected_mode)
         self._show_workspace(self.selected_mode)
+        self._apply_responsive_layout()
 
     def set_snapshot(self, snapshot: TrainingSnapshot) -> None:
         self.snapshot = snapshot
@@ -323,3 +333,39 @@ class TrainingView(QWidget):
         if self.queue_buttons:
             return list(self.queue_buttons.keys())
         return [ticket.ticket_id for ticket in self.snapshot.tickets]
+
+    def refresh_theme(self) -> None:
+        colors = current_colors()
+        self.session_title.setStyleSheet(f"font-size: 20px; font-weight: 800; color: {colors['text']};")
+        self.workspace_title.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {colors['text']};")
+        self.modes_panel.refresh_theme()
+        for ticket_id, button in self.queue_buttons.items():
+            button.set_selected(ticket_id == self.selected_ticket_id)
+        for workspace in self.workspaces.values():
+            refresh = getattr(workspace, "refresh_theme", None)
+            if callable(refresh):
+                refresh()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        self._apply_responsive_layout()
+        super().resizeEvent(event)
+
+    def _apply_responsive_layout(self) -> None:
+        window_width = self.window().width() if self.window() is not None else self.width()
+        narrow = window_width < 1320
+        self.body.removeWidget(self.queue_card)
+        self.body.removeWidget(self.session_card)
+        if narrow:
+            self.body.addWidget(self.queue_card, 0, 0)
+            self.body.addWidget(self.session_card, 1, 0)
+            self.body.setColumnStretch(0, 1)
+            self.body.setColumnStretch(1, 0)
+            self.queue_card.setMinimumWidth(0)
+            self.queue_card.setMaximumWidth(16777215)
+        else:
+            self.body.addWidget(self.queue_card, 0, 0)
+            self.body.addWidget(self.session_card, 0, 1)
+            self.body.setColumnStretch(0, 4)
+            self.body.setColumnStretch(1, 6)
+            self.queue_card.setMinimumWidth(320)
+            self.queue_card.setMaximumWidth(472)

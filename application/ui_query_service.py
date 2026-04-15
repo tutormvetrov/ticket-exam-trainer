@@ -465,7 +465,11 @@ class UiQueryService:
             for row in rows
         }
 
-    def load_training_snapshot(self, limit: int = 8) -> TrainingSnapshot:
+    def load_training_snapshot(
+        self,
+        limit: int = 8,
+        tickets: list[TicketKnowledgeMap] | None = None,
+    ) -> TrainingSnapshot:
         queue_rows = self.connection.execute(
             """
             SELECT spaced_review_queue.ticket_id AS ticket_id,
@@ -492,7 +496,7 @@ class UiQueryService:
             )
             for row in queue_rows
         ]
-        return TrainingSnapshot(queue_items=queue, tickets=self.load_ticket_maps())
+        return TrainingSnapshot(queue_items=queue, tickets=tickets if tickets is not None else self.load_ticket_maps())
 
     def load_weak_areas(self) -> list[sqlite3.Row]:
         return self.connection.execute(

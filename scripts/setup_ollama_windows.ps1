@@ -80,8 +80,8 @@ if (-not (Wait-OllamaEndpoint -TimeoutSec 30)) {
     throw "Ollama endpoint did not become ready at $baseUrl"
 }
 
-Write-Host "Pulling mistral:instruct"
-& $ollamaExe pull mistral:instruct
+Write-Host "Pulling qwen3:8b"
+& $ollamaExe pull qwen3:8b
 
 Write-Host "Installed models:"
 & $ollamaExe list
@@ -91,7 +91,7 @@ Invoke-WebRequest -UseBasicParsing "$baseUrl/api/tags" -TimeoutSec 20 | Select-O
 
 Write-Host "Generate smoke test:"
 $body = @{
-    model = "mistral:instruct"
+    model = "qwen3:8b"
     prompt = "Ответь одним коротким предложением: что такое active recall?"
     stream = $false
 } | ConvertTo-Json

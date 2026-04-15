@@ -22,7 +22,13 @@ from domain.defense import (
     CommitteePersonaKind,
     DefenseClaim,
     DefenseClaimKind,
+    DefenseGapFinding,
+    DefenseGapKind,
+    DefenseGapStatus,
     DefenseQuestion,
+    DefenseRepairSourceType,
+    DefenseRepairTask,
+    DefenseRepairTaskStatus,
     DefenseScoreProfile,
     DefenseSession,
     DefenseSessionMode,
@@ -42,6 +48,7 @@ from infrastructure.importers.pptx_importer import import_pptx
 from infrastructure.ollama.defense_prompts import (
     defense_answer_review_prompt,
     defense_dossier_prompt,
+    defense_gap_enrichment_prompt,
     defense_outline_prompt,
     defense_questions_prompt,
     defense_storyboard_prompt,
@@ -63,6 +70,23 @@ CLAIM_LABELS = {
     DefenseClaimKind.LIMITATIONS: "Ограничения",
     DefenseClaimKind.PERSONAL_CONTRIBUTION: "Личный вклад",
     DefenseClaimKind.RISK_TOPIC: "Риск-комиссии",
+}
+
+GAP_KIND_LABELS = {
+    DefenseGapKind.UNSUPPORTED_CLAIM: "Тезис без опоры",
+    DefenseGapKind.CONTRADICTION: "Противоречие между тезисами",
+    DefenseGapKind.MISSING_BRIDGE: "Логический переход не построен",
+    DefenseGapKind.WEAK_EVIDENCE: "Слабая доказательная база",
+    DefenseGapKind.VAGUE_RESULT: "Результат сформулирован расплывчато",
+    DefenseGapKind.NOVELTY_NOT_PROVEN: "Новизна не доказана",
+    DefenseGapKind.LIMITATIONS_MISSING: "Ограничения не раскрыты",
+    DefenseGapKind.METHODS_RESULTS_DISCONNECT: "Методы и результаты не связаны",
+}
+
+PERSONA_FOCUS = {
+    CommitteePersonaKind.SCIENTIFIC_ADVISOR: "методология, ограничения и дисциплина формулировок",
+    CommitteePersonaKind.OPPONENT: "новизна, доказательность и уязвимые места",
+    CommitteePersonaKind.COMMISSION: "прикладная ценность, ясность и защищаемость выводов",
 }
 
 CLAIM_KEYWORDS = {
@@ -132,6 +156,18 @@ class DefenseService:
 
     def issue_local_activation_code(self) -> str:
         return self.license_service.issue_code(self.license_service.ensure_install_id())
+
+    def update_gap_status(self, project_id: str, finding_id: str, status: str) -> None:
+        resolved = DefenseGapStatus(status) if status in DefenseGapStatus._value2member_map_ else DefenseGapStatus.OPEN
+        self.repository.update_gap_status(project_id, finding_id, resolved)
+
+    def update_repair_task_status(self, project_id: str, task_id: str, status: str) -> None:
+        resolved = (
+            DefenseRepairTaskStatus(status)
+            if status in DefenseRepairTaskStatus._value2member_map_
+            else DefenseRepairTaskStatus.TODO
+        )
+        self.repository.update_repair_task_status(project_id, task_id, resolved)
 
     def create_project(
         self,
@@ -244,6 +280,15 @@ class DefenseService:
         llm_used = llm_used or questions_used_llm
         self.repository.replace_questions(project_id, questions)
 
+        if progress_callback is not None:
+            progress_callback(90, "Логические дыры", "Проверяем доказательность, связность и слабые места защиты")
+
+        gap_findings = self._build_gap_findings(project_id, claims, outlines, slides, questions, imported_sources)
+        gap_findings = self._enrich_gap_findings(gap_findings, claims, imported_sources)
+        self.repository.replace_gap_findings(project_id, gap_findings)
+        repair_tasks = self._build_repair_tasks(project_id, gap_findings, [], [])
+        self.repository.replace_repair_tasks(project_id, repair_tasks)
+
         updated_project = ThesisProject(
             project_id=project.project_id,
             title=project.title,
@@ -269,12 +314,16 @@ class DefenseService:
             message="Материалы защиты обработаны локально.",
             warnings=warnings,
             llm_used=llm_used,
+            gap_findings_count=len(gap_findings),
+            repair_tasks_count=len(repair_tasks),
         )
 
     def evaluate_mock_defense(
         self,
         project_id: str,
         mode_key: str,
+        persona_kind: str,
+        timer_profile_sec: int,
         answer_text: str,
     ) -> DefenseEvaluationResult:
         answer = answer_text.strip()
@@ -286,23 +335,33 @@ class DefenseService:
             return DefenseEvaluationResult(False, "", {}, error="Проект не найден.")
 
         claims = [claim for claim in project.claims if claim.kind is not DefenseClaimKind.RISK_TOPIC]
-        score_cards = self._score_answer(answer, claims, mode_key)
+        persona = CommitteePersonaKind(persona_kind) if persona_kind in CommitteePersonaKind._value2member_map_ else CommitteePersonaKind.COMMISSION
+        actual_duration_sec = self._estimate_session_duration(answer, timer_profile_sec)
+        score_cards = self._score_answer(answer, claims, mode_key, persona, actual_duration_sec, timer_profile_sec)
         weak_areas = self._build_weak_areas(project_id, score_cards)
-        followups = self._select_followups(project.questions, mode_key, weak_areas)
-        llm_summary = self._review_answer_with_llm(project.claims, followups, answer, mode_key)
-        summary = llm_summary["summary"] if llm_summary and llm_summary.get("summary") else self._fallback_summary(score_cards, weak_areas)
+        open_gap_findings = [finding for finding in project.gap_findings if finding.status in {DefenseGapStatus.OPEN, DefenseGapStatus.ACCEPTED}]
+        followups = self._select_followups(project.questions, mode_key, persona, weak_areas, open_gap_findings)
+        llm_summary = self._review_answer_with_llm(project.claims, followups, answer, mode_key, persona.value, timer_profile_sec)
+        timer_verdict = self._build_timer_verdict(actual_duration_sec, timer_profile_sec)
+        summary = llm_summary["summary"] if llm_summary and llm_summary.get("summary") else self._fallback_summary(score_cards, weak_areas, persona, timer_verdict)
         if llm_summary and llm_summary.get("followups"):
             followups = [text for text in llm_summary["followups"] if text]
+        related_gap_ids = self._match_related_gap_ids(open_gap_findings, weak_areas, followups)
+        repair_tasks = self._build_repair_tasks(project_id, project.gap_findings, weak_areas, followups)
+        self.repository.replace_repair_tasks(project_id, repair_tasks)
 
         now = datetime.now()
         session = DefenseSession(
             session_id=f"defense-session-{uuid4().hex[:12]}",
             project_id=project_id,
             mode=DefenseSessionMode(mode_key),
-            duration_sec=len(answer.split()) * 2,
+            persona_kind=persona,
+            timer_profile_sec=max(0, int(timer_profile_sec or 0)),
+            duration_sec=actual_duration_sec,
             transcript_text=answer,
             questions=followups,
             answers=[answer],
+            session_notes=timer_verdict,
             created_at=now,
         )
         profile = DefenseScoreProfile(
@@ -324,8 +383,12 @@ class DefenseService:
             ok=True,
             summary=summary,
             score_cards=score_cards,
+            persona_kind=persona,
+            timer_verdict=timer_verdict,
             weak_points=[area.title for area in weak_areas],
             followup_questions=followups,
+            related_gap_ids=related_gap_ids,
+            suggested_repair_tasks=[task.title for task in repair_tasks[:5]],
         )
 
     def _build_model_recommendation(self) -> ModelRecommendation:
@@ -352,6 +415,8 @@ class DefenseService:
         claims = [self.repository.row_to_claim(claim_row) for claim_row in self.repository.load_claims(project_id)]
         slides = [self.repository.row_to_slide(slide_row) for slide_row in self.repository.load_slides(project_id)]
         questions = [self.repository.row_to_question(question_row) for question_row in self.repository.load_questions(project_id)]
+        gap_findings = [self.repository.row_to_gap_finding(row) for row in self.repository.load_gap_findings(project_id)]
+        repair_tasks = [self.repository.row_to_repair_task(row) for row in self.repository.load_repair_tasks(project_id)]
         outline_rows = self.repository.load_outline_segments(project_id)
         outlines: dict[str, list[tuple[str, str, int]]] = defaultdict(list)
         for row_item in outline_rows:
@@ -365,6 +430,8 @@ class DefenseService:
             outlines=dict(outlines),
             slides=slides,
             questions=questions,
+            gap_findings=gap_findings,
+            repair_tasks=repair_tasks,
             latest_score=self.repository.row_to_score(self.repository.load_latest_score(project_id)),
             weak_areas=[self.repository.row_to_weak_area(area_row) for area_row in self.repository.load_weak_areas(project_id)],
         )
@@ -563,7 +630,7 @@ class DefenseService:
                             project_id=project_id,
                             persona=persona,
                             topic=str(raw_question.get("topic", "Основной тезис")).strip(),
-                            difficulty=int(raw_question.get("difficulty", 2) or 2),
+                            difficulty=self._coerce_question_difficulty(raw_question.get("difficulty", 2)),
                             question_text=text,
                             source_anchors=self._find_anchors(text, sources),
                             risk_tag=str(raw_question.get("risk_tag", "")).strip(),
@@ -575,7 +642,7 @@ class DefenseService:
         return questions, llm_used
 
     def _call_llm_json(self, service: OllamaService, system: str, prompt: str, *, model: str) -> dict[str, object] | None:
-        response = service.client.generate(model, prompt, system=system, format_name="json", temperature=0.1)
+        response = service.request_generation(model, prompt, system=system, format_name="json", temperature=0.1)
         if not response.ok:
             return None
         raw = str(response.payload.get("response", "")).strip()
@@ -656,12 +723,34 @@ class DefenseService:
             )
         return questions
 
+    @staticmethod
+    def _coerce_question_difficulty(value: object) -> int:
+        if isinstance(value, (int, float)):
+            return max(1, min(3, int(value)))
+        raw = str(value or "").strip().lower()
+        mapping = {
+            "low": 1,
+            "easy": 1,
+            "medium": 2,
+            "normal": 2,
+            "high": 3,
+            "hard": 3,
+        }
+        if raw in mapping:
+            return mapping[raw]
+        try:
+            return max(1, min(3, int(raw)))
+        except ValueError:
+            return 2
+
     def _review_answer_with_llm(
         self,
         claims: list[DefenseClaim],
         questions: list[str],
         answer_text: str,
         mode_key: str,
+        persona_kind: str,
+        timer_profile_sec: int,
     ) -> dict[str, object] | None:
         settings = self.settings_store.load()
         service = OllamaService(settings.base_url, None, settings.models_path)
@@ -672,6 +761,8 @@ class DefenseService:
                 questions,
                 answer_text,
                 mode_key,
+                persona_kind,
+                timer_profile_sec,
             ),
             model=settings.model,
         )
@@ -751,6 +842,9 @@ class DefenseService:
         answer_text: str,
         claims: list[DefenseClaim],
         mode_key: str,
+        persona: CommitteePersonaKind,
+        actual_duration_sec: int,
+        timer_profile_sec: int,
     ) -> dict[str, int]:
         answer = answer_text.lower()
         answer_words = max(1, len(re.findall(r"\w+", answer_text)))
@@ -784,6 +878,17 @@ class DefenseService:
         limitations = claim_coverage(DefenseClaimKind.LIMITATIONS)
         if limitations < 0.4 and any(token in answer for token in ("огранич", "риски", "границ")):
             limitations = 0.62
+        if persona is CommitteePersonaKind.SCIENTIFIC_ADVISOR:
+            limitations = min(1.0, limitations + 0.05)
+        elif persona is CommitteePersonaKind.OPPONENT:
+            followup = max(0.0, followup - 0.06)
+        elif persona is CommitteePersonaKind.COMMISSION:
+            structure = min(1.0, structure + 0.04)
+        if timer_profile_sec > 0:
+            overrun = abs(actual_duration_sec - timer_profile_sec)
+            if overrun > max(45, int(timer_profile_sec * 0.2)):
+                structure = max(0.0, structure - 0.09)
+                oral_clarity = max(0.0, oral_clarity - 0.08)
 
         return {
             "structure_mastery": int(round(structure * 100)),
@@ -830,28 +935,406 @@ class DefenseService:
         self,
         questions: list[DefenseQuestion],
         mode_key: str,
+        persona: CommitteePersonaKind,
         weak_areas: list[DefenseWeakArea],
+        gap_findings: list[DefenseGapFinding],
     ) -> list[str]:
         target = 4 if mode_key == DefenseSessionMode.FULL_MOCK_DEFENSE.value else 3
         risky_kinds = {area.claim_kind for area in weak_areas if area.claim_kind is not None}
+        risky_kinds.update(kind for finding in gap_findings for kind in finding.related_claim_kinds)
         selected: list[str] = []
         for question in questions:
+            if question.persona is not persona:
+                continue
             topic_lower = question.topic.lower()
             if risky_kinds and any(kind.value.replace("_", " ") in topic_lower for kind in risky_kinds):
                 selected.append(question.question_text)
             if len(selected) >= target:
                 return selected
         for question in questions:
+            if question.persona is not persona:
+                continue
             if question.question_text not in selected:
                 selected.append(question.question_text)
             if len(selected) >= target:
                 break
+        if gap_findings and len(selected) < target:
+            for finding in gap_findings[: target - len(selected)]:
+                selected.append(f"{PERSONA_FOCUS[persona].capitalize()}: {finding.title.lower()}. {finding.suggested_fix or finding.explanation}")
         return selected
 
     @staticmethod
-    def _fallback_summary(score_cards: dict[str, int], weak_areas: list[DefenseWeakArea]) -> str:
+    def _fallback_summary(
+        score_cards: dict[str, int],
+        weak_areas: list[DefenseWeakArea],
+        persona: CommitteePersonaKind,
+        timer_verdict: str,
+    ) -> str:
         average = int(round(sum(score_cards.values()) / max(1, len(score_cards))))
         if not weak_areas:
-            return f"Текстовая mock-защита прошла ровно. Средний профиль: {average}%."
+            return (
+                f"Репетиция для роли «{persona.value}» прошла ровно. Средний профиль: {average}%. "
+                f"{timer_verdict}".strip()
+            )
         weakest = weak_areas[0].title
-        return f"Средний профиль защиты: {average}%. Главный риск сейчас: {weakest}."
+        return f"Средний профиль защиты: {average}%. Главный риск сейчас: {weakest}. {timer_verdict}".strip()
+
+    def _build_gap_findings(
+        self,
+        project_id: str,
+        claims: list[DefenseClaim],
+        outlines: dict[str, list[dict[str, object]]],
+        slides: list[SlideStoryboardCard],
+        questions: list[DefenseQuestion],
+        sources: list[ThesisSource],
+    ) -> list[DefenseGapFinding]:
+        findings: list[DefenseGapFinding] = []
+        now = datetime.now()
+        non_risk_claims = [claim for claim in claims if claim.kind is not DefenseClaimKind.RISK_TOPIC]
+        by_kind = {claim.kind: claim for claim in non_risk_claims}
+        outline_text = " ".join(
+            f"{segment.get('title', '')} {segment.get('talking_points', '')}"
+            for items in outlines.values()
+            for segment in items
+        ).lower()
+        slide_text = " ".join(f"{slide.title} {slide.purpose} {' '.join(slide.talking_points)}" for slide in slides).lower()
+
+        def add_finding(
+            gap_kind: DefenseGapKind,
+            severity: float,
+            title: str,
+            explanation: str,
+            evidence_links: list[str],
+            related_claim_kinds: list[DefenseClaimKind],
+            suggested_fix: str,
+        ) -> None:
+            finding_id = f"gap-{project_id}-{gap_kind.value}-{sha256((title + explanation).encode('utf-8')).hexdigest()[:8]}"
+            findings.append(
+                DefenseGapFinding(
+                    finding_id=finding_id,
+                    project_id=project_id,
+                    gap_kind=gap_kind,
+                    severity=severity,
+                    title=title,
+                    explanation=explanation,
+                    evidence_links=evidence_links[:3],
+                    related_claim_kinds=related_claim_kinds,
+                    suggested_fix=suggested_fix,
+                    status=DefenseGapStatus.OPEN,
+                    llm_assisted=False,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+        for claim in non_risk_claims:
+            if not claim.source_anchors:
+                add_finding(
+                    DefenseGapKind.UNSUPPORTED_CLAIM,
+                    0.92,
+                    f"{CLAIM_LABELS.get(claim.kind, claim.kind.value)} без опоры в материалах",
+                    "Тезис присутствует в dossier, но не привязан ни к одному источнику проекта.",
+                    [],
+                    [claim.kind],
+                    "Привяжите тезис к конкретному месту в материалах или ослабьте формулировку.",
+                )
+            elif len(claim.source_anchors) == 1 or claim.confidence < 0.6 or claim.needs_review:
+                add_finding(
+                    DefenseGapKind.WEAK_EVIDENCE,
+                    0.68,
+                    f"{CLAIM_LABELS.get(claim.kind, claim.kind.value)} подтверждён слабо",
+                    "Для тезиса найдена только слабая или одиночная опора, из-за чего его легче оспорить на защите.",
+                    claim.source_anchors,
+                    [claim.kind],
+                    "Добавьте более точную доказательную опору или переформулируйте тезис в более аккуратный вид.",
+                )
+
+        novelty_claim = by_kind.get(DefenseClaimKind.NOVELTY)
+        if novelty_claim is None or len(novelty_claim.source_anchors) == 0 or novelty_claim.needs_review:
+            add_finding(
+                DefenseGapKind.NOVELTY_NOT_PROVEN,
+                0.9,
+                "Новизна не доказана",
+                "Блок новизны отсутствует или не имеет внятной опоры в загруженных материалах.",
+                novelty_claim.source_anchors if novelty_claim else [],
+                [DefenseClaimKind.NOVELTY],
+                "Сформулируйте новизну отдельно и подкрепите её конкретными результатами или сравнением с известными подходами.",
+            )
+
+        limitations_claim = by_kind.get(DefenseClaimKind.LIMITATIONS)
+        if limitations_claim is None:
+            add_finding(
+                DefenseGapKind.LIMITATIONS_MISSING,
+                0.87,
+                "Ограничения работы не раскрыты",
+                "В материалах защиты не найден отдельный блок ограничений, поэтому комиссия сможет упрекнуть доклад в односторонности.",
+                [],
+                [DefenseClaimKind.LIMITATIONS],
+                "Добавьте 1-2 конкретных ограничения и заранее подготовьте спокойную формулировку ответа на этот блок.",
+            )
+
+        results_claim = by_kind.get(DefenseClaimKind.RESULTS)
+        if results_claim is not None and self._is_vague_result(results_claim.text):
+            add_finding(
+                DefenseGapKind.VAGUE_RESULT,
+                0.74,
+                "Результаты сформулированы расплывчато",
+                "Результаты звучат общо и не создают ощущения проверяемого вывода.",
+                results_claim.source_anchors,
+                [DefenseClaimKind.RESULTS],
+                "Сделайте формулировку результатов конкретной: что именно получено, где это видно и почему это важно.",
+            )
+
+        methods_claim = by_kind.get(DefenseClaimKind.METHODS)
+        if methods_claim is not None and results_claim is not None:
+            method_tokens = set(self._keywords(methods_claim.text))
+            result_tokens = set(self._keywords(results_claim.text))
+            if method_tokens and result_tokens and not (method_tokens & result_tokens):
+                add_finding(
+                    DefenseGapKind.METHODS_RESULTS_DISCONNECT,
+                    0.8,
+                    "Методы и результаты выглядят несвязанными",
+                    "Из dossier не видно, как выбранные методы приводят именно к заявленным результатам.",
+                    list(dict.fromkeys(methods_claim.source_anchors + results_claim.source_anchors)),
+                    [DefenseClaimKind.METHODS, DefenseClaimKind.RESULTS],
+                    "Добавьте короткий переход от методов к результатам: какой метод что именно позволил показать.",
+                )
+
+        for claim_kind in (DefenseClaimKind.RELEVANCE, DefenseClaimKind.METHODS, DefenseClaimKind.RESULTS, DefenseClaimKind.NOVELTY):
+            claim = by_kind.get(claim_kind)
+            if claim is None:
+                continue
+            title_lower = CLAIM_LABELS.get(claim.kind, claim.kind.value).lower()
+            if title_lower not in outline_text or title_lower not in slide_text:
+                add_finding(
+                    DefenseGapKind.MISSING_BRIDGE,
+                    0.63,
+                    f"{CLAIM_LABELS.get(claim.kind, claim.kind.value)} не доведён до доклада и слайдов",
+                    "Тезис есть в dossier, но в outline или storyboard он почти не проявлен как отдельный смысловой блок.",
+                    claim.source_anchors,
+                    [claim.kind],
+                    "Проведите этот тезис в outline и хотя бы в один опорный слайд.",
+                )
+
+        contradiction = self._detect_contradiction(by_kind)
+        if contradiction is not None:
+            add_finding(
+                DefenseGapKind.CONTRADICTION,
+                0.84,
+                contradiction["title"],
+                contradiction["explanation"],
+                contradiction["evidence_links"],
+                contradiction["related_claim_kinds"],
+                contradiction["suggested_fix"],
+            )
+
+        for finding in findings:
+            if not finding.evidence_links:
+                finding.evidence_links = self._fallback_evidence_for_gap(finding, sources)
+        return self._dedupe_gap_findings(findings)
+
+    def _enrich_gap_findings(self, findings: list[DefenseGapFinding], claims: list[DefenseClaim], sources: list[ThesisSource]) -> list[DefenseGapFinding]:
+        if not findings:
+            return []
+        settings = self.settings_store.load()
+        service = OllamaService(settings.base_url, None, settings.models_path)
+        payload = self._call_llm_json(
+            service,
+            *defense_gap_enrichment_prompt(
+                [self._claim_to_prompt_dict(claim) for claim in claims if claim.kind is not DefenseClaimKind.RISK_TOPIC],
+                [
+                    {
+                        "finding_id": finding.finding_id,
+                        "gap_kind": finding.gap_kind.value,
+                        "title": finding.title,
+                        "explanation": finding.explanation,
+                        "evidence_links": finding.evidence_links,
+                    }
+                    for finding in findings
+                ],
+            ),
+            model=settings.model,
+        )
+        if not payload or not payload.get("findings"):
+            return findings
+        by_id = {finding.finding_id: finding for finding in findings}
+        for item in payload["findings"]:
+            finding_id = str(item.get("finding_id", "")).strip()
+            finding = by_id.get(finding_id)
+            if finding is None:
+                continue
+            explanation = str(item.get("explanation", "")).strip()
+            suggested_fix = str(item.get("suggested_fix", "")).strip()
+            if explanation:
+                finding.explanation = explanation
+            if suggested_fix:
+                finding.suggested_fix = suggested_fix
+            finding.llm_assisted = True
+            if not finding.evidence_links:
+                finding.evidence_links = self._find_anchors(f"{finding.title} {finding.explanation}", sources)
+        return findings
+
+    def _build_repair_tasks(
+        self,
+        project_id: str,
+        gap_findings: list[DefenseGapFinding],
+        weak_areas: list[DefenseWeakArea],
+        followups: list[str],
+    ) -> list[DefenseRepairTask]:
+        now = datetime.now()
+        tasks: list[DefenseRepairTask] = []
+        seen: set[str] = set()
+
+        def add_task(
+            task_kind: str,
+            title: str,
+            reason: str,
+            source_type: DefenseRepairSourceType,
+            related_claim_kind: DefenseClaimKind | None,
+            suggested_action: str,
+            related_gap_ids: list[str] | None = None,
+        ) -> None:
+            signature = re.sub(r"\s+", " ", f"{task_kind}|{title}|{related_claim_kind.value if related_claim_kind else ''}").strip().lower()
+            if signature in seen:
+                return
+            seen.add(signature)
+            task_id = f"repair-{project_id}-{sha256(signature.encode('utf-8')).hexdigest()[:10]}"
+            tasks.append(
+                DefenseRepairTask(
+                    task_id=task_id,
+                    project_id=project_id,
+                    task_kind=task_kind,
+                    title=title,
+                    reason=reason,
+                    source_type=source_type,
+                    related_claim_kind=related_claim_kind,
+                    suggested_action=suggested_action,
+                    status=DefenseRepairTaskStatus.TODO,
+                    related_gap_ids=related_gap_ids or [],
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+        for finding in gap_findings:
+            if finding.status not in {DefenseGapStatus.OPEN, DefenseGapStatus.ACCEPTED}:
+                continue
+            if finding.severity >= 0.7:
+                add_task(
+                    task_kind=finding.gap_kind.value,
+                    title=f"Исправить: {finding.title}",
+                    reason=finding.explanation,
+                    source_type=DefenseRepairSourceType.GAP,
+                    related_claim_kind=finding.related_claim_kinds[0] if finding.related_claim_kinds else None,
+                    suggested_action=finding.suggested_fix or "Уточните этот блок и привяжите его к доказательствам.",
+                    related_gap_ids=[finding.finding_id],
+                )
+
+        for area in weak_areas:
+            if area.title in {"Новизна звучит неуверенно", "Ограничения не названы", "Follow-up ответы шаткие", "Методы объяснены неубедительно"}:
+                add_task(
+                    task_kind=area.kind,
+                    title=area.title,
+                    reason=area.evidence,
+                    source_type=DefenseRepairSourceType.WEAK_AREA,
+                    related_claim_kind=area.claim_kind,
+                    suggested_action="Подготовьте короткую, уверенную и доказуемую формулировку для этого блока.",
+                )
+
+        for question in followups[:3]:
+            add_task(
+                task_kind="followup_rehearsal",
+                title=f"Отрепетировать ответ: {self._compact_text(question, 72)}",
+                reason="Follow-up вопрос уже всплыл в репетиции и требует отдельной отработки.",
+                source_type=DefenseRepairSourceType.FOLLOWUP,
+                related_claim_kind=None,
+                suggested_action="Сформулируйте короткий ответ на этот вопрос и привяжите его к конкретному тезису и доказательству.",
+            )
+        return tasks[:12]
+
+    @staticmethod
+    def _estimate_session_duration(answer_text: str, timer_profile_sec: int) -> int:
+        word_based = len(re.findall(r"\w+", answer_text)) * 2
+        if timer_profile_sec > 0 and word_based < max(30, int(timer_profile_sec * 0.35)):
+            return max(word_based, int(timer_profile_sec * 0.55))
+        return word_based
+
+    @staticmethod
+    def _build_timer_verdict(actual_duration_sec: int, timer_profile_sec: int) -> str:
+        if timer_profile_sec <= 0:
+            return ""
+        delta = actual_duration_sec - timer_profile_sec
+        if abs(delta) <= max(20, int(timer_profile_sec * 0.08)):
+            return "Тайминг выдержан ровно."
+        if delta > 0:
+            return f"Доклад выходит за тайминг примерно на {delta} сек."
+        return f"Доклад короче тайминга примерно на {abs(delta)} сек."
+
+    @staticmethod
+    def _keywords(text: str) -> list[str]:
+        return [token.lower() for token in re.findall(r"[A-Za-zА-Яа-яЁё0-9]{5,}", text)[:10]]
+
+    @staticmethod
+    def _is_vague_result(text: str) -> bool:
+        compact = text.lower()
+        generic_markers = ("повышение эффективности", "рекомендации", "улучшение", "оптимизация")
+        has_number = bool(re.search(r"\d", compact))
+        return len(compact) < 90 or (any(marker in compact for marker in generic_markers) and not has_number)
+
+    def _detect_contradiction(self, by_kind: dict[DefenseClaimKind, DefenseClaim]) -> dict[str, object] | None:
+        results = by_kind.get(DefenseClaimKind.RESULTS)
+        limitations = by_kind.get(DefenseClaimKind.LIMITATIONS)
+        novelty = by_kind.get(DefenseClaimKind.NOVELTY)
+        if results and limitations:
+            if any(token in limitations.text.lower() for token in ("не удалось", "не получ", "отсутств")) and any(
+                token in results.text.lower() for token in ("получ", "доказ", "подтверж", "эффект")
+            ):
+                return {
+                    "title": "Результаты и ограничения звучат противоречиво",
+                    "explanation": "В одном месте защита заявляет сильный результат, а в другом формулирует ограничение так, будто результат не был получен.",
+                    "evidence_links": list(dict.fromkeys(results.source_anchors + limitations.source_anchors))[:3],
+                    "related_claim_kinds": [DefenseClaimKind.RESULTS, DefenseClaimKind.LIMITATIONS],
+                    "suggested_fix": "Согласуйте формулировки результатов и ограничений, чтобы ограничение не отменяло сам вывод.",
+                }
+        if novelty and results and novelty.text.lower() == results.text.lower():
+            return {
+                "title": "Новизна дублирует результаты",
+                "explanation": "Блок новизны повторяет блок результатов и не показывает, в чём именно новое отличие работы.",
+                "evidence_links": list(dict.fromkeys(novelty.source_anchors + results.source_anchors))[:3],
+                "related_claim_kinds": [DefenseClaimKind.NOVELTY, DefenseClaimKind.RESULTS],
+                "suggested_fix": "Разведите новизну и результаты: новизна отвечает на вопрос «что новое», результаты — «что получено».",
+            }
+        return None
+
+    def _fallback_evidence_for_gap(self, finding: DefenseGapFinding, sources: list[ThesisSource]) -> list[str]:
+        query = f"{finding.title} {finding.explanation} {' '.join(kind.value for kind in finding.related_claim_kinds)}"
+        return self._find_anchors(query, sources)
+
+    @staticmethod
+    def _dedupe_gap_findings(findings: list[DefenseGapFinding]) -> list[DefenseGapFinding]:
+        deduped: list[DefenseGapFinding] = []
+        seen: set[str] = set()
+        for finding in findings:
+            signature = f"{finding.gap_kind.value}|{'/'.join(kind.value for kind in finding.related_claim_kinds)}|{finding.title}".lower()
+            if signature in seen:
+                continue
+            seen.add(signature)
+            deduped.append(finding)
+        return deduped
+
+    @staticmethod
+    def _match_related_gap_ids(
+        gap_findings: list[DefenseGapFinding],
+        weak_areas: list[DefenseWeakArea],
+        followups: list[str],
+    ) -> list[str]:
+        related: list[str] = []
+        followup_blob = " ".join(followups).lower()
+        weak_claim_kinds = {area.claim_kind for area in weak_areas if area.claim_kind is not None}
+        for finding in gap_findings:
+            if weak_claim_kinds.intersection(finding.related_claim_kinds):
+                related.append(finding.finding_id)
+                continue
+            if any(kind.value.replace("_", " ") in followup_blob for kind in finding.related_claim_kinds):
+                related.append(finding.finding_id)
+        return related[:5]

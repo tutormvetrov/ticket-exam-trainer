@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSizePolicy, QVBox
 
 from application.ui_data import SectionOverviewItem
 from ui.components.common import CardFrame
+from ui.theme import current_colors
 
 
 class SectionsView(QWidget):
@@ -54,6 +55,7 @@ class SectionsView(QWidget):
         self._rebuild()
 
     def _rebuild(self) -> None:
+        colors = current_colors()
         while self.card_layout.count():
             item = self.card_layout.takeAt(0)
             widget = item.widget()
@@ -78,7 +80,7 @@ class SectionsView(QWidget):
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(18, 16, 18, 16)
             title = QLabel(item.title)
-            title.setStyleSheet("font-size: 15px; font-weight: 700;")
+            title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {colors['text']};")
             row_layout.addWidget(title)
             row_layout.addStretch(1)
             meta = QLabel(f"{item.subject} • {item.tickets} бил.")
@@ -88,10 +90,13 @@ class SectionsView(QWidget):
             if index != len(self.filtered) - 1:
                 divider = QWidget()
                 divider.setFixedHeight(1)
-                divider.setStyleSheet("background: #E9EEF5;")
+                divider.setStyleSheet(f"background: {colors['border']};")
                 self.card_layout.addWidget(divider)
         content_height = len(self.filtered) * 86 + max(0, len(self.filtered) - 1)
         self.card.setMaximumHeight(max(140, content_height + 18))
+
+    def refresh_theme(self) -> None:
+        self._rebuild()
 
     def set_search_text(self, text: str) -> None:
         query = text.strip().lower()

@@ -414,10 +414,13 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             session_id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
             mode TEXT NOT NULL,
+            persona_kind TEXT NOT NULL DEFAULT 'commission',
+            timer_profile_sec INTEGER NOT NULL DEFAULT 0,
             duration_sec INTEGER NOT NULL DEFAULT 0,
             transcript_text TEXT NOT NULL DEFAULT '',
             questions_json TEXT NOT NULL DEFAULT '[]',
             answers_json TEXT NOT NULL DEFAULT '[]',
+            session_notes TEXT NOT NULL DEFAULT '',
             created_at TEXT,
             FOREIGN KEY (project_id) REFERENCES thesis_projects (project_id) ON DELETE CASCADE
         );
@@ -452,6 +455,39 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             FOREIGN KEY (project_id) REFERENCES thesis_projects (project_id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS defense_gap_findings (
+            finding_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            gap_kind TEXT NOT NULL,
+            severity REAL NOT NULL DEFAULT 0,
+            title TEXT NOT NULL,
+            explanation TEXT NOT NULL DEFAULT '',
+            evidence_links_json TEXT NOT NULL DEFAULT '[]',
+            related_claim_kinds_json TEXT NOT NULL DEFAULT '[]',
+            suggested_fix TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'open',
+            llm_assisted INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (project_id) REFERENCES thesis_projects (project_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS defense_repair_tasks (
+            task_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            task_kind TEXT NOT NULL,
+            title TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            source_type TEXT NOT NULL,
+            related_claim_kind TEXT,
+            suggested_action TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'todo',
+            related_gap_ids_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (project_id) REFERENCES thesis_projects (project_id) ON DELETE CASCADE
+        );
+
         CREATE INDEX IF NOT EXISTS idx_sections_exam ON sections (exam_id);
         CREATE INDEX IF NOT EXISTS idx_documents_exam ON source_documents (exam_id);
         CREATE INDEX IF NOT EXISTS idx_chunks_document ON content_chunks (document_id, chunk_index);
@@ -470,9 +506,11 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_defense_outline_project ON defense_outline_segments (project_id, duration_label, order_index);
         CREATE INDEX IF NOT EXISTS idx_defense_questions_project ON defense_questions (project_id, persona_kind, difficulty DESC);
         CREATE INDEX IF NOT EXISTS idx_defense_scores_project ON defense_scores (project_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_defense_gaps_project ON defense_gap_findings (project_id, severity DESC, status);
+        CREATE INDEX IF NOT EXISTS idx_defense_repair_tasks_project ON defense_repair_tasks (project_id, status, updated_at DESC);
 
         INSERT INTO schema_meta (key, value)
-        VALUES ('schema_version', '4')
+        VALUES ('schema_version', '5')
         ON CONFLICT(key) DO UPDATE SET value = excluded.value;
         """
     )
@@ -486,6 +524,9 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     _ensure_column(connection, "tickets", "llm_status", "TEXT NOT NULL DEFAULT 'pending'")
     _ensure_column(connection, "tickets", "llm_error", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(connection, "tickets", "answer_profile_code", "TEXT NOT NULL DEFAULT 'standard_ticket'")
+    _ensure_column(connection, "defense_sessions", "persona_kind", "TEXT NOT NULL DEFAULT 'commission'")
+    _ensure_column(connection, "defense_sessions", "timer_profile_sec", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(connection, "defense_sessions", "session_notes", "TEXT NOT NULL DEFAULT ''")
     connection.commit()
 
 

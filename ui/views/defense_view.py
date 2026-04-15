@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtWidgets import (
+    QBoxLayout,
     QButtonGroup,
     QComboBox,
     QFormLayout,
@@ -16,7 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from application.defense_ui_data import DefenseEvaluationResult, DefenseProcessingResult, DefenseWorkspaceSnapshot
-from ui.components.common import CardFrame, IconBadge
+from ui.components.common import CardFrame, IconBadge, file_badge_colors, tone_pair
+from ui.theme import current_colors
 
 
 PROFILE_OPTIONS = [
@@ -55,6 +57,30 @@ PERSONA_LABELS = {
     "commission": "Комиссия",
 }
 
+GAP_KIND_LABELS = {
+    "unsupported_claim": "Тезис без опоры",
+    "contradiction": "Противоречие",
+    "missing_bridge": "Нет перехода",
+    "weak_evidence": "Слабая опора",
+    "vague_result": "Размытый результат",
+    "novelty_not_proven": "Новизна не доказана",
+    "limitations_missing": "Нет ограничений",
+    "methods_results_disconnect": "Методы не ведут к результатам",
+}
+
+GAP_STATUS_LABELS = {
+    "open": "Открыто",
+    "accepted": "В работе",
+    "resolved": "Исправлено",
+    "ignored": "Игнорируется",
+}
+
+REPAIR_STATUS_LABELS = {
+    "todo": "Нужно сделать",
+    "done": "Сделано",
+    "dismissed": "Снято",
+}
+
 SOURCE_KIND_LABELS = {
     "thesis": "Диссертация",
     "notes": "Заметки",
@@ -72,7 +98,9 @@ class DefenseView(QWidget):
     create_project_requested = Signal(object)
     project_selected = Signal(str)
     import_requested = Signal(str)
-    evaluate_requested = Signal(str, str, str)
+    evaluate_requested = Signal(str, str, str, int, str)
+    gap_status_requested = Signal(str, str, str)
+    repair_task_status_requested = Signal(str, str, str)
 
     def __init__(self, shadow_color) -> None:
         super().__init__()
@@ -81,14 +109,19 @@ class DefenseView(QWidget):
         self.current_project_id = ""
         self._processing = False
         self._processing_result: DefenseProcessingResult | None = None
+        self._countdown_timer = QTimer(self)
+        self._countdown_timer.setInterval(1000)
+        self._countdown_timer.timeout.connect(self._tick_timer)
+        self._timer_profile_sec = 0
+        self._timer_remaining_sec = 0
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 28)
         layout.setSpacing(16)
 
-        header_row = QHBoxLayout()
-        header_row.setContentsMargins(0, 0, 0, 0)
-        header_row.setSpacing(14)
+        self.header_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.header_row.setContentsMargins(0, 0, 0, 0)
+        self.header_row.setSpacing(14)
 
         header_box = QVBoxLayout()
         header_box.setContentsMargins(0, 0, 0, 0)
@@ -101,18 +134,19 @@ class DefenseView(QWidget):
         subtitle.setProperty("role", "body")
         subtitle.setWordWrap(True)
         header_box.addWidget(subtitle)
-        header_row.addLayout(header_box, 1)
+        self.header_row.addLayout(header_box, 1)
 
         self.license_pill = QLabel("Не активировано")
         self.license_pill.setProperty("role", "pill")
-        header_row.addWidget(self.license_pill, 0, Qt.AlignmentFlag.AlignTop)
-        layout.addLayout(header_row)
+        self.header_row.addWidget(self.license_pill, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(self.header_row)
 
         self.status_card = CardFrame(role="subtle-card", shadow_color=shadow_color, shadow=False)
         status_layout = QHBoxLayout(self.status_card)
         status_layout.setContentsMargins(18, 16, 18, 16)
         status_layout.setSpacing(14)
-        status_layout.addWidget(IconBadge("PM", "#EEF6FF", "#2E78E6", size=42, radius=13, font_size=11), 0, Qt.AlignmentFlag.AlignTop)
+        pm_bg, pm_fg = file_badge_colors("PM")
+        status_layout.addWidget(IconBadge("PM", pm_bg, pm_fg, size=42, radius=13, font_size=11), 0, Qt.AlignmentFlag.AlignTop)
 
         status_text = QVBoxLayout()
         status_text.setContentsMargins(0, 0, 0, 0)
@@ -151,7 +185,7 @@ class DefenseView(QWidget):
         paywall_layout.addWidget(paywall_body)
 
         self.paywall_amount = QLabel("")
-        self.paywall_amount.setStyleSheet("font-size: 18px; font-weight: 800; color: #035F46;")
+        self.paywall_amount.setStyleSheet(f"font-size: 18px; font-weight: 800; color: {current_colors()['success']};")
         paywall_layout.addWidget(self.paywall_amount)
 
         self.paywall_status = QLabel("Оплата в приложении не встроена. Введите выданный ключ активации.")
@@ -159,20 +193,21 @@ class DefenseView(QWidget):
         self.paywall_status.setWordWrap(True)
         paywall_layout.addWidget(self.paywall_status)
 
-        activation_row = QHBoxLayout()
-        activation_row.setContentsMargins(0, 0, 0, 0)
-        activation_row.setSpacing(10)
+        self.activation_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.activation_row.setContentsMargins(0, 0, 0, 0)
+        self.activation_row.setSpacing(10)
         self.activation_input = QLineEdit()
         self.activation_input.setObjectName("defense-code")
         self.activation_input.setPlaceholderText("Ключ активации модуля")
-        activation_row.addWidget(self.activation_input, 1)
+        self.activation_input.setProperty("role", "form-input")
+        self.activation_row.addWidget(self.activation_input, 1)
 
         self.activate_button = QPushButton("Активировать модуль")
         self.activate_button.setObjectName("defense-activate")
         self.activate_button.setProperty("variant", "primary")
         self.activate_button.clicked.connect(self._emit_activate)
-        activation_row.addWidget(self.activate_button)
-        paywall_layout.addLayout(activation_row)
+        self.activation_row.addWidget(self.activate_button)
+        paywall_layout.addLayout(self.activation_row)
         layout.addWidget(self.paywall_card)
 
         self.workspace = QWidget()
@@ -180,12 +215,12 @@ class DefenseView(QWidget):
         workspace_layout.setContentsMargins(0, 0, 0, 0)
         workspace_layout.setSpacing(16)
 
-        top_row = QHBoxLayout()
-        top_row.setContentsMargins(0, 0, 0, 0)
-        top_row.setSpacing(16)
+        self.top_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.top_row.setContentsMargins(0, 0, 0, 0)
+        self.top_row.setSpacing(16)
 
-        projects_card = CardFrame(role="card", shadow_color=shadow_color)
-        projects_layout = QVBoxLayout(projects_card)
+        self.projects_card = CardFrame(role="card", shadow_color=shadow_color)
+        projects_layout = QVBoxLayout(self.projects_card)
         projects_layout.setContentsMargins(18, 18, 18, 18)
         projects_layout.setSpacing(12)
 
@@ -204,10 +239,10 @@ class DefenseView(QWidget):
         self.projects_layout.setContentsMargins(0, 0, 0, 0)
         self.projects_layout.setSpacing(8)
         projects_layout.addLayout(self.projects_layout)
-        top_row.addWidget(projects_card, 2)
+        self.top_row.addWidget(self.projects_card, 2)
 
-        create_card = CardFrame(role="card", shadow_color=shadow_color)
-        create_layout = QVBoxLayout(create_card)
+        self.create_card = CardFrame(role="card", shadow_color=shadow_color)
+        create_layout = QVBoxLayout(self.create_card)
         create_layout.setContentsMargins(18, 18, 18, 18)
         create_layout.setSpacing(12)
 
@@ -222,19 +257,24 @@ class DefenseView(QWidget):
 
         self.project_title_input = QLineEdit()
         self.project_title_input.setObjectName("defense-project-title")
+        self.project_title_input.setProperty("role", "form-input")
         form.addRow("Тема работы", self.project_title_input)
 
         self.student_input = QLineEdit()
+        self.student_input.setProperty("role", "form-input")
         form.addRow("Студент", self.student_input)
 
         self.specialty_input = QLineEdit()
+        self.specialty_input.setProperty("role", "form-input")
         form.addRow("Направление", self.specialty_input)
 
         self.supervisor_input = QLineEdit()
+        self.supervisor_input.setProperty("role", "form-input")
         form.addRow("Научрук", self.supervisor_input)
 
         self.defense_date_input = QLineEdit()
         self.defense_date_input.setPlaceholderText("2026-06-01")
+        self.defense_date_input.setProperty("role", "form-input")
         form.addRow("Дата защиты", self.defense_date_input)
 
         self.profile_combo = QComboBox()
@@ -248,8 +288,8 @@ class DefenseView(QWidget):
         self.create_button.setProperty("variant", "primary")
         self.create_button.clicked.connect(self._emit_create_project)
         create_layout.addWidget(self.create_button, 0, Qt.AlignmentFlag.AlignLeft)
-        top_row.addWidget(create_card, 3)
-        workspace_layout.addLayout(top_row)
+        self.top_row.addWidget(self.create_card, 3)
+        workspace_layout.addLayout(self.top_row)
 
         self.project_card = CardFrame(role="card", shadow_color=shadow_color)
         project_layout = QVBoxLayout(self.project_card)
@@ -282,7 +322,7 @@ class DefenseView(QWidget):
         project_layout.addWidget(self.sources_label)
 
         self.processing_status = QLabel("")
-        self.processing_status.setStyleSheet("font-size: 14px; font-weight: 700;")
+        self.processing_status.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {current_colors()['text']};")
         self.processing_status.hide()
         project_layout.addWidget(self.processing_status)
 
@@ -290,6 +330,7 @@ class DefenseView(QWidget):
         self.processing_progress.setRange(0, 100)
         self.processing_progress.setTextVisible(False)
         self.processing_progress.setFixedHeight(12)
+        self._apply_progress_styles(self.processing_progress)
         self.processing_progress.hide()
         project_layout.addWidget(self.processing_progress)
 
@@ -319,9 +360,9 @@ class DefenseView(QWidget):
         claims_layout.addWidget(self.claims_label)
         workspace_layout.addWidget(self.claims_card)
 
-        outline_row = QHBoxLayout()
-        outline_row.setContentsMargins(0, 0, 0, 0)
-        outline_row.setSpacing(16)
+        self.outline_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.outline_row.setContentsMargins(0, 0, 0, 0)
+        self.outline_row.setSpacing(16)
 
         outline_card = CardFrame(role="card", shadow_color=shadow_color)
         outline_layout = QVBoxLayout(outline_card)
@@ -346,7 +387,7 @@ class DefenseView(QWidget):
         self.outline_label.setProperty("role", "body")
         self.outline_label.setWordWrap(True)
         outline_layout.addWidget(self.outline_label)
-        outline_row.addWidget(outline_card, 1)
+        self.outline_row.addWidget(outline_card, 1)
 
         slides_card = CardFrame(role="card", shadow_color=shadow_color)
         slides_layout = QVBoxLayout(slides_card)
@@ -359,8 +400,8 @@ class DefenseView(QWidget):
         self.slides_label.setProperty("role", "body")
         self.slides_label.setWordWrap(True)
         slides_layout.addWidget(self.slides_label)
-        outline_row.addWidget(slides_card, 1)
-        workspace_layout.addLayout(outline_row)
+        self.outline_row.addWidget(slides_card, 1)
+        workspace_layout.addLayout(self.outline_row)
 
         questions_card = CardFrame(role="card", shadow_color=shadow_color)
         questions_layout = QVBoxLayout(questions_card)
@@ -375,28 +416,135 @@ class DefenseView(QWidget):
         questions_layout.addWidget(self.questions_label)
         workspace_layout.addWidget(questions_card)
 
+        evidence_card = CardFrame(role="card", shadow_color=shadow_color)
+        evidence_layout = QVBoxLayout(evidence_card)
+        evidence_layout.setContentsMargins(20, 20, 20, 20)
+        evidence_layout.setSpacing(10)
+        evidence_title = QLabel("Опора по ключевым блокам")
+        evidence_title.setProperty("role", "section-title")
+        evidence_layout.addWidget(evidence_title)
+        self.evidence_label = QLabel("Статус доказательной опоры появится после обработки материалов.")
+        self.evidence_label.setProperty("role", "body")
+        self.evidence_label.setWordWrap(True)
+        evidence_layout.addWidget(self.evidence_label)
+        workspace_layout.addWidget(evidence_card)
+
+        gap_card = CardFrame(role="card", shadow_color=shadow_color)
+        gap_layout = QVBoxLayout(gap_card)
+        gap_layout.setContentsMargins(20, 20, 20, 20)
+        gap_layout.setSpacing(10)
+        gap_head = QHBoxLayout()
+        gap_head.setContentsMargins(0, 0, 0, 0)
+        gap_head.setSpacing(10)
+        gap_title = QLabel("Логические дыры")
+        gap_title.setProperty("role", "section-title")
+        gap_head.addWidget(gap_title)
+        gap_head.addStretch(1)
+        self.gap_filter_combo = QComboBox()
+        self.gap_filter_combo.setObjectName("defense-gap-filter")
+        self.gap_filter_combo.addItem("Все типы", "")
+        for value, label in GAP_KIND_LABELS.items():
+            self.gap_filter_combo.addItem(label, value)
+        self.gap_filter_combo.currentIndexChanged.connect(self._refresh_gap_findings)
+        gap_head.addWidget(self.gap_filter_combo)
+        gap_layout.addLayout(gap_head)
+        self.gap_summary_label = QLabel("Здесь появятся найденные логические дыры.")
+        self.gap_summary_label.setProperty("role", "body")
+        self.gap_summary_label.setWordWrap(True)
+        gap_layout.addWidget(self.gap_summary_label)
+        self.gap_pick_combo = QComboBox()
+        self.gap_pick_combo.setObjectName("defense-gap-pick")
+        self.gap_pick_combo.currentIndexChanged.connect(self._refresh_gap_findings)
+        gap_layout.addWidget(self.gap_pick_combo)
+        self.gap_action_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.gap_action_row.setContentsMargins(0, 0, 0, 0)
+        self.gap_action_row.setSpacing(10)
+        self.gap_accept_button = QPushButton("Принять в работу")
+        self.gap_accept_button.setObjectName("defense-gap-accept")
+        self.gap_accept_button.setProperty("variant", "secondary")
+        self.gap_accept_button.clicked.connect(lambda: self._emit_gap_status("accepted"))
+        self.gap_action_row.addWidget(self.gap_accept_button)
+        self.gap_resolve_button = QPushButton("Пометить исправленным")
+        self.gap_resolve_button.setObjectName("defense-gap-resolve")
+        self.gap_resolve_button.setProperty("variant", "secondary")
+        self.gap_resolve_button.clicked.connect(lambda: self._emit_gap_status("resolved"))
+        self.gap_action_row.addWidget(self.gap_resolve_button)
+        self.gap_ignore_button = QPushButton("Игнорировать")
+        self.gap_ignore_button.setObjectName("defense-gap-ignore")
+        self.gap_ignore_button.setProperty("variant", "outline")
+        self.gap_ignore_button.clicked.connect(lambda: self._emit_gap_status("ignored"))
+        self.gap_action_row.addWidget(self.gap_ignore_button)
+        self.gap_action_row.addStretch(1)
+        gap_layout.addLayout(self.gap_action_row)
+        workspace_layout.addWidget(gap_card)
+
         mock_card = CardFrame(role="card", shadow_color=shadow_color)
         mock_layout = QVBoxLayout(mock_card)
         mock_layout.setContentsMargins(20, 20, 20, 20)
         mock_layout.setSpacing(10)
 
-        mock_head = QHBoxLayout()
-        mock_head.setContentsMargins(0, 0, 0, 0)
-        mock_head.setSpacing(10)
+        self.mock_head = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.mock_head.setContentsMargins(0, 0, 0, 0)
+        self.mock_head.setSpacing(10)
         mock_title = QLabel("Имитация защиты")
         mock_title.setProperty("role", "section-title")
-        mock_head.addWidget(mock_title)
-        mock_head.addStretch(1)
+        self.mock_head.addWidget(mock_title)
+        self.mock_head.addStretch(1)
         self.mode_combo = QComboBox()
         self.mode_combo.setObjectName("defense-mode")
         for value, label in MODE_OPTIONS:
             self.mode_combo.addItem(label, value)
-        mock_head.addWidget(self.mode_combo)
-        mock_layout.addLayout(mock_head)
+        self.mode_combo.currentIndexChanged.connect(self._sync_timer_controls)
+        self.mock_head.addWidget(self.mode_combo)
+        mock_layout.addLayout(self.mock_head)
+
+        self.context_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.context_row.setContentsMargins(0, 0, 0, 0)
+        self.context_row.setSpacing(10)
+        self.persona_combo = QComboBox()
+        self.persona_combo.setObjectName("defense-persona")
+        for value, label in PERSONA_LABELS.items():
+            self.persona_combo.addItem(label, value)
+        self.context_row.addWidget(self.persona_combo)
+        self.timer_combo = QComboBox()
+        self.timer_combo.setObjectName("defense-timer-profile")
+        self.timer_combo.addItem("Без таймера", 0)
+        self.timer_combo.addItem("5 минут", 300)
+        self.timer_combo.addItem("7 минут", 420)
+        self.timer_combo.addItem("10 минут", 600)
+        self.timer_combo.currentIndexChanged.connect(self._sync_timer_controls)
+        self.context_row.addWidget(self.timer_combo)
+        mock_layout.addLayout(self.context_row)
+
+        self.timer_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.timer_row.setContentsMargins(0, 0, 0, 0)
+        self.timer_row.setSpacing(10)
+        self.timer_status_label = QLabel("Таймер не запущен.")
+        self.timer_status_label.setProperty("role", "body")
+        self.timer_row.addWidget(self.timer_status_label, 1)
+        self.timer_start_button = QPushButton("Запустить таймер")
+        self.timer_start_button.setObjectName("defense-timer-start")
+        self.timer_start_button.setProperty("variant", "secondary")
+        self.timer_start_button.clicked.connect(self._toggle_timer)
+        self.timer_row.addWidget(self.timer_start_button)
+        self.timer_reset_button = QPushButton("Сбросить")
+        self.timer_reset_button.setObjectName("defense-timer-reset")
+        self.timer_reset_button.setProperty("variant", "outline")
+        self.timer_reset_button.clicked.connect(self._reset_timer)
+        self.timer_row.addWidget(self.timer_reset_button)
+        mock_layout.addLayout(self.timer_row)
+        self.timer_progress = QProgressBar()
+        self.timer_progress.setObjectName("defense-timer-progress")
+        self.timer_progress.setRange(0, 100)
+        self.timer_progress.setTextVisible(False)
+        self.timer_progress.setFixedHeight(10)
+        self._apply_progress_styles(self.timer_progress)
+        mock_layout.addWidget(self.timer_progress)
 
         self.answer_input = QTextEdit()
         self.answer_input.setPlaceholderText("Введите текст доклада или ответ на вопрос комиссии.")
         self.answer_input.setMinimumHeight(140)
+        self.answer_input.setProperty("role", "editor")
         mock_layout.addWidget(self.answer_input)
 
         action_row = QHBoxLayout()
@@ -429,8 +577,57 @@ class DefenseView(QWidget):
         weak_layout.addWidget(self.weak_label)
         workspace_layout.addWidget(weak_card)
 
+        repair_card = CardFrame(role="card", shadow_color=shadow_color)
+        repair_layout = QVBoxLayout(repair_card)
+        repair_layout.setContentsMargins(20, 20, 20, 20)
+        repair_layout.setSpacing(10)
+        repair_title = QLabel("Что исправить перед защитой")
+        repair_title.setProperty("role", "section-title")
+        repair_layout.addWidget(repair_title)
+        self.repair_label = QLabel("После анализа и репетиции здесь появится очередь доработок.")
+        self.repair_label.setProperty("role", "body")
+        self.repair_label.setWordWrap(True)
+        repair_layout.addWidget(self.repair_label)
+        self.repair_pick_combo = QComboBox()
+        self.repair_pick_combo.setObjectName("defense-repair-pick")
+        self.repair_pick_combo.currentIndexChanged.connect(self._refresh_repair_tasks)
+        repair_layout.addWidget(self.repair_pick_combo)
+        self.repair_actions = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.repair_actions.setContentsMargins(0, 0, 0, 0)
+        self.repair_actions.setSpacing(10)
+        self.repair_done_button = QPushButton("Сделано")
+        self.repair_done_button.setObjectName("defense-repair-done")
+        self.repair_done_button.setProperty("variant", "secondary")
+        self.repair_done_button.clicked.connect(lambda: self._emit_repair_status("done"))
+        self.repair_actions.addWidget(self.repair_done_button)
+        self.repair_dismiss_button = QPushButton("Снять")
+        self.repair_dismiss_button.setObjectName("defense-repair-dismiss")
+        self.repair_dismiss_button.setProperty("variant", "outline")
+        self.repair_dismiss_button.clicked.connect(lambda: self._emit_repair_status("dismissed"))
+        self.repair_actions.addWidget(self.repair_dismiss_button)
+        self.repair_actions.addStretch(1)
+        repair_layout.addLayout(self.repair_actions)
+        workspace_layout.addWidget(repair_card)
+
         layout.addWidget(self.workspace)
         self.workspace.hide()
+        self._apply_responsive_layout()
+
+    def _apply_progress_styles(self, progress: QProgressBar) -> None:
+        colors = current_colors()
+        progress.setStyleSheet(
+            f"""
+            QProgressBar {{
+                background: {colors["card_muted"]};
+                border: 1px solid {colors["border"]};
+                border-radius: 6px;
+            }}
+            QProgressBar::chunk {{
+                background: {colors["primary"]};
+                border-radius: 5px;
+            }}
+            """
+        )
 
     def set_snapshot(self, snapshot: DefenseWorkspaceSnapshot) -> None:
         self.snapshot = snapshot
@@ -442,15 +639,19 @@ class DefenseView(QWidget):
 
         activated = snapshot.license_state.activated
         self.license_pill.setText("Модуль активирован" if activated else "Модуль закрыт")
-        self.paywall_status.setText(
-            "Лицензия активирована локально. Материалы проекта остаются на этом компьютере."
-            if activated
-            else "Оплата в приложении не встроена. Введите выданный ключ активации."
-        )
+        if activated:
+            self.paywall_status.setText("Лицензия активирована локально. Материалы проекта остаются на этом компьютере.")
+        elif snapshot.license_state.status == "wrong_install":
+            self.paywall_status.setText("Ключ выдан для другой установки. Скопируйте текущий install ID и запросите новый код.")
+        elif snapshot.license_state.status == "invalid":
+            self.paywall_status.setText("Ключ не подошёл. Проверьте код или запросите код именно для этого install ID.")
+        else:
+            self.paywall_status.setText("Оплата в приложении не встроена. Введите выданный ключ активации для этого install ID.")
         self.paywall_card.setVisible(not activated)
         self.workspace.setVisible(activated)
         self._render_projects(snapshot)
         self._render_active_project(snapshot)
+        self._sync_timer_controls()
 
     def is_processing(self) -> bool:
         return self._processing
@@ -458,9 +659,13 @@ class DefenseView(QWidget):
     def set_activation_pending(self, pending: bool) -> None:
         self.activate_button.setEnabled(not pending)
         self.activate_button.setText("Проверяем ключ..." if pending else "Активировать модуль")
+        if pending:
+            self.paywall_status.setText("Проверяем код активации для этой установки...")
 
     def set_processing_pending(self, project_title: str) -> None:
         self._processing = True
+        _, fg = tone_pair("warning")
+        self.processing_status.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {fg};")
         self.processing_status.setText(f"Идёт обработка материалов: {project_title}")
         self.processing_status.show()
         self.processing_progress.setValue(0)
@@ -471,6 +676,8 @@ class DefenseView(QWidget):
         self.import_button.setEnabled(False)
 
     def set_processing_progress(self, percent: int, stage: str, detail: str = "") -> None:
+        _, fg = tone_pair("primary")
+        self.processing_status.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {fg};")
         self.processing_status.setText(stage)
         self.processing_progress.setValue(max(0, min(100, percent)))
         self.processing_meta.setText(detail or "Идёт фоновая локальная обработка.")
@@ -479,11 +686,16 @@ class DefenseView(QWidget):
         self._processing = False
         self._processing_result = result
         self.import_button.setEnabled(True)
+        _, fg = tone_pair("success" if result.ok else "danger")
+        self.processing_status.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {fg};")
         self.processing_status.setText("Обработка материалов завершена" if result.ok else "Обработка материалов завершилась с ошибкой")
         self.processing_status.show()
         self.processing_progress.setValue(100 if result.ok else self.processing_progress.value())
         self.processing_progress.show()
         details = [result.message] if result.message else []
+        if result.ok:
+            details.append(f"Логические дыры: {result.gap_findings_count}")
+            details.append(f"Задачи на исправление: {result.repair_tasks_count}")
         if result.warnings:
             details.append("Предупреждения:")
             details.extend(f"• {warning}" for warning in result.warnings[:4])
@@ -501,10 +713,17 @@ class DefenseView(QWidget):
             self.evaluation_label.setText(result.error or "Не удалось оценить ответ.")
             return
         lines = [result.summary]
+        if result.timer_verdict:
+            lines.append("")
+            lines.append(result.timer_verdict)
         if result.weak_points:
             lines.append("")
             lines.append("Слабые места:")
             lines.extend(f"• {item}" for item in result.weak_points)
+        if result.suggested_repair_tasks:
+            lines.append("")
+            lines.append("Что добить дальше:")
+            lines.extend(f"• {item}" for item in result.suggested_repair_tasks)
         if result.followup_questions:
             lines.append("")
             lines.append("Следующие вопросы комиссии:")
@@ -559,7 +778,12 @@ class DefenseView(QWidget):
             self.outline_label.setText("Контур доклада появится после обработки материалов.")
             self.slides_label.setText("План слайдов ещё не собран.")
             self.questions_label.setText("Вопросы появятся после обработки материалов.")
+            self.evidence_label.setText("Статус доказательной опоры появится после обработки материалов.")
+            self.gap_summary_label.setText("Здесь появятся найденные логические дыры.")
+            self.gap_pick_combo.clear()
             self.weak_label.setText("После репетиции защиты здесь появятся рискованные зоны.")
+            self.repair_label.setText("После анализа и репетиции здесь появится очередь доработок.")
+            self.repair_pick_combo.clear()
             return
 
         self.import_button.setEnabled(not self._processing)
@@ -582,7 +806,10 @@ class DefenseView(QWidget):
         for claim in [item for item in project.claims if item.kind.value != "risk_topic"][:8]:
             suffix = " • нужна проверка" if claim.needs_review else ""
             claim_label = CLAIM_LABELS.get(claim.kind.value, claim.kind.value)
-            claim_lines.append(f"• {claim_label}: {claim.text[:180]} ({int(round(claim.confidence * 100))}%){suffix}")
+            evidence_state = self._evidence_state_for_claim(claim)
+            claim_lines.append(
+                f"• {claim_label}: {claim.text[:180]} ({int(round(claim.confidence * 100))}% • {evidence_state}){suffix}"
+            )
         self.claims_label.setText("\n".join(claim_lines) if claim_lines else "Карта защиты пока пуста.")
         self._refresh_outline()
 
@@ -601,6 +828,9 @@ class DefenseView(QWidget):
         else:
             self.questions_label.setText("Вопросы комиссии ещё не собраны.")
 
+        self.evidence_label.setText(self._build_evidence_summary(project))
+        self._refresh_gap_findings()
+
         if project.weak_areas:
             weak_lines = [f"• {item.title}: {item.evidence}" for item in project.weak_areas[:5]]
             self.weak_label.setText("\n".join(weak_lines))
@@ -608,6 +838,7 @@ class DefenseView(QWidget):
             self.weak_label.setText(project.latest_score.summary_text)
         else:
             self.weak_label.setText("После репетиции защиты здесь появятся рискованные зоны.")
+        self._refresh_repair_tasks()
 
     def _refresh_outline(self) -> None:
         if self.snapshot is None or self.snapshot.active_project is None:
@@ -646,5 +877,205 @@ class DefenseView(QWidget):
             self.evaluate_requested.emit(
                 self.current_project_id,
                 str(self.mode_combo.currentData()),
+                str(self.persona_combo.currentData()),
+                int(self.timer_combo.currentData() or 0),
                 self.answer_input.toPlainText(),
             )
+
+    def _refresh_gap_findings(self) -> None:
+        project = self.snapshot.active_project if self.snapshot else None
+        if project is None:
+            return
+        filter_value = str(self.gap_filter_combo.currentData() or "")
+        findings = [item for item in project.gap_findings if not filter_value or item.gap_kind.value == filter_value]
+        current_id = str(self.gap_pick_combo.currentData() or "")
+        self.gap_pick_combo.blockSignals(True)
+        self.gap_pick_combo.clear()
+        for finding in findings:
+            self.gap_pick_combo.addItem(
+                f"{int(round(finding.severity * 100))}% • {GAP_KIND_LABELS.get(finding.gap_kind.value, finding.gap_kind.value)} • {finding.title}",
+                finding.finding_id,
+            )
+        if current_id:
+            index = self.gap_pick_combo.findData(current_id)
+            if index >= 0:
+                self.gap_pick_combo.setCurrentIndex(index)
+        self.gap_pick_combo.blockSignals(False)
+        if not findings:
+            self.gap_summary_label.setText("Явных логических дыр не найдено. После следующего импорта или репетиции список обновится.")
+            self._set_gap_buttons_enabled(False)
+            return
+        finding_id = str(self.gap_pick_combo.currentData() or findings[0].finding_id)
+        finding = next((item for item in findings if item.finding_id == finding_id), findings[0])
+        lines = [
+            f"{GAP_KIND_LABELS.get(finding.gap_kind.value, finding.gap_kind.value)} • статус: {GAP_STATUS_LABELS.get(finding.status.value, finding.status.value)}",
+            finding.explanation,
+        ]
+        if finding.related_claim_kinds:
+            lines.append("Связанные блоки: " + ", ".join(CLAIM_LABELS.get(kind, kind.value) for kind in finding.related_claim_kinds))
+        if finding.evidence_links:
+            lines.append("Опора: " + "; ".join(finding.evidence_links[:2]))
+        if finding.suggested_fix:
+            lines.append("Что сделать: " + finding.suggested_fix)
+        self.gap_summary_label.setText("\n".join(lines))
+        self._set_gap_buttons_enabled(True)
+
+    def _refresh_repair_tasks(self) -> None:
+        project = self.snapshot.active_project if self.snapshot else None
+        if project is None:
+            return
+        current_id = str(self.repair_pick_combo.currentData() or "")
+        self.repair_pick_combo.blockSignals(True)
+        self.repair_pick_combo.clear()
+        for task in project.repair_tasks:
+            self.repair_pick_combo.addItem(
+                f"{REPAIR_STATUS_LABELS.get(task.status.value, task.status.value)} • {task.title}",
+                task.task_id,
+            )
+        if current_id:
+            index = self.repair_pick_combo.findData(current_id)
+            if index >= 0:
+                self.repair_pick_combo.setCurrentIndex(index)
+        self.repair_pick_combo.blockSignals(False)
+        if not project.repair_tasks:
+            self.repair_label.setText("После анализа и репетиции здесь появится очередь доработок.")
+            self._set_repair_buttons_enabled(False)
+            return
+        task_id = str(self.repair_pick_combo.currentData() or project.repair_tasks[0].task_id)
+        task = next((item for item in project.repair_tasks if item.task_id == task_id), project.repair_tasks[0])
+        lines = [
+            f"{REPAIR_STATUS_LABELS.get(task.status.value, task.status.value)} • {task.title}",
+            task.reason,
+        ]
+        if task.related_gap_ids:
+            lines.append("Связанные дыры: " + ", ".join(task.related_gap_ids[:3]))
+        if task.suggested_action:
+            lines.append("Действие: " + task.suggested_action)
+        self.repair_label.setText("\n".join(lines))
+        self._set_repair_buttons_enabled(True)
+
+    def _emit_gap_status(self, status: str) -> None:
+        finding_id = str(self.gap_pick_combo.currentData() or "")
+        if self.current_project_id and finding_id:
+            self.gap_status_requested.emit(self.current_project_id, finding_id, status)
+
+    def _emit_repair_status(self, status: str) -> None:
+        task_id = str(self.repair_pick_combo.currentData() or "")
+        if self.current_project_id and task_id:
+            self.repair_task_status_requested.emit(self.current_project_id, task_id, status)
+
+    def _sync_timer_controls(self) -> None:
+        mode = str(self.mode_combo.currentData() or "")
+        if mode == "speech_5":
+            self.timer_combo.setCurrentIndex(self.timer_combo.findData(300))
+            self.timer_combo.setEnabled(False)
+        elif mode == "speech_7":
+            self.timer_combo.setCurrentIndex(self.timer_combo.findData(420))
+            self.timer_combo.setEnabled(False)
+        elif mode == "speech_10":
+            self.timer_combo.setCurrentIndex(self.timer_combo.findData(600))
+            self.timer_combo.setEnabled(False)
+        else:
+            self.timer_combo.setEnabled(True)
+        self._timer_profile_sec = int(self.timer_combo.currentData() or 0)
+        if self._timer_remaining_sec <= 0 or self._timer_remaining_sec > max(self._timer_profile_sec, 1):
+            self._timer_remaining_sec = self._timer_profile_sec
+        self._refresh_timer_widgets()
+
+    def _toggle_timer(self) -> None:
+        if self._timer_profile_sec <= 0:
+            self.timer_status_label.setText("Для этого сценария таймер отключён.")
+            return
+        if self._countdown_timer.isActive():
+            self._countdown_timer.stop()
+            self.timer_start_button.setText("Продолжить таймер")
+            return
+        if self._timer_remaining_sec <= 0:
+            self._timer_remaining_sec = self._timer_profile_sec
+        self._countdown_timer.start()
+        self.timer_start_button.setText("Пауза")
+        self._refresh_timer_widgets()
+
+    def _reset_timer(self) -> None:
+        self._countdown_timer.stop()
+        self._timer_remaining_sec = self._timer_profile_sec
+        self.timer_start_button.setText("Запустить таймер")
+        self._refresh_timer_widgets()
+
+    def _tick_timer(self) -> None:
+        if self._timer_remaining_sec > 0:
+            self._timer_remaining_sec -= 1
+        else:
+            self._countdown_timer.stop()
+        self._refresh_timer_widgets()
+
+    def _refresh_timer_widgets(self) -> None:
+        if self._timer_profile_sec <= 0:
+            self.timer_status_label.setText("Таймер отключён.")
+            self.timer_progress.setValue(0)
+            self.timer_start_button.setEnabled(False)
+            self.timer_reset_button.setEnabled(False)
+            return
+        self.timer_start_button.setEnabled(True)
+        self.timer_reset_button.setEnabled(True)
+        remaining = max(0, self._timer_remaining_sec)
+        percent = int(round((remaining / max(1, self._timer_profile_sec)) * 100))
+        self.timer_progress.setValue(percent)
+        self.timer_status_label.setText(f"Осталось: {remaining // 60:02d}:{remaining % 60:02d}")
+        if not self._countdown_timer.isActive():
+            self.timer_start_button.setText("Запустить таймер" if remaining == self._timer_profile_sec else "Продолжить таймер")
+
+    def _build_evidence_summary(self, project) -> str:
+        lines = []
+        for kind in ("novelty", "results", "limitations", "methods"):
+            claim = next((item for item in project.claims if item.kind.value == kind), None)
+            label = CLAIM_LABELS.get(kind, kind)
+            lines.append(f"• {label}: {self._evidence_state_for_claim(claim)}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _evidence_state_for_claim(claim) -> str:
+        if claim is None:
+            return "нет опоры"
+        if len(claim.source_anchors) >= 2 and not claim.needs_review:
+            return "есть опора"
+        if claim.source_anchors:
+            return "слабая опора"
+        return "нет опоры"
+
+    def _set_gap_buttons_enabled(self, enabled: bool) -> None:
+        self.gap_accept_button.setEnabled(enabled)
+        self.gap_resolve_button.setEnabled(enabled)
+        self.gap_ignore_button.setEnabled(enabled)
+
+    def _set_repair_buttons_enabled(self, enabled: bool) -> None:
+        self.repair_done_button.setEnabled(enabled)
+        self.repair_dismiss_button.setEnabled(enabled)
+
+    def refresh_theme(self) -> None:
+        self.paywall_amount.setStyleSheet(f"font-size: 18px; font-weight: 800; color: {current_colors()['success']};")
+        self.processing_status.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {current_colors()['text']};")
+        self._apply_progress_styles(self.processing_progress)
+        self._apply_progress_styles(self.timer_progress)
+        if self.snapshot is not None:
+            self.set_snapshot(self.snapshot)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        self._apply_responsive_layout()
+        super().resizeEvent(event)
+
+    def _apply_responsive_layout(self) -> None:
+        compact = self.width() < 1080
+        narrow = self.width() < 1240
+        self.header_row.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
+        self.activation_row.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
+        self.top_row.setDirection(QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight)
+        self.outline_row.setDirection(QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight)
+        self.mock_head.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
+        self.context_row.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
+        self.timer_row.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
+        self.gap_action_row.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
+        self.repair_actions.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
+        self.activate_button.setMaximumWidth(16777215 if compact else 280)
+        self.projects_card.setMinimumWidth(0 if narrow else 320)
+        self.create_card.setMinimumWidth(0 if narrow else 360)

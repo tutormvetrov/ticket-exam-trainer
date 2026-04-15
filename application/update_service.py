@@ -43,9 +43,12 @@ class UpdateService:
             with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
                 payload = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
-            return UpdateInfo(error_text=f"GitHub вернул ошибку {exc.code}.", checked_at=datetime.now())
+            return UpdateInfo(error_text=self._http_error_text(exc.code), checked_at=datetime.now())
         except URLError as exc:
-            return UpdateInfo(error_text=f"Не удалось проверить обновления: {exc.reason}", checked_at=datetime.now())
+            return UpdateInfo(
+                error_text=f"Не удалось проверить обновления: нет ответа от сети или GitHub ({exc.reason}).",
+                checked_at=datetime.now(),
+            )
         except Exception as exc:  # noqa: BLE001
             return UpdateInfo(error_text=f"Не удалось проверить обновления: {exc}", checked_at=datetime.now())
 
@@ -65,3 +68,16 @@ class UpdateService:
             asset_url=str(asset.get("browser_download_url") or ""),
             asset_name=str(asset.get("name") or ""),
         )
+
+    @staticmethod
+    def _http_error_text(status_code: int) -> str:
+        if status_code == 403:
+            return (
+                "GitHub временно ограничил проверку обновлений (HTTP 403). "
+                "Это не ломает приложение: повторите позже или откройте страницу релизов вручную."
+            )
+        if status_code == 404:
+            return "GitHub не нашёл опубликованный release API для этого репозитория (HTTP 404)."
+        if status_code >= 500:
+            return f"GitHub сейчас недоступен (HTTP {status_code}). Повторите проверку позже."
+        return f"GitHub вернул ошибку {status_code}."

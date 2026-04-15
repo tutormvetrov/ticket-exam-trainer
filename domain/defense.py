@@ -39,6 +39,36 @@ class CommitteePersonaKind(str, Enum):
     COMMISSION = "commission"
 
 
+class DefenseGapKind(str, Enum):
+    UNSUPPORTED_CLAIM = "unsupported_claim"
+    CONTRADICTION = "contradiction"
+    MISSING_BRIDGE = "missing_bridge"
+    WEAK_EVIDENCE = "weak_evidence"
+    VAGUE_RESULT = "vague_result"
+    NOVELTY_NOT_PROVEN = "novelty_not_proven"
+    LIMITATIONS_MISSING = "limitations_missing"
+    METHODS_RESULTS_DISCONNECT = "methods_results_disconnect"
+
+
+class DefenseGapStatus(str, Enum):
+    OPEN = "open"
+    ACCEPTED = "accepted"
+    RESOLVED = "resolved"
+    IGNORED = "ignored"
+
+
+class DefenseRepairSourceType(str, Enum):
+    GAP = "gap"
+    WEAK_AREA = "weak_area"
+    FOLLOWUP = "followup"
+
+
+class DefenseRepairTaskStatus(str, Enum):
+    TODO = "todo"
+    DONE = "done"
+    DISMISSED = "dismissed"
+
+
 class DefenseSessionMode(str, Enum):
     SPEECH_5 = "speech_5"
     SPEECH_7 = "speech_7"
@@ -142,14 +172,34 @@ class DefenseQuestion:
 
 
 @dataclass(slots=True)
+class DefenseGapFinding:
+    finding_id: str
+    project_id: str
+    gap_kind: DefenseGapKind
+    severity: float
+    title: str
+    explanation: str
+    evidence_links: list[str] = field(default_factory=list)
+    related_claim_kinds: list[DefenseClaimKind] = field(default_factory=list)
+    suggested_fix: str = ""
+    status: DefenseGapStatus = DefenseGapStatus.OPEN
+    llm_assisted: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass(slots=True)
 class DefenseSession:
     session_id: str
     project_id: str
     mode: DefenseSessionMode
+    persona_kind: CommitteePersonaKind
+    timer_profile_sec: int
     duration_sec: int
     transcript_text: str
     questions: list[str] = field(default_factory=list)
     answers: list[str] = field(default_factory=list)
+    session_notes: str = ""
     created_at: datetime | None = None
 
 
@@ -179,3 +229,19 @@ class DefenseWeakArea:
     evidence: str
     claim_kind: DefenseClaimKind | None = None
     created_at: datetime | None = None
+
+
+@dataclass(slots=True)
+class DefenseRepairTask:
+    task_id: str
+    project_id: str
+    task_kind: str
+    title: str
+    reason: str
+    source_type: DefenseRepairSourceType
+    related_claim_kind: DefenseClaimKind | None = None
+    suggested_action: str = ""
+    status: DefenseRepairTaskStatus = DefenseRepairTaskStatus.TODO
+    related_gap_ids: list[str] = field(default_factory=list)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

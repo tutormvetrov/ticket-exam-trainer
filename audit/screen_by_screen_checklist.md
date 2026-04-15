@@ -5,7 +5,7 @@
 
 | Экран | Что проверено | Статус | Доказательство | Комментарий |
 | --- | --- | --- | --- | --- |
-| Sidebar и навигация | Активный раздел, переключение stacked views, честный Ollama status | PASS | `audit/screens/closeout-library.png`, `audit/screens/closeout-settings.png` | Навигация не декоративная |
+| Sidebar и навигация | Активный раздел, переключение stacked views, понятный Ollama status | PASS | `audit/screens/closeout-library.png`, `audit/screens/closeout-settings.png` | Навигация не декоративная |
 | Библиотека | Список документов, detail panel, правая статистика, режимы тренировки | PASS | `audit/screens/closeout-library.png` | Правая колонка больше не ломается |
 | Предметы | Читаемость summary и карточек | PASS | `audit/screens/subjects.png` | Пустой wide-layout убран |
 | Разделы | Список без пустого фасада, фильтрация | PASS | `audit/screens/sections.png` | Огромная пустая карта устранена |

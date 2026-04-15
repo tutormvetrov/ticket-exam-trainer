@@ -52,15 +52,19 @@ class DlcLicenseService:
 
     def activate(self, install_id: str, activation_code: str) -> DlcLicenseState:
         state = self.load_state()
-        verified = self.verify_code(install_id, activation_code)
+        verification = self.inspect_code(install_id, activation_code)
         now = datetime.now()
-        if not verified:
+        if verification != "valid":
             state.install_id = install_id
             state.activated = False
             state.license_tier = "locked"
-            state.status = "invalid"
+            state.status = "wrong_install" if verification == "wrong_install" else "invalid"
             state.last_checked_at = now
-            state.error_text = "Ключ не подошёл к текущей установке."
+            state.error_text = (
+                "Ключ выдан для другой установки."
+                if verification == "wrong_install"
+                else "Ключ не подошёл к текущей установке."
+            )
             self.save_state(state)
             return state
 
@@ -76,18 +80,25 @@ class DlcLicenseService:
         return state
 
     def verify_code(self, install_id: str, activation_code: str) -> bool:
+        return self.inspect_code(install_id, activation_code) == "valid"
+
+    def inspect_code(self, install_id: str, activation_code: str) -> str:
         parts = activation_code.strip().split(".")
         if len(parts) != 2:
-            return False
+            return "invalid"
         payload_b64, signature = parts
         expected_signature = hmac.new(self.secret, payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(signature, expected_signature):
-            return False
+            return "invalid"
         try:
             payload = json.loads(base64.urlsafe_b64decode(_pad_base64(payload_b64)).decode("utf-8"))
         except Exception:
-            return False
-        return payload.get("install_id") == install_id and payload.get("tier") == "defense_prep"
+            return "invalid"
+        if payload.get("tier") != "defense_prep":
+            return "invalid"
+        if payload.get("install_id") != install_id:
+            return "wrong_install"
+        return "valid"
 
     def issue_code(self, install_id: str) -> str:
         payload = {

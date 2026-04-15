@@ -15,9 +15,10 @@ from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
 from application.settings_store import SettingsStore
 from application.ui_data import ImportExecutionResult
 from infrastructure.db import connect_initialized, get_database_path
+from ui.admin_password_dialog import AdminPasswordDialog
 from ui.main_window import MainWindow
 from ui.text_admin import collect_text_entries
-from ui.theme import set_app_theme
+from ui.theme import FONT_PRESETS, build_stylesheet, resolve_font_family, set_app_theme
 
 pytestmark = pytest.mark.ui
 
@@ -30,7 +31,12 @@ def _qapp() -> QApplication:
     return app
 
 
-def _build_window(tmp_path: Path, settings: OllamaSettings | None = None) -> tuple[MainWindow, Path]:
+def _build_window(
+    tmp_path: Path,
+    settings: OllamaSettings | None = None,
+    *,
+    suppress_startup_background_tasks: bool = False,
+) -> tuple[MainWindow, Path]:
     workspace_root = tmp_path / "workspace"
     workspace_root.mkdir(parents=True, exist_ok=True)
     database_path = get_database_path(workspace_root)
@@ -43,7 +49,12 @@ def _build_window(tmp_path: Path, settings: OllamaSettings | None = None) -> tup
     )
     settings_store.save(effective_settings)
     facade = AppFacade(workspace_root, connection, settings_store)
-    window = MainWindow(_qapp(), facade, "light")
+    window = MainWindow(
+        _qapp(),
+        facade,
+        "light",
+        suppress_startup_background_tasks=suppress_startup_background_tasks,
+    )
     return window, workspace_root
 
 
@@ -75,6 +86,49 @@ def test_import_dialog_shows_real_error_for_unsupported_file(tmp_path: Path, mon
 
     assert captured["title"] == "Импорт"
     assert "Unsupported document format" in captured["text"]
+    window.close()
+    window.facade.connection.close()
+
+
+def test_suppress_startup_background_tasks_skips_auto_threads(tmp_path: Path) -> None:
+    settings = replace(
+        DEFAULT_OLLAMA_SETTINGS,
+        auto_check_ollama_on_start=True,
+        auto_check_updates_on_start=True,
+    )
+    window, _ = _build_window(tmp_path, settings, suppress_startup_background_tasks=True)
+
+    _qapp().processEvents()
+
+    assert window._diagnostics_thread is None
+    assert window._update_thread is None
+    assert window.views["settings"].status_pill.text() == "Автопроверка отключена"
+    window.close()
+    window.facade.connection.close()
+
+
+def test_library_refresh_skips_heavy_ticket_loading(tmp_path: Path, monkeypatch) -> None:
+    window, _ = _build_window(tmp_path)
+    calls = {"ticket_maps": 0, "training_snapshot": 0}
+
+    def fake_load_ticket_maps():
+        calls["ticket_maps"] += 1
+        return []
+
+    def fake_load_training_snapshot(*, tickets=None):
+        calls["training_snapshot"] += 1
+        from application.ui_data import TrainingSnapshot
+        return TrainingSnapshot(queue_items=[], tickets=tickets or [])
+
+    monkeypatch.setattr(AppFacade, "load_ticket_maps", lambda self: fake_load_ticket_maps())
+    monkeypatch.setattr(AppFacade, "load_training_snapshot", lambda self, tickets=None: fake_load_training_snapshot(tickets=tickets))
+
+    window.switch_view("library")
+    window.refresh_all_views()
+    _qapp().processEvents()
+
+    assert calls["ticket_maps"] == 0
+    assert calls["training_snapshot"] == 0
     window.close()
     window.facade.connection.close()
 
@@ -143,10 +197,10 @@ def test_save_settings_with_invalid_ollama_url_keeps_honest_status(tmp_path: Pat
 
     settings_view = window.views["settings"]
     settings_view.url_input.setText("http://localhost:65500")
-    settings_view.model_combo.setCurrentText("mistral:instruct")
+    settings_view.model_combo.setCurrentText("qwen3:8b")
     settings_view.timeout_stepper.set_value(2)
     settings_view.save_settings()
-    assert _wait_for(lambda: settings_view.status_pill.text() != "Проверка...", timeout=5.0)
+    assert _wait_for(lambda: settings_view.error_label.text().startswith("Ошибка:"), timeout=5.0)
 
     settings_file = workspace_root / "app_data" / "settings.json"
     saved = settings_file.read_text(encoding="utf-8")
@@ -279,3 +333,126 @@ def test_admin_login_enables_debug_and_text_overrides(tmp_path: Path, monkeypatc
 
     window.close()
     window.facade.connection.close()
+
+
+def test_admin_password_dialog_sets_password(tmp_path: Path) -> None:
+    window, workspace_root = _build_window(tmp_path)
+    dialog = AdminPasswordDialog(window.admin_store, workspace_root, window)
+
+    dialog.password_input.setText("новый-секрет-123")
+    dialog.confirm_input.setText("новый-секрет-123")
+    dialog.hint_input.setText("локальная подсказка")
+    dialog._save_password()
+
+    state = window.admin_store.load_state()
+    assert state.configured is True
+    assert state.password_hint == "локальная подсказка"
+    assert window.admin_store.verify_password("новый-секрет-123") is True
+
+    dialog.close()
+    window.close()
+    window.facade.connection.close()
+
+
+def test_open_admin_password_dialog_refreshes_state(tmp_path: Path, monkeypatch) -> None:
+    window, _ = _build_window(tmp_path)
+
+    def fake_exec(self) -> int:
+        self.store.set_password("секрет-456", "подсказка")
+        return 1
+
+    monkeypatch.setattr(AdminPasswordDialog, "exec", fake_exec)
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: QMessageBox.StandardButton.Ok)
+
+    window.open_admin_password_dialog()
+
+    assert window.admin_state.configured is True
+    assert "задан" in window.views["settings"].admin_status_label.text().lower()
+    assert window.views["settings"].admin_setup_button.text() == "Изменить или сбросить пароль"
+
+    window.close()
+    window.facade.connection.close()
+
+
+def test_settings_typography_controls_offer_curated_fonts_and_preview(tmp_path: Path) -> None:
+    window, _ = _build_window(tmp_path)
+    settings_view = window.views["settings"]
+
+    assert settings_view.font_preset_combo.count() >= 4
+    available_keys = {settings_view.font_preset_combo.itemData(index) for index in range(settings_view.font_preset_combo.count())}
+    assert {"segoe", "bahnschrift", "trebuchet", "verdana"}.issubset(available_keys)
+
+    settings_view._set_combo_value(settings_view.font_preset_combo, "bahnschrift")
+    settings_view.font_size_stepper.set_value(14)
+    settings_view._refresh_typography_preview()
+
+    assert "Bahnschrift" in settings_view.typography_preview_meta.text()
+    assert "размер: 14 pt" in settings_view.typography_preview_meta.text()
+    assert settings_view.typography_preview_body.font().family() == resolve_font_family("bahnschrift")
+    assert settings_view.typography_preview_button.font().family() == resolve_font_family("bahnschrift")
+    assert settings_view.typography_preview_title.font().pointSize() >= settings_view.typography_preview_body.font().pointSize()
+
+    window.close()
+    window.facade.connection.close()
+
+
+def test_font_presets_have_user_facing_descriptions() -> None:
+    for preset_key in ("segoe", "bahnschrift", "trebuchet", "verdana", "arial"):
+        assert FONT_PRESETS[preset_key]["label"]
+        assert FONT_PRESETS[preset_key]["description"]
+
+
+def test_theme_styles_qmessagebox_for_readable_dialogs() -> None:
+    stylesheet = build_stylesheet(
+        {
+            "app_bg": "#EEF3F8",
+            "sidebar_bg": "#F3F7FB",
+            "surface_bg": "#F8FBFE",
+            "card_bg": "#FFFFFF",
+            "card_soft": "#F5F8FC",
+            "card_muted": "#F8FAFD",
+            "input_bg": "#FBFCFE",
+            "primary": "#2E78E6",
+            "primary_soft": "#EEF5FF",
+            "primary_hover": "#246AD0",
+            "success": "#18B06A",
+            "success_soft": "#EAF9F1",
+            "warning": "#F59A23",
+            "warning_soft": "#FFF4E7",
+            "danger": "#F26C7F",
+            "danger_soft": "#FFF0F2",
+            "violet_soft": "#F5EEFF",
+            "cyan_soft": "#ECFAFE",
+            "text": "#1F2A3B",
+            "text_secondary": "#5F6B7A",
+            "text_tertiary": "#8E99A8",
+            "border": "#E4EAF2",
+            "border_strong": "#D4DEEA",
+            "shadow": None,
+        },
+        {
+            "family": "Segoe UI",
+            "base_point": 11,
+            "window_title": 16,
+            "brand_title": 24,
+            "brand_subtitle": 14,
+            "nav_caption": 13,
+            "hero": 28,
+            "page_subtitle": 15,
+            "section_title": 18,
+            "card_title": 17,
+            "body": 15,
+            "muted": 14,
+            "pill": 13,
+            "status": 14,
+            "search": 16,
+            "input": 15,
+            "button": 15,
+            "editor": 15,
+            "combo": 15,
+        },
+    )
+
+    assert "QMessageBox {" in stylesheet
+    assert "QMessageBox QLabel {" in stylesheet
+    assert "QMessageBox QPushButton {" in stylesheet

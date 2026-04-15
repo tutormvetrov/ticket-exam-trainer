@@ -1,5 +1,6 @@
 param(
-    [string]$PythonExe = "python"
+    [string]$PythonExe = "python",
+    [switch]$SkipZip
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,17 +10,49 @@ $distRoot = Join-Path $root "dist"
 $buildRoot = Join-Path $root "build"
 $releaseName = "Tezis"
 $releaseDir = Join-Path $distRoot $releaseName
+$releaseZip = Join-Path $distRoot "$releaseName-windows.zip"
 $stageDistRoot = Join-Path $buildRoot "release_stage"
 $stageReleaseDir = Join-Path $stageDistRoot $releaseName
 $workDir = Join-Path $buildRoot "pyinstaller"
 $specDir = Join-Path $buildRoot "spec"
+$buildInfoPath = Join-Path $releaseDir "build_info.json"
+$seedWorkspaceRoot = Join-Path $env:LOCALAPPDATA "Tezis"
+$seedDbCandidates = @(
+    (Join-Path $seedWorkspaceRoot "exam_trainer.db"),
+    (Join-Path $root "exam_trainer.db")
+)
+$appVersion = (& $PythonExe -c "from app.meta import APP_VERSION; print(APP_VERSION)" | Select-Object -First 1).Trim()
 
 Write-Host "Building release into $releaseDir"
+Write-Host "Repo root is the source of truth; packaged README/docs/scripts will be regenerated from root."
+
+New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
+
+$runningReleaseProcesses = @(Get-Process -Name $releaseName -ErrorAction SilentlyContinue | Where-Object {
+    try {
+        $_.Path -and $_.Path.StartsWith($releaseDir, [System.StringComparison]::OrdinalIgnoreCase)
+    } catch {
+        $false
+    }
+})
+if ($runningReleaseProcesses.Count -gt 0) {
+    Write-Host "Stopping running packaged app before rebuild..."
+    $runningReleaseProcesses | Stop-Process -Force
+    Start-Sleep -Milliseconds 600
+}
 
 if (Test-Path -LiteralPath $releaseDir) {
-    Get-ChildItem -LiteralPath $releaseDir -Force | ForEach-Object {
-        Remove-Item -LiteralPath $_.FullName -Recurse -Force
+    try {
+        Remove-Item -LiteralPath $releaseDir -Recurse -Force
+    } catch {
+        Write-Host "Release directory root is locked; falling back to in-place refresh..."
+        Get-ChildItem -LiteralPath $releaseDir -Force | ForEach-Object {
+            Remove-Item -LiteralPath $_.FullName -Recurse -Force
+        }
     }
+}
+if (Test-Path -LiteralPath $releaseZip) {
+    Remove-Item -LiteralPath $releaseZip -Force
 }
 if (Test-Path -LiteralPath $stageDistRoot) {
     Remove-Item -LiteralPath $stageDistRoot -Recurse -Force
@@ -52,6 +85,18 @@ Get-ChildItem -LiteralPath $stageReleaseDir -Force | ForEach-Object {
 
 New-Item -ItemType Directory -Force -Path (Join-Path $releaseDir "app_data") | Out-Null
 
+$seedDbPath = $null
+foreach ($candidate in $seedDbCandidates) {
+    if ((Test-Path -LiteralPath $candidate) -and ((Get-Item -LiteralPath $candidate).Length -gt 0)) {
+        $seedDbPath = $candidate
+        break
+    }
+}
+if ($seedDbPath) {
+    Copy-Item -LiteralPath $seedDbPath -Destination (Join-Path $releaseDir "exam_trainer.db") -Force
+    Write-Host "Bundled seeded database: $seedDbPath"
+}
+
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination (Join-Path $releaseDir "README.md") -Force
 
 $docsPath = Join-Path $root "docs"
@@ -64,4 +109,25 @@ if (Test-Path -LiteralPath $scriptsPath) {
     Copy-Item -LiteralPath $scriptsPath -Destination (Join-Path $releaseDir "scripts") -Recurse -Force
 }
 
+$gitCommit = ""
+try {
+    $gitCommit = (git -C $root rev-parse --short=12 HEAD 2>$null | Select-Object -First 1).Trim()
+} catch {
+    $gitCommit = ""
+}
+$buildInfo = [ordered]@{
+    version = $appVersion
+    commit = $gitCommit
+    built_at = (Get-Date).ToString("o")
+}
+$buildInfo | ConvertTo-Json | Set-Content -LiteralPath $buildInfoPath -Encoding UTF8
+
+if (-not $SkipZip) {
+    Compress-Archive -LiteralPath $releaseDir -DestinationPath $releaseZip -CompressionLevel Optimal -Force
+}
+
 Write-Host "Build completed: $releaseDir"
+Write-Host "Packaged README/docs/scripts were copied from repo root."
+if (-not $SkipZip) {
+    Write-Host "Release archive updated: $releaseZip"
+}

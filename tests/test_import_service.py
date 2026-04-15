@@ -23,7 +23,7 @@ Ticket 2. How is efficiency of public property evaluated? Efficiency is evaluate
 """
 
 
-def _build_facade(tmp_path: Path) -> AppFacade:
+def _build_facade(tmp_path: Path, *, import_llm_assist: bool = False) -> AppFacade:
     workspace_root = tmp_path / "workspace"
     workspace_root.mkdir(parents=True, exist_ok=True)
     database_path = get_database_path(workspace_root)
@@ -34,7 +34,7 @@ def _build_facade(tmp_path: Path) -> AppFacade:
             DEFAULT_OLLAMA_SETTINGS,
             auto_check_ollama_on_start=False,
             auto_check_updates_on_start=False,
-            import_llm_assist=False,
+            import_llm_assist=import_llm_assist,
             examiner_followups=False,
             rewrite_questions=False,
         )
@@ -129,6 +129,50 @@ def test_pdf_import_smoke(tmp_path: Path) -> None:
     assert len(result.tickets[1].atoms) >= 2
 
 
+def test_extract_ticket_candidates_accepts_numbered_titles_without_question_mark() -> None:
+    service = DocumentImportService()
+    normalized = service.normalize_text(
+        """1. Государственное управление в Российской Федерации. Государственное управление организует работу институтов публичной власти и задает механизм принятия решений.
+
+2. Электронное правительство. Электронное правительство переводит услуги и коммуникацию государства в цифровую среду, повышая доступность сервисов.
+"""
+    )
+
+    candidates = service.extract_ticket_candidates(normalized)
+
+    assert len(candidates) == 2
+    assert candidates[0].title == "Государственное управление в Российской Федерации"
+    assert "публичной власти" in candidates[0].body
+    assert candidates[1].title == "Электронное правительство"
+
+
+def test_extract_ticket_candidates_uses_table_of_contents_when_present() -> None:
+    service = DocumentImportService()
+    normalized = service.normalize_text(
+        """ОГЛАВЛЕНИЕ
+1.1. Теория управления 2
+1. Государственное управление в Российской Федерации. 2
+2. Электронное правительство. 3
+
+2
+1.1. Теория управления
+1. Государственное управление в Российской Федерации. Государственное управление организует работу институтов публичной власти, распределяет полномочия и задает механизм принятия решений.
+
+3
+2. Электронное правительство. Электронное правительство переводит услуги и коммуникацию государства в цифровую среду, повышая доступность сервисов и прозрачность процедур.
+"""
+    )
+
+    candidates = service.extract_ticket_candidates(normalized)
+
+    assert len(candidates) == 2
+    assert candidates[0].section_title == "Теория управления"
+    assert candidates[0].title == "Государственное управление в Российской Федерации"
+    assert "институтов публичной власти" in candidates[0].body
+    assert candidates[1].title == "Электронное правительство"
+    assert "цифровую среду" in candidates[1].body
+
+
 def test_incremental_import_preserves_saved_tickets_and_resume_finishes_tail(tmp_path: Path, monkeypatch) -> None:
     document_path = tmp_path / "demo.docx"
     document = Document()
@@ -187,6 +231,57 @@ def test_incremental_import_preserves_saved_tickets_and_resume_finishes_tail(tmp
     queue_counts = facade.repository.count_import_queue_statuses(result.document_id)
     assert queue_counts["done"] == 2
 
+    facade.connection.close()
+
+
+def test_initial_import_saves_rule_based_tickets_and_queues_llm_tail(tmp_path: Path, monkeypatch) -> None:
+    document_path = tmp_path / "demo.docx"
+    document = Document()
+    for paragraph in SOURCE_TEXT.split("\n\n"):
+        document.add_paragraph(paragraph)
+    document.save(document_path)
+
+    facade = _build_facade(tmp_path, import_llm_assist=True)
+    monkeypatch.setattr(DocumentImportService, "needs_llm_refinement", lambda *args, **kwargs: True)
+
+    result = facade.import_document_with_progress(document_path)
+
+    assert result.ok
+    assert result.status == "partial_llm"
+    assert result.resume_available
+    assert result.tickets_created == 2
+    assert facade.connection.execute("SELECT COUNT(*) AS total FROM tickets").fetchone()["total"] == 2
+    queue_counts = facade.repository.count_import_queue_statuses(result.document_id)
+    assert queue_counts["pending"] == 2
+    assert queue_counts.get("done", 0) == 0
+    facade.connection.close()
+
+
+def test_finalize_import_uses_actual_ticket_count_when_document_grows(tmp_path: Path) -> None:
+    document_path = tmp_path / "demo.docx"
+    document = Document()
+    for paragraph in SOURCE_TEXT.split("\n\n"):
+        document.add_paragraph(paragraph)
+    document.save(document_path)
+
+    facade = _build_facade(tmp_path)
+    result = facade.import_document_with_progress(document_path)
+    source_row = facade.repository.load_source_document_row(result.document_id)
+
+    service = DocumentImportService()
+    candidate = TicketCandidate(
+        index=3,
+        title="Дополнительный билет",
+        body="Дополнительный билет раскрывает ещё один аспект публичного управления и добавлен после базового импорта.",
+        confidence=0.7,
+        section_title="public-assets",
+    )
+    ticket, _, _ = service.build_ticket_map(candidate, "local-exam", "public-assets", result.document_id)
+    facade.repository.save_ticket_map(ticket, llm_status="done", llm_error="")
+
+    finalized = facade._finalize_import_document(result.document_id, source_row["title"], [], False)
+
+    assert finalized.tickets_created == 3
     facade.connection.close()
 
 

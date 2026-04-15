@@ -16,3 +16,6 @@ app_data/
 tmp_qt_smoke/
 tmp_qt_smoke2/
 local_tools/
+.claude/
+llm_inbox_*/
+smoke-*.png

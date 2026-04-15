@@ -4,6 +4,7 @@ $modelsPath = [Environment]::GetEnvironmentVariable("OLLAMA_MODELS", "User")
 $legacyModelsPath = Join-Path $HOME ".ollama\\models"
 $ollamaExe = Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe"
 $baseUrl = "http://localhost:11434"
+$preferredModel = "qwen3:8b"
 
 if (-not $modelsPath) {
     $modelsPath = if (Test-Path "D:\") { "D:\OllamaModels" } else { $legacyModelsPath }
@@ -76,9 +77,26 @@ Write-Host "API tags:"
 $tags = Invoke-WebRequest -UseBasicParsing "$baseUrl/api/tags" -TimeoutSec 20
 $tags.Content
 
+$tagsPayload = $tags.Content | ConvertFrom-Json
+$availableModels = @($tagsPayload.models | ForEach-Object { $_.name }) | Where-Object { $_ }
+$familyMatches = @($availableModels | Where-Object { $_ -like "qwen3:*" -or $_ -like "qwen:*" -or $_ -like "*qwen*" })
+$smokeModel = if ($availableModels -contains $preferredModel) {
+    $preferredModel
+} elseif ($familyMatches.Count -gt 0) {
+    $familyMatches[0]
+} elseif ($availableModels.Count -gt 0) {
+    $availableModels[0]
+} else {
+    $preferredModel
+}
+
+if ($smokeModel -ne $preferredModel) {
+    Write-Host "Preferred model '$preferredModel' not found. Using smoke-test fallback: $smokeModel"
+}
+
 Write-Host "Generate smoke test:"
 $body = @{
-    model = "mistral:instruct"
+    model = $smokeModel
     prompt = "Ответь одним коротким предложением: что такое active recall?"
     stream = $false
 } | ConvertTo-Json

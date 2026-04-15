@@ -6,7 +6,7 @@ import json
 
 from domain.answer_profile import AnswerBlockCode, TicketAnswerBlock
 from domain.knowledge import AtomType, ExaminerPrompt, KnowledgeAtom
-from infrastructure.ollama.client import OllamaClient
+from infrastructure.ollama.client import OllamaClient, OllamaResponse
 from infrastructure.ollama.prompts import (
     followup_questions_prompt,
     logical_gaps_prompt,
@@ -117,14 +117,17 @@ class OllamaService:
 
         models = response.payload.get("models", [])
         names = [model.get("name", "") for model in models]
-        selected = next((model for model in models if model.get("name") == preferred_model), None)
-        fallback = models[0] if models else None
-        resolved = selected or fallback
+        resolved, used_fallback = self._resolve_model_entry(models, preferred_model)
 
         if preferred_model:
-            model_ok = preferred_model in names
-            model_message = "Модель загружена" if model_ok else "Модель не найдена"
-            model_name = preferred_model if model_ok else (resolved.get("name", "") if resolved else "")
+            model_ok = bool(resolved)
+            if resolved and not used_fallback:
+                model_message = "Модель загружена"
+            elif resolved:
+                model_message = f"Используется fallback: {resolved.get('name', '')}"
+            else:
+                model_message = "Модель не найдена"
+            model_name = resolved.get("name", "") if resolved else ""
         else:
             model_ok = bool(resolved)
             model_message = "Модель доступна" if model_ok else "Модель не найдена"
@@ -167,7 +170,7 @@ class OllamaService:
         count: int = 3,
     ) -> OllamaScenarioResult:
         system, prompt = followup_questions_prompt(ticket_title, summary, weak_points, count)
-        response = self.client.generate(model, prompt, system=system, format_name="json", temperature=0.3)
+        response = self.request_generation(model, prompt, system=system, format_name="json", temperature=0.3)
         if not response.ok:
             return OllamaScenarioResult(False, "", False, response.latency_ms, response.error)
         try:
@@ -187,7 +190,7 @@ class OllamaService:
 
     def analyze_logical_gaps(self, question: str, user_answer: str, expected_summary: str, model: str) -> OllamaScenarioResult:
         system, prompt = logical_gaps_prompt(question, user_answer, expected_summary)
-        response = self.client.generate(model, prompt, system=system, format_name="json", temperature=0.2)
+        response = self.request_generation(model, prompt, system=system, format_name="json", temperature=0.2)
         if not response.ok:
             return OllamaScenarioResult(False, "", False, response.latency_ms, response.error)
         try:
@@ -214,7 +217,7 @@ class OllamaService:
             }
             for atom in existing_atoms
         ]
-        response = self.client.generate(
+        response = self.request_generation(
             model,
             structuring_user_prompt(title, source_text, existing),
             system=structuring_system_prompt(),
@@ -262,7 +265,7 @@ class OllamaService:
             }
             for block in existing_blocks
         ]
-        response = self.client.generate(
+        response = self.request_generation(
             model,
             state_exam_blocks_user_prompt(ticket_title, source_text, payload_blocks),
             system=state_exam_blocks_system_prompt(),
@@ -301,7 +304,7 @@ class OllamaService:
         return LLMAnswerBlocksResult(bool(blocks), blocks, bool(blocks), response.latency_ms, "" if blocks else "LLM returned no valid answer blocks")
 
     def _generate_text(self, model: str, prompt: str, *, system: str = "") -> OllamaScenarioResult:
-        response = self.client.generate(model, prompt, system=system, temperature=0.3)
+        response = self.request_generation(model, prompt, system=system, temperature=0.3)
         if not response.ok:
             return OllamaScenarioResult(False, "", False, response.latency_ms, response.error)
         return OllamaScenarioResult(
@@ -310,6 +313,32 @@ class OllamaService:
             used_llm=True,
             latency_ms=response.latency_ms,
         )
+
+    def request_generation(
+        self,
+        model: str,
+        prompt: str,
+        *,
+        system: str = "",
+        format_name: str | None = None,
+        temperature: float = 0.2,
+    ) -> OllamaResponse:
+        response = self.client.generate(model, prompt, system=system, format_name=format_name, temperature=temperature)
+        if response.ok or not self._is_missing_model_error(response.error):
+            return response
+        fallback_model = self._resolve_installed_model_name(model)
+        if not fallback_model or fallback_model == model:
+            return response
+        fallback_response = self.client.generate(
+            fallback_model,
+            prompt,
+            system=system,
+            format_name=format_name,
+            temperature=temperature,
+        )
+        if fallback_response.ok:
+            return fallback_response
+        return fallback_response if fallback_response.error else response
 
     @staticmethod
     def _parse_json_response(raw_text: str) -> dict[str, object]:
@@ -424,3 +453,44 @@ class OllamaService:
             except ValueError:
                 return 3
         return 3
+
+    @staticmethod
+    def _is_missing_model_error(error_text: str) -> bool:
+        lower = error_text.lower()
+        return "model" in lower and "not found" in lower
+
+    def _resolve_installed_model_name(self, preferred_model: str) -> str:
+        response = self.client.get_tags()
+        if not response.ok:
+            return preferred_model
+        models = response.payload.get("models", [])
+        resolved, _ = self._resolve_model_entry(models, preferred_model)
+        return resolved.get("name", preferred_model) if resolved else preferred_model
+
+    @staticmethod
+    def _resolve_model_entry(models: list[object], preferred_model: str) -> tuple[dict[str, object] | None, bool]:
+        normalized = [model for model in models if isinstance(model, dict) and model.get("name")]
+        if not normalized:
+            return None, False
+        if preferred_model:
+            selected = next((model for model in normalized if model.get("name") == preferred_model), None)
+            if selected is not None:
+                return selected, False
+
+        fallback = OllamaService._pick_family_fallback(normalized, preferred_model)
+        if fallback is not None:
+            return fallback, bool(preferred_model and fallback.get("name") != preferred_model)
+        return None, False
+
+    @staticmethod
+    def _pick_family_fallback(models: list[dict[str, object]], preferred_model: str) -> dict[str, object] | None:
+        if not preferred_model:
+            return models[0] if models else None
+        family = preferred_model.split(":", 1)[0].strip().lower()
+        family_matches = [
+            model for model in models
+            if family and family in str(model.get("name", "")).lower()
+        ]
+        if family_matches:
+            return family_matches[0]
+        return None

@@ -7,7 +7,13 @@ from domain.defense import (
     CommitteePersonaKind,
     DefenseClaim,
     DefenseClaimKind,
+    DefenseGapFinding,
+    DefenseGapKind,
+    DefenseGapStatus,
     DefenseQuestion,
+    DefenseRepairSourceType,
+    DefenseRepairTask,
+    DefenseRepairTaskStatus,
     DefenseScoreProfile,
     DefenseSession,
     DefenseSessionMode,
@@ -284,6 +290,89 @@ class DefenseRepository:
             (project_id,),
         ).fetchall()
 
+    def replace_gap_findings(self, project_id: str, findings: list[DefenseGapFinding]) -> None:
+        self.connection.execute("DELETE FROM defense_gap_findings WHERE project_id = ?", (project_id,))
+        for finding in findings:
+            self.connection.execute(
+                """
+                INSERT INTO defense_gap_findings (
+                    finding_id, project_id, gap_kind, severity, title, explanation, evidence_links_json,
+                    related_claim_kinds_json, suggested_fix, status, llm_assisted, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    finding.finding_id,
+                    project_id,
+                    finding.gap_kind.value,
+                    finding.severity,
+                    finding.title,
+                    finding.explanation,
+                    _json_dump(finding.evidence_links),
+                    _json_dump([kind.value for kind in finding.related_claim_kinds]),
+                    finding.suggested_fix,
+                    finding.status.value,
+                    int(finding.llm_assisted),
+                    finding.created_at.isoformat() if finding.created_at else None,
+                    finding.updated_at.isoformat() if finding.updated_at else None,
+                ),
+            )
+        self.connection.commit()
+
+    def load_gap_findings(self, project_id: str) -> list[sqlite3.Row]:
+        return self.connection.execute(
+            "SELECT * FROM defense_gap_findings WHERE project_id = ? ORDER BY severity DESC, updated_at DESC, finding_id",
+            (project_id,),
+        ).fetchall()
+
+    def update_gap_status(self, project_id: str, finding_id: str, status: DefenseGapStatus) -> None:
+        self.connection.execute(
+            "UPDATE defense_gap_findings SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE project_id = ? AND finding_id = ?",
+            (status.value, project_id, finding_id),
+        )
+        self.connection.commit()
+
+    def replace_repair_tasks(self, project_id: str, tasks: list[DefenseRepairTask]) -> None:
+        self.connection.execute("DELETE FROM defense_repair_tasks WHERE project_id = ?", (project_id,))
+        for task in tasks:
+            self.connection.execute(
+                """
+                INSERT INTO defense_repair_tasks (
+                    task_id, project_id, task_kind, title, reason, source_type, related_claim_kind,
+                    suggested_action, status, related_gap_ids_json, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    task.task_id,
+                    project_id,
+                    task.task_kind,
+                    task.title,
+                    task.reason,
+                    task.source_type.value,
+                    task.related_claim_kind.value if task.related_claim_kind else None,
+                    task.suggested_action,
+                    task.status.value,
+                    _json_dump(task.related_gap_ids),
+                    task.created_at.isoformat() if task.created_at else None,
+                    task.updated_at.isoformat() if task.updated_at else None,
+                ),
+            )
+        self.connection.commit()
+
+    def load_repair_tasks(self, project_id: str) -> list[sqlite3.Row]:
+        return self.connection.execute(
+            "SELECT * FROM defense_repair_tasks WHERE project_id = ? ORDER BY status, updated_at DESC, task_id",
+            (project_id,),
+        ).fetchall()
+
+    def update_repair_task_status(self, project_id: str, task_id: str, status: DefenseRepairTaskStatus) -> None:
+        self.connection.execute(
+            "UPDATE defense_repair_tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE project_id = ? AND task_id = ?",
+            (status.value, project_id, task_id),
+        )
+        self.connection.commit()
+
     def save_session_bundle(
         self,
         session: DefenseSession,
@@ -293,18 +382,22 @@ class DefenseRepository:
         self.connection.execute(
             """
             INSERT INTO defense_sessions (
-                session_id, project_id, mode, duration_sec, transcript_text, questions_json, answers_json, created_at
+                session_id, project_id, mode, persona_kind, timer_profile_sec, duration_sec, transcript_text,
+                questions_json, answers_json, session_notes, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 session.session_id,
                 session.project_id,
                 session.mode.value,
+                session.persona_kind.value,
+                session.timer_profile_sec,
                 session.duration_sec,
                 session.transcript_text,
                 _json_dump(session.questions),
                 _json_dump(session.answers),
+                session.session_notes,
                 session.created_at.isoformat() if session.created_at else None,
             ),
         )
@@ -456,6 +549,45 @@ class DefenseRepository:
             source_anchors=_json_load(row["source_anchors_json"]),
             risk_tag=row["risk_tag"] or "",
             created_at=_parse_dt(row["created_at"]),
+        )
+
+    @staticmethod
+    def row_to_gap_finding(row: sqlite3.Row) -> DefenseGapFinding:
+        return DefenseGapFinding(
+            finding_id=row["finding_id"],
+            project_id=row["project_id"],
+            gap_kind=DefenseGapKind(row["gap_kind"]),
+            severity=float(row["severity"] or 0.0),
+            title=row["title"],
+            explanation=row["explanation"] or "",
+            evidence_links=_json_load(row["evidence_links_json"]),
+            related_claim_kinds=[
+                DefenseClaimKind(value)
+                for value in _json_load(row["related_claim_kinds_json"])
+                if value in DefenseClaimKind._value2member_map_
+            ],
+            suggested_fix=row["suggested_fix"] or "",
+            status=DefenseGapStatus(row["status"] or DefenseGapStatus.OPEN.value),
+            llm_assisted=bool(row["llm_assisted"]),
+            created_at=_parse_dt(row["created_at"]),
+            updated_at=_parse_dt(row["updated_at"]),
+        )
+
+    @staticmethod
+    def row_to_repair_task(row: sqlite3.Row) -> DefenseRepairTask:
+        return DefenseRepairTask(
+            task_id=row["task_id"],
+            project_id=row["project_id"],
+            task_kind=row["task_kind"],
+            title=row["title"],
+            reason=row["reason"] or "",
+            source_type=DefenseRepairSourceType(row["source_type"]),
+            related_claim_kind=DefenseClaimKind(row["related_claim_kind"]) if row["related_claim_kind"] else None,
+            suggested_action=row["suggested_action"] or "",
+            status=DefenseRepairTaskStatus(row["status"] or DefenseRepairTaskStatus.TODO.value),
+            related_gap_ids=_json_load(row["related_gap_ids_json"]),
+            created_at=_parse_dt(row["created_at"]),
+            updated_at=_parse_dt(row["updated_at"]),
         )
 
     @staticmethod

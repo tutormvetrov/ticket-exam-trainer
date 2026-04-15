@@ -558,10 +558,25 @@ class UiClickAudit:
         exam_ok = "Оценка:" in exam_workspace.findChild(QLabel, "training-mode-result").text()
 
         after_sessions = len(self.facade.load_statistics_snapshot().recent_sessions)
-        if all([reading_ok, recall_ok, cloze_ok, matching_ok, plan_ok, exam_ok]) and after_sessions >= before_sessions:
+        mode_results = {
+            "reading": reading_ok,
+            "active-recall": recall_ok,
+            "cloze": cloze_ok,
+            "matching": matching_ok,
+            "plan": plan_ok,
+            "mini-exam": exam_ok,
+        }
+        failed_modes = [name for name, ok in mode_results.items() if not ok]
+        sessions_grew = after_sessions >= before_sessions
+        if not failed_modes and sessions_grew:
             self._record("PASS", "training", "mode-specific scenarios", "Все 6 режимов дают отдельный сценарий и реальный результат")
         else:
-            self._record("FAIL", "training", "mode-specific scenarios", "Не все режимы завершили mode-specific сценарий")
+            details = []
+            if failed_modes:
+                details.append("не завершили: " + ", ".join(failed_modes))
+            if not sessions_grew:
+                details.append("adaptive queue не обновилась")
+            self._record("FAIL", "training", "mode-specific scenarios", "Не все режимы завершили mode-specific сценарий (" + "; ".join(details) + ")")
 
     def _audit_statistics(self) -> None:
         self.window.switch_view("statistics")

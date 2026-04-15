@@ -1,6 +1,6 @@
 # UI Click Audit
 
-- workspace: `C:\Users\tutor\AppData\Local\Temp\tezis-ui-audit-xorvecuo`
+- workspace: `C:\Windows\Temp\tezis-ui-audit-l6qq3z8s`
 
 ## Results
 
@@ -41,7 +41,7 @@
 - `PASS` [training] mode matching: Режим открывает свой workspace с mode-specific CTA
 - `PASS` [training] mode plan: Режим открывает свой workspace с mode-specific CTA
 - `PASS` [training] mode mini-exam: Режим открывает свой workspace с mode-specific CTA
-- `FAIL` [training] mode-specific scenarios: Не все режимы завершили mode-specific сценарий
+- `PASS` [training] mode-specific scenarios: Все 6 режимов дают отдельный сценарий и реальный результат
 - `PASS` [statistics] snapshot: Экран статистики показывает реальные попытки
 - `PASS` [defense] paywall: DLC честно закрыт paywall до активации
 - `PASS` [defense] activate: Ключ активации открывает DLC-workspace
@@ -78,21 +78,21 @@
 
 ## Observed External Events
 
-- `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
+- `open-url` file:///D:/Coding projects/ticket-exam-trainer/.claude/worktrees/bold-blackwell/README.md
 - `open-url` file:///D:/OllamaModels
-- `launch-script` C:\Users\tutor\OneDrive\Документы\Exam_revision\scripts\setup_ollama_windows.ps1
+- `launch-script` D:\Coding projects\ticket-exam-trainer\.claude\worktrees\bold-blackwell\scripts\setup_ollama_windows.ps1
 - `message` Ollama: Запущен скрипт автоподготовки Ollama. Он открыт в PowerShell. После завершения вернитесь сюда и нажмите «Проверить соединение».
 - `open-url` file:///D:/OllamaModels
-- `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
-- `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-xorvecuo
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-xorvecuo
+- `open-url` file:///D:/Coding projects/ticket-exam-trainer/.claude/worktrees/bold-blackwell/README.md
+- `open-url` file:///D:/Coding projects/ticket-exam-trainer/.claude/worktrees/bold-blackwell/README.md
+- `open-url` file:///C:/Windows/Temp/tezis-ui-audit-l6qq3z8s
+- `open-url` file:///C:/Windows/Temp/tezis-ui-audit-l6qq3z8s
 - `message` Резервная копия: Резервная копия создана:
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-xorvecuo/backups
-- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-xorvecuo/audit
-- `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/docs
-- `launch-script` C:\Users\tutor\OneDrive\Документы\Exam_revision\scripts\check_ollama.ps1
+- `open-url` file:///C:/Windows/Temp/tezis-ui-audit-l6qq3z8s/backups
+- `open-url` file:///C:/Windows/Temp/tezis-ui-audit-l6qq3z8s/audit
+- `open-url` file:///D:/Coding projects/ticket-exam-trainer/.claude/worktrees/bold-blackwell/docs
+- `launch-script` D:\Coding projects\ticket-exam-trainer\.claude\worktrees\bold-blackwell\scripts\check_ollama.ps1
 - `message` Ollama: Запущен диагностический скрипт check_ollama.ps1 в PowerShell.
-- `open-url` file:///C:/Users/tutor/OneDrive/Документы/Exam_revision/README.md
+- `open-url` file:///D:/Coding projects/ticket-exam-trainer/.claude/worktrees/bold-blackwell/README.md
 - `message` Настройки: Параметры сохранены и применены.
-- `message` Обновления: GitHub вернул ошибку 403.
+- `message` Обновления: GitHub вернул ошибку 404.

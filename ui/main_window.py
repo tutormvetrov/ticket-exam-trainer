@@ -535,11 +535,9 @@ class MainWindow(QMainWindow):
         self.views["sections"].set_sections(sections)
         self.views["tickets"].set_data(tickets, mastery, weak_areas)
         self.views["training"].set_snapshot(training_snapshot)
-        self.views["training"].select_mode(self.facade.settings.default_training_mode)
         self.views["statistics"].set_data(statistics, mastery, weak_areas, state_exam_statistics)
         self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
         self.views["settings"].set_update_info(self.latest_update_info)
-        self._apply_interface_text_overrides()
 
     def open_training_mode(self, mode_key: str) -> None:
         self.switch_view("training")

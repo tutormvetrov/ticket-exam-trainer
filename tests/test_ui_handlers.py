@@ -279,3 +279,60 @@ def test_admin_login_enables_debug_and_text_overrides(tmp_path: Path, monkeypatc
 
     window.close()
     window.facade.connection.close()
+
+
+def test_refresh_all_views_preserves_training_mode_selection(tmp_path: Path) -> None:
+    """Regression: refresh_all_views used to force-reset training mode to settings
+    default, which clobbered the evaluation result label after any attempt where
+    the user had picked a non-default mode."""
+    window, _ = _build_window(tmp_path)
+    try:
+        training = window.views["training"]
+        initial_mode = training.selected_mode
+        other_mode = "mini-exam" if initial_mode != "mini-exam" else "reading"
+
+        training.select_mode(other_mode)
+        assert training.selected_mode == other_mode
+
+        window.refresh_all_views()
+
+        assert training.selected_mode == other_mode, (
+            f"refresh_all_views clobbered training mode from {other_mode!r} to "
+            f"{training.selected_mode!r}; это ломает persistence результата после evaluate."
+        )
+    finally:
+        window.close()
+        window.facade.connection.close()
+
+
+def test_refresh_all_views_does_not_reapply_interface_text_overrides(tmp_path: Path) -> None:
+    """Regression: apply_text_overrides was called at the end of refresh_all_views.
+    It resets every QLabel/QPushButton without an active override to the text it
+    had at first apply (captured via widget property). This obliterated dynamic
+    labels like training-mode-result, session_title, timer_badge after every
+    evaluate/import/settings-save cycle. Fix: remove the call from refresh_all_views
+    — overrides still apply at startup and when the admin dialog saves changes."""
+    from ui import text_admin as _ta
+
+    window, _ = _build_window(tmp_path)
+    try:
+        call_count = {"n": 0}
+        original = window._apply_interface_text_overrides
+
+        def _tracking():
+            call_count["n"] += 1
+            return original()
+
+        window._apply_interface_text_overrides = _tracking
+        try:
+            window.refresh_all_views()
+        finally:
+            window._apply_interface_text_overrides = original
+
+        assert call_count["n"] == 0, (
+            "refresh_all_views must not call apply_text_overrides — it clobbers "
+            "all dynamic labels (training-mode-result, session_title, timer_badge, …)."
+        )
+    finally:
+        window.close()
+        window.facade.connection.close()

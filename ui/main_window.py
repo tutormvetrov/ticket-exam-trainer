@@ -595,6 +595,7 @@ class MainWindow(QMainWindow):
         readiness = self.facade.load_readiness_score(tickets=km_tickets, mastery=mastery)
         self.views["knowledge-map"].set_data(km_tickets, mastery, readiness)
         self.sidebar.set_readiness(readiness.percent)
+        self.views["library"].set_readiness(readiness)
         self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
         self.views["settings"].set_update_info(self.latest_update_info)
         if include_heavy:

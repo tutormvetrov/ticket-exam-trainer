@@ -5,10 +5,10 @@ from collections.abc import Callable
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
-from application.ui_data import StatisticsSnapshot
+from application.ui_data import ReadinessScore, StatisticsSnapshot
 from domain.models import DocumentData
 from infrastructure.ollama.service import OllamaDiagnostics
-from ui.components.common import CardFrame, IconBadge, file_badge_colors
+from ui.components.common import CardFrame, DonutChart, IconBadge, file_badge_colors
 from ui.components.document_detail import DocumentDetailPanel
 from ui.components.document_list import DocumentListPanel
 from ui.components.stats_panel import StatisticsPanel
@@ -134,10 +134,26 @@ class LibraryView(QWidget):
         self.detail_panel.setMinimumWidth(300)
         self.content_row.addWidget(self.detail_panel, 5)
 
+        right_col = QVBoxLayout()
+        right_col.setContentsMargins(0, 0, 0, 0)
+        right_col.setSpacing(10)
+
+        self.readiness_chart = DonutChart(0, diameter=70)
+        self.readiness_chart.setFixedSize(106, 100)
+
         self.stats_panel = StatisticsPanel(shadow_color, compact=True)
         self.stats_panel.setMinimumWidth(282)
         self.stats_panel.setMaximumWidth(348)
-        self.content_row.addWidget(self.stats_panel, 3)
+
+        right_col.addWidget(self.readiness_chart, 0, Qt.AlignmentFlag.AlignHCenter)
+        right_col.addWidget(self.stats_panel)
+        right_col.addStretch(1)
+
+        right_col_widget = QWidget()
+        right_col_widget.setMinimumWidth(282)
+        right_col_widget.setMaximumWidth(348)
+        right_col_widget.setLayout(right_col)
+        self.content_row.addWidget(right_col_widget, 3)
         layout.addLayout(self.content_row, 1)
 
         self.training_panel = TrainingModesPanel(DEFAULT_TRAINING_MODES, shadow_color)
@@ -245,6 +261,9 @@ class LibraryView(QWidget):
             ("Проверить снова", self.recheck_requested.emit, "secondary"),
             ("Как подготовить среду", self.readme_requested.emit, "outline"),
         )
+
+    def set_readiness(self, readiness: ReadinessScore) -> None:
+        self.readiness_chart.animate_to(readiness.percent)
 
     def set_dlc_visible(self, visible: bool) -> None:
         self.dlc_card.setVisible(visible)

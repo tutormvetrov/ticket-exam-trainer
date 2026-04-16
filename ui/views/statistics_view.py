@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from application.ui_data import StateExamStatisticsSnapshot, StatisticsSnapshot, TicketMasteryBreakdown
-from ui.components.common import CardFrame
+from ui.components.common import CardFrame, EmptyStatePanel
 from ui.components.stats_panel import StatisticsPanel
 from ui.theme import current_colors
 
@@ -23,6 +24,8 @@ def _clear_layout(layout: QVBoxLayout) -> None:
 
 
 class StatisticsView(QWidget):
+    open_library_requested = Signal()
+
     def __init__(self, shadow_color) -> None:
         super().__init__()
         self.shadow_color = shadow_color
@@ -38,6 +41,17 @@ class StatisticsView(QWidget):
         title = QLabel("Статистика")
         title.setProperty("role", "hero")
         layout.addWidget(title)
+
+        self.empty_state = EmptyStatePanel(
+            "statistics",
+            "Статистика пока пуста",
+            "После первых тренировок здесь появятся общий результат, слабые места и детальная разбивка по микронавыкам.",
+            shadow_color=shadow_color,
+            role="card",
+            primary_action=("Открыть библиотеку", self.open_library_requested.emit, "primary", "library"),
+        )
+        self.empty_state.hide()
+        layout.addWidget(self.empty_state)
 
         self.body = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.body.setContentsMargins(0, 0, 0, 0)
@@ -70,7 +84,9 @@ class StatisticsView(QWidget):
         self.side.addWidget(self.state_exam_card)
 
         self.body.addWidget(self.side_host, 1)
-        layout.addLayout(self.body)
+        self.body_host = QWidget()
+        self.body_host.setLayout(self.body)
+        layout.addWidget(self.body_host, 1)
 
         self.set_data(self._snapshot, self._mastery_data, self._weak_areas_data, self._state_exam_data)
         self._apply_responsive_layout()
@@ -86,6 +102,9 @@ class StatisticsView(QWidget):
         self._mastery_data = mastery
         self._weak_areas_data = weak_areas
         self._state_exam_data = state_exam
+        has_activity = bool(snapshot.processed_tickets or snapshot.recent_sessions or mastery or weak_areas or state_exam.active)
+        self.body_host.setVisible(has_activity)
+        self.empty_state.setVisible(not has_activity)
         self.panel.set_snapshot(snapshot)
         self._render_mastery(mastery)
         self._render_weak_areas(weak_areas)

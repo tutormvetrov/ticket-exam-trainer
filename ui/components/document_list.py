@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from domain.models import DocumentData
-from ui.components.common import CardFrame, ClickableFrame, IconBadge
+from ui.components.common import CardFrame, ClickableFrame, EmptyStatePanel, IconBadge
 from ui.theme import current_colors
 
 
@@ -130,6 +130,15 @@ class DocumentListPanel(CardFrame):
             item.clicked.connect(self.select_document)
             self.stack.addWidget(item)
             self.items[document.id] = item
+
+        if not self.filtered:
+            title = "Документы не найдены" if self.documents else "Документы ещё не импортированы"
+            body = (
+                "Сбросьте фильтр или уточните запрос, чтобы снова увидеть документы."
+                if self.documents
+                else "После первого импорта здесь появится список документов и быстрый доступ к их содержимому."
+            )
+            self.stack.addWidget(EmptyStatePanel("document", title, body, role="subtle-card"))
 
         self.stack.addStretch(1)
         if self.filtered:

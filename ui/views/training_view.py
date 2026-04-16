@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QComboBox, QGridLayout, QLabel, QHBoxLayout, QLine
 from application.answer_profile_registry import answer_profile_label
 from application.ui_data import TrainingEvaluationResult, TrainingSnapshot
 from domain.knowledge import TicketKnowledgeMap
-from ui.components.common import CardFrame, ClickableFrame
+from ui.components.common import CardFrame, ClickableFrame, EmptyStatePanel
 from ui.components.training_modes import TrainingModesPanel
 from ui.components.training_workspaces import TrainingWorkspaceBase, create_training_workspaces
 from ui.training_catalog import DEFAULT_TRAINING_MODES
@@ -59,6 +59,8 @@ class AdaptiveQueueCard(ClickableFrame):
 
 class TrainingView(QWidget):
     evaluate_requested = Signal(str, str, str)
+    open_library_requested = Signal()
+    import_requested = Signal()
 
     def __init__(self, shadow_color) -> None:
         super().__init__()
@@ -148,6 +150,16 @@ class TrainingView(QWidget):
         self.workspace_hint.setWordWrap(True)
         session_layout.addWidget(self.workspace_hint)
 
+        self.session_empty_state = EmptyStatePanel(
+            "training",
+            "Нет билетов для тренировки",
+            "Импортируйте материалы в библиотеку, чтобы открыть тренировочные режимы и адаптивную очередь.",
+            role="subtle-card",
+            primary_action=("Импортировать документ", self.import_requested.emit, "primary", "import"),
+            secondary_action=("Открыть библиотеку", self.open_library_requested.emit, "secondary", "library"),
+        )
+        session_layout.addWidget(self.session_empty_state)
+
         self.workspace_stack = QStackedWidget()
         for mode_key, workspace in self.workspaces.items():
             workspace.setObjectName(f"training-workspace-{mode_key}")
@@ -165,6 +177,7 @@ class TrainingView(QWidget):
         self.modes_panel.set_selected_mode(self.selected_mode)
         self._show_workspace(self.selected_mode)
         self._apply_responsive_layout()
+        self._sync_session_empty_state()
 
     def set_snapshot(self, snapshot: TrainingSnapshot) -> None:
         self.snapshot = snapshot
@@ -180,9 +193,10 @@ class TrainingView(QWidget):
             self.select_ticket(selected)
         else:
             self.selected_ticket_id = ""
-            self.session_title.setText("Выберите билет")
-            self.session_meta.setText("Сначала импортируйте и обработайте материалы.")
+            self.session_title.setText("Нет билетов")
+            self.session_meta.setText("Сначала импортируйте и обработайте материалы, затем выберите билет для тренировки.")
             self._update_workspace()
+        self._sync_session_empty_state()
 
     def select_mode(self, mode_key: str) -> None:
         if mode_key not in self.workspaces:
@@ -199,6 +213,7 @@ class TrainingView(QWidget):
             self.select_random_ticket()
         else:
             self._update_workspace()
+            self._sync_session_empty_state()
 
     def select_ticket(self, ticket_id: str) -> None:
         self.selected_ticket_id = ticket_id
@@ -210,6 +225,7 @@ class TrainingView(QWidget):
             self.session_title.setText("Выберите билет")
             self.session_meta.setText("По выбранному элементу нет данных.")
             self._update_workspace()
+            self._sync_session_empty_state()
             return
 
         self.session_title.setText(ticket.title)
@@ -219,6 +235,7 @@ class TrainingView(QWidget):
         )
         self._select_ticket_in_combo(ticket_id)
         self._update_workspace()
+        self._sync_session_empty_state()
 
     def select_next_ticket(self) -> None:
         ids = self._visible_ticket_ids()
@@ -296,12 +313,25 @@ class TrainingView(QWidget):
         self.queue_buttons.clear()
 
         if not self.snapshot.queue_items:
-            empty = QLabel(
-                "Адаптивная очередь пока пуста. Выберите билет вручную через селектор справа или сначала сделайте первые попытки."
+            has_tickets = bool(self.snapshot.tickets)
+            self.queue_stack.addWidget(
+                EmptyStatePanel(
+                    "queue",
+                    "Адаптивная очередь пуста" if has_tickets else "Очередь ещё не собрана",
+                    (
+                        "Пока очередь пуста. Выберите билет вручную через селектор справа или сделайте первые тренировочные попытки."
+                        if has_tickets
+                        else "Сначала импортируйте материалы, чтобы собрать билеты и открыть адаптивную очередь."
+                    ),
+                    role="subtle-card",
+                    primary_action=None
+                    if has_tickets
+                    else ("Импортировать документ", self.import_requested.emit, "primary", "import"),
+                    secondary_action=None
+                    if has_tickets
+                    else ("Открыть библиотеку", self.open_library_requested.emit, "secondary", "library"),
+                )
             )
-            empty.setProperty("role", "body")
-            empty.setWordWrap(True)
-            self.queue_stack.addWidget(empty)
             return
 
         for item in self.snapshot.queue_items:
@@ -341,6 +371,12 @@ class TrainingView(QWidget):
         if self.queue_buttons:
             return list(self.queue_buttons.keys())
         return [ticket.ticket_id for ticket in self.snapshot.tickets]
+
+    def _sync_session_empty_state(self) -> None:
+        has_selected_ticket = bool(self.ticket_lookup.get(self.selected_ticket_id))
+        has_any_ticket = bool(self.snapshot.tickets)
+        self.session_empty_state.setVisible(not has_selected_ticket and not has_any_ticket)
+        self.workspace_stack.setVisible(has_any_ticket)
 
     def refresh_theme(self) -> None:
         colors = current_colors()

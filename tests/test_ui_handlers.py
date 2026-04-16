@@ -16,6 +16,8 @@ from application.settings_store import SettingsStore
 from application.ui_data import ImportExecutionResult
 from infrastructure.db import connect_initialized, get_database_path
 from ui.admin_password_dialog import AdminPasswordDialog
+from ui.components.sidebar import NAV_ITEMS
+from ui.icons import icon_names
 from ui.main_window import MainWindow
 from ui.text_admin import collect_text_entries
 from ui.theme import FONT_PRESETS, build_stylesheet, resolve_font_family, set_app_theme
@@ -102,6 +104,7 @@ def test_suppress_startup_background_tasks_skips_auto_threads(tmp_path: Path) ->
 
     assert window._diagnostics_thread is None
     assert window._update_thread is None
+    assert window._transitions_enabled is False
     assert window.views["settings"].status_pill.text() == "Автопроверка отключена"
     window.close()
     window.facade.connection.close()
@@ -456,6 +459,74 @@ def test_theme_styles_qmessagebox_for_readable_dialogs() -> None:
     assert "QMessageBox {" in stylesheet
     assert "QMessageBox QLabel {" in stylesheet
     assert "QMessageBox QPushButton {" in stylesheet
+    assert 'QPushButton[variant="primary"]:pressed' in stylesheet
+    assert 'QPushButton[variant="nav"]:pressed' in stylesheet
+    assert 'QPushButton:disabled' in stylesheet
+    assert 'QPushButton:focus' in stylesheet
+
+
+def test_sidebar_uses_svg_icon_registry(tmp_path: Path) -> None:
+    window, _ = _build_window(tmp_path, suppress_startup_background_tasks=True)
+
+    try:
+        registered_icons = set(icon_names())
+        assert all(icon_name in registered_icons for _, _, icon_name in NAV_ITEMS)
+        assert all(button.icon().isNull() is False for button in window.sidebar.buttons.values())
+    finally:
+        window.close()
+        window.facade.connection.close()
+
+
+def test_empty_states_show_primary_cta_on_empty_workspace(tmp_path: Path) -> None:
+    window, _ = _build_window(tmp_path, suppress_startup_background_tasks=True)
+
+    try:
+        library = window.views["library"]
+        training = window.views["training"]
+        statistics = window.views["statistics"]
+
+        window.show()
+        _qapp().processEvents()
+
+        assert library.library_empty_state.isHidden() is False
+        assert library.library_empty_state.primary_button.text() == "Импортировать первый документ"
+
+        window.switch_view("training")
+        _qapp().processEvents()
+        assert training.session_empty_state.isHidden() is False
+        assert training.session_empty_state.primary_button.text() == "Импортировать документ"
+
+        window.switch_view("statistics")
+        _qapp().processEvents()
+        assert statistics.empty_state.isHidden() is False
+        assert statistics.empty_state.primary_button.text() == "Открыть библиотеку"
+    finally:
+        window.close()
+        window.facade.connection.close()
+
+
+def test_switch_view_uses_transition_layer_and_settles_on_latest_target(tmp_path: Path) -> None:
+    window, _ = _build_window(tmp_path)
+
+    try:
+        window.show()
+        _qapp().processEvents()
+
+        assert window._transitions_enabled is True
+        assert window.stack.graphicsEffect() is not None
+
+        window.switch_view("subjects")
+        window.switch_view("training")
+
+        assert _wait_for(
+            lambda: window.current_key == "training"
+            and window.stack.currentWidget() == window.stack_pages["training"]
+            and window._stack_opacity.opacity() >= 0.99,
+            timeout=2.5,
+        )
+    finally:
+        window.close()
+        window.facade.connection.close()
 
 
 def test_refresh_all_views_preserves_training_mode_selection(tmp_path: Path) -> None:

@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 from application.ui_data import TicketMasteryBreakdown
 from application.answer_profile_registry import answer_profile_label
 from domain.knowledge import TicketKnowledgeMap
-from ui.components.common import CardFrame, ClickableFrame, IconBadge, file_badge_colors, tone_pair
+from ui.components.common import CardFrame, ClickableFrame, EmptyStatePanel, IconBadge, file_badge_colors, tone_pair
 from ui.theme import current_colors
 
 
@@ -67,6 +67,8 @@ class TicketListItem(ClickableFrame):
 
 
 class TicketsView(QWidget):
+    open_library_requested = Signal()
+
     def __init__(self, shadow_color) -> None:
         super().__init__()
         self.shadow_color = shadow_color
@@ -160,10 +162,22 @@ class TicketsView(QWidget):
         self.list_items.clear()
 
         if not self.filtered:
-            empty = QLabel("Билеты появятся после импорта документов.")
-            empty.setProperty("role", "body")
-            empty.setWordWrap(True)
-            self.ticket_list.addWidget(empty)
+            has_tickets = bool(self.tickets)
+            self.ticket_list.addWidget(
+                EmptyStatePanel(
+                    "tickets",
+                    "Билеты не найдены" if has_tickets else "Билеты ещё не собраны",
+                    (
+                        "По текущему фильтру ничего не найдено. Уточните запрос, чтобы снова увидеть карту билетов."
+                        if has_tickets
+                        else "После импорта документов здесь появится карта билетов, связи между темами и профиль микронавыков."
+                    ),
+                    role="subtle-card",
+                    secondary_action=None
+                    if has_tickets
+                    else ("Открыть библиотеку", self.open_library_requested.emit, "secondary", "library"),
+                )
+            )
             return
 
         for ticket in self.filtered:
@@ -192,13 +206,22 @@ class TicketsView(QWidget):
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(22, 22, 22, 22)
         card_layout.setSpacing(10)
-        title = QLabel("Детали билета")
-        title.setProperty("role", "section-title")
-        body = QLabel("Выберите билет слева, чтобы увидеть карту ответа, атомы знания, навыки, слабые места и межбилетные связи.")
-        body.setProperty("role", "body")
-        body.setWordWrap(True)
-        card_layout.addWidget(title)
-        card_layout.addWidget(body)
+        has_tickets = bool(self.tickets)
+        card_layout.addWidget(
+            EmptyStatePanel(
+                "tickets",
+                "Выберите билет" if has_tickets else "Карта билетов пока пуста",
+                (
+                    "Выберите билет слева, чтобы увидеть карту ответа, атомы знания, навыки и межбилетные связи."
+                    if has_tickets
+                    else "Сначала импортируйте материалы в библиотеке, чтобы собрать карту билетов и открыть этот экран."
+                ),
+                role="subtle-card",
+                secondary_action=None
+                if has_tickets
+                else ("Открыть библиотеку", self.open_library_requested.emit, "secondary", "library"),
+            )
+        )
         self.detail_layout.addWidget(card)
         self.detail_layout.addStretch(1)
         self.detail_scroll.verticalScrollBar().setValue(0)

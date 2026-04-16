@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QProgressBar, QPus
 from application.ui_data import ImportExecutionResult
 from domain.models import DocumentData
 from ui.components.common import CardFrame, IconBadge, file_badge_colors, tone_pair
+from ui.icons import apply_button_icon
 from ui.theme import current_colors
 
 
@@ -532,5 +533,10 @@ class ImportView(QWidget):
         colors = current_colors()
         self.summary_status.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {colors['text']};")
         self.progress_stage_label.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {colors['text']};")
+        apply_button_icon(self.open_import_button, "import")
+        apply_button_icon(self.library_button, "library")
+        apply_button_icon(self.training_button, "training")
+        apply_button_icon(self.statistics_button, "statistics")
+        apply_button_icon(self.resume_button, "spark")
         self._apply_progress_styles()
         self._refresh()

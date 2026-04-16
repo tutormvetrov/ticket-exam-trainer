@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QRectF, Signal, QSize, QEasingCurve, Property, QPropertyAnimation
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from collections.abc import Callable
 
+from PySide6.QtCore import Qt, QRectF, Signal, QSize, QEasingCurve, Property, QPropertyAnimation
+from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+
+from ui.icons import SvgIconLabel
 from ui.theme import alpha_color, apply_shadow, current_colors, is_dark_palette
 
 
@@ -336,3 +339,124 @@ class TwoColumnRows(QWidget):
             value = QLabel(value_text)
             value.setStyleSheet(f"font-size: 14px; font-weight: 600; color: {current_colors()['text']};")
             layout.addWidget(value, index, 1)
+
+
+class EmptyStatePanel(CardFrame):
+    def __init__(
+        self,
+        icon_name: str,
+        title_text: str,
+        body_text: str,
+        *,
+        shadow_color: QColor | None = None,
+        role: str = "subtle-card",
+        primary_action: tuple[str, Callable[[], None], str, str | None] | None = None,
+        secondary_action: tuple[str, Callable[[], None], str, str | None] | None = None,
+    ) -> None:
+        super().__init__(role=role, shadow_color=shadow_color, shadow=shadow_color is not None and role == "card")
+        self._icon_name = icon_name
+        self._primary_handler = lambda: None
+        self._secondary_handler = lambda: None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        self.icon_shell = QFrame()
+        self.icon_shell.setProperty("role", "empty-icon-shell")
+        self.icon_shell.setFixedSize(64, 64)
+        icon_layout = QVBoxLayout(self.icon_shell)
+        icon_layout.setContentsMargins(0, 0, 0, 0)
+        self.icon_label = SvgIconLabel(icon_name, size=28, tone="primary")
+        icon_layout.addWidget(self.icon_label, 0, Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.icon_shell, 0, Qt.AlignmentFlag.AlignLeft)
+
+        self.title_label = QLabel(title_text)
+        self.title_label.setProperty("role", "section-title")
+        self.title_label.setWordWrap(True)
+        layout.addWidget(self.title_label)
+
+        self.body_label = QLabel(body_text)
+        self.body_label.setProperty("role", "body")
+        self.body_label.setWordWrap(True)
+        layout.addWidget(self.body_label)
+
+        self.actions_row = QHBoxLayout()
+        self.actions_row.setContentsMargins(0, 0, 0, 0)
+        self.actions_row.setSpacing(10)
+
+        self.primary_button = QPushButton()
+        self.primary_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.primary_button.clicked.connect(self._trigger_primary)
+        self.actions_row.addWidget(self.primary_button)
+
+        self.secondary_button = QPushButton()
+        self.secondary_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.secondary_button.clicked.connect(self._trigger_secondary)
+        self.actions_row.addWidget(self.secondary_button)
+        self.actions_row.addStretch(1)
+        layout.addLayout(self.actions_row)
+        layout.addStretch(1)
+
+        self.set_content(icon_name, title_text, body_text, primary_action=primary_action, secondary_action=secondary_action)
+
+    def set_content(
+        self,
+        icon_name: str,
+        title_text: str,
+        body_text: str,
+        *,
+        primary_action: tuple[str, Callable[[], None], str, str | None] | None = None,
+        secondary_action: tuple[str, Callable[[], None], str, str | None] | None = None,
+    ) -> None:
+        self._icon_name = icon_name
+        self.icon_label.set_icon(icon_name, tone="primary")
+        self.title_label.setText(title_text)
+        self.body_label.setText(body_text)
+        self._configure_button(self.primary_button, primary_action, "_primary_handler")
+        self._configure_button(self.secondary_button, secondary_action, "_secondary_handler")
+
+    def _configure_button(
+        self,
+        button: QPushButton,
+        config: tuple[str, Callable[[], None], str, str | None] | None,
+        handler_attr: str,
+    ) -> None:
+        from ui.icons import apply_button_icon
+
+        if config is None:
+            button.hide()
+            button.setProperty("iconName", "")
+            setattr(self, handler_attr, lambda: None)
+            return
+        text, action, variant, icon_name = config
+        setattr(self, handler_attr, action)
+        button.show()
+        button.setText(text)
+        button.setProperty("variant", variant)
+        button.setProperty("iconName", icon_name or "")
+        if icon_name:
+            apply_button_icon(button, icon_name)
+        else:
+            button.setIcon(QIcon())
+        button.style().unpolish(button)
+        button.style().polish(button)
+
+    def _trigger_primary(self) -> None:
+        self._primary_handler()
+
+    def _trigger_secondary(self) -> None:
+        self._secondary_handler()
+
+    def refresh_theme(self) -> None:
+        self.icon_label.set_icon(self._icon_name, tone="primary")
+        from ui.icons import apply_button_icon
+
+        for button in (self.primary_button, self.secondary_button):
+            if button.isHidden():
+                continue
+            icon_name = str(button.property("iconName") or "").strip()
+            if icon_name:
+                apply_button_icon(button, icon_name)
+            button.style().unpolish(button)
+            button.style().polish(button)

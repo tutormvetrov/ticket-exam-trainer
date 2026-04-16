@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from domain.models import DocumentData, SectionData, TicketData
-from ui.components.common import CardFrame, IconBadge, TwoColumnRows
+from ui.components.common import CardFrame, EmptyStatePanel, IconBadge, TwoColumnRows
 from ui.theme import current_colors
 
 
@@ -150,6 +150,13 @@ class DocumentDetailPanel(CardFrame):
         self.info_text.setProperty("role", "body")
         layout.addWidget(self.info_title)
         layout.addWidget(self.info_text)
+        self.info_empty_state = EmptyStatePanel(
+            "document",
+            "Выберите документ",
+            "После выбора документа здесь появятся разделы, билеты и служебная информация по импорту.",
+            role="subtle-card",
+        )
+        layout.addWidget(self.info_empty_state)
         layout.addStretch(1)
         return wrapper
 
@@ -203,6 +210,9 @@ class DocumentDetailPanel(CardFrame):
             f"Документ относится к предмету «{document.subject}». "
             f"Подготовлено {document.sections_count} разделов и {document.tickets_count} билетов для тренировки."
         )
+        self.info_title.show()
+        self.info_text.show()
+        self.info_empty_state.hide()
 
     def clear_document(self) -> None:
         self.current_document = None
@@ -230,8 +240,9 @@ class DocumentDetailPanel(CardFrame):
         self._populate_sections([])
         self._tickets_loaded_for_document_id = ""
         self._populate_tickets([])
-        self.info_title.setText("Информация о документе")
-        self.info_text.setText("После выбора документа здесь появятся разделы, билеты и метаданные.")
+        self.info_title.hide()
+        self.info_text.hide()
+        self.info_empty_state.show()
 
     def refresh_theme(self) -> None:
         if self.current_document is None:
@@ -260,9 +271,19 @@ class DocumentDetailPanel(CardFrame):
             if ticket_count
             else "После импорта здесь появится список билетов."
         )
-        hint.setProperty("role", "body")
-        hint.setWordWrap(True)
-        self.tickets_layout.addWidget(hint)
+        if ticket_count:
+            hint.setProperty("role", "body")
+            hint.setWordWrap(True)
+            self.tickets_layout.addWidget(hint)
+        else:
+            self.tickets_layout.addWidget(
+                EmptyStatePanel(
+                    "tickets",
+                    "Билеты ещё не появились",
+                    "После первого импорта здесь сформируется список билетов для просмотра и тренировки.",
+                    role="subtle-card",
+                )
+            )
         self.tickets_layout.addStretch(1)
 
     def _populate_sections(self, sections: list[SectionData]) -> None:
@@ -271,6 +292,17 @@ class DocumentDetailPanel(CardFrame):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+
+        if not sections:
+            self.sections_layout.addWidget(
+                EmptyStatePanel(
+                    "sections",
+                    "Разделы пока не готовы",
+                    "После импорта здесь появится структура документа по разделам и количество билетов в каждом блоке.",
+                    role="subtle-card",
+                )
+            )
+            return
 
         for index, section in enumerate(sections, start=1):
             row = QFrame()
@@ -296,6 +328,18 @@ class DocumentDetailPanel(CardFrame):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+
+        if not tickets:
+            self.tickets_layout.addWidget(
+                EmptyStatePanel(
+                    "tickets",
+                    "Выберите документ с билетами",
+                    "После выбора документа здесь появятся билеты, их статус и готовность к тренировке.",
+                    role="subtle-card",
+                )
+            )
+            self.tickets_layout.addStretch(1)
+            return
 
         colors = current_colors()
         status_colors = {

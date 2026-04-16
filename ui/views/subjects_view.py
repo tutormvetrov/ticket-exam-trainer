@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QVBoxLayout, QWidget
 
 from domain.models import SubjectData
-from ui.components.common import CardFrame, IconBadge, MetricTile
+from ui.components.common import CardFrame, EmptyStatePanel, IconBadge, MetricTile
 from ui.theme import alpha_color, current_colors, is_dark_palette
 
 
 class SubjectsView(QWidget):
+    open_library_requested = Signal()
+
     def __init__(self, shadow_color) -> None:
         super().__init__()
         self.shadow_color = shadow_color
@@ -127,9 +129,23 @@ class SubjectsView(QWidget):
             self.grid.addWidget(card, index // 2, index % 2)
 
         if not self.filtered:
-            empty = QLabel("Предметы появятся после первого импорта документов.")
-            empty.setProperty("role", "body")
-            self.grid.addWidget(empty, 0, 0)
+            has_subjects = bool(self.subjects)
+            title = "Предметы не найдены" if has_subjects else "Предметы пока не появились"
+            body = (
+                "Очистите поиск или скорректируйте запрос, чтобы снова увидеть импортированные предметы."
+                if has_subjects
+                else "После первого импорта здесь появится сводка по предметам, документам и общему прогрессу."
+            )
+            empty_state = EmptyStatePanel(
+                "subjects",
+                title,
+                body,
+                role="card",
+                secondary_action=None
+                if has_subjects
+                else ("Открыть библиотеку", self.open_library_requested.emit, "secondary", "library"),
+            )
+            self.grid.addWidget(empty_state, 0, 0, 1, 2)
 
     def refresh_theme(self) -> None:
         self.summary_subjects.refresh_theme()

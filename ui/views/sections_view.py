@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QSizePolicy, QVBoxLayout, QWidget
 
 from application.ui_data import SectionOverviewItem
-from ui.components.common import CardFrame
+from ui.components.common import CardFrame, EmptyStatePanel
 from ui.theme import current_colors
 
 
 class SectionsView(QWidget):
+    open_library_requested = Signal()
+
     def __init__(self, shadow_color) -> None:
         super().__init__()
         self.sections: list[SectionOverviewItem] = []
@@ -72,14 +75,23 @@ class SectionsView(QWidget):
                 widget.deleteLater()
 
         if not self.filtered:
-            self.card.setMaximumHeight(120)
-            empty = QWidget()
-            empty_layout = QHBoxLayout(empty)
-            empty_layout.setContentsMargins(18, 16, 18, 16)
-            label = QLabel("Разделы появятся после импорта документов.")
-            label.setProperty("role", "body")
-            empty_layout.addWidget(label)
-            self.card_layout.addWidget(empty)
+            self.card.setMaximumHeight(260)
+            has_sections = bool(self.sections)
+            self.card_layout.addWidget(
+                EmptyStatePanel(
+                    "sections",
+                    "Разделы не найдены" if has_sections else "Разделы пока не сформированы",
+                    (
+                        "Фильтр ничего не вернул. Попробуйте другой запрос или сбросьте ограничение по предмету."
+                        if has_sections
+                        else "После импорта документов здесь появится структура разделов и привязка к предметам."
+                    ),
+                    role="subtle-card",
+                    secondary_action=None
+                    if has_sections
+                    else ("Открыть библиотеку", self.open_library_requested.emit, "secondary", "library"),
+                )
+            )
             self.card_layout.addStretch(1)
             return
 

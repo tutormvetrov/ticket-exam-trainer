@@ -8,11 +8,12 @@ from PySide6.QtWidgets import QBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushB
 from application.ui_data import ReadinessScore, StatisticsSnapshot
 from domain.models import DocumentData
 from infrastructure.ollama.service import OllamaDiagnostics
-from ui.components.common import CardFrame, DonutChart, IconBadge, file_badge_colors
+from ui.components.common import CardFrame, DonutChart, EmptyStatePanel, IconBadge, file_badge_colors
 from ui.components.document_detail import DocumentDetailPanel
 from ui.components.document_list import DocumentListPanel
 from ui.components.stats_panel import StatisticsPanel
 from ui.components.training_modes import TrainingModesPanel
+from ui.icons import apply_button_icon
 from ui.training_catalog import DEFAULT_TRAINING_MODES
 
 
@@ -54,14 +55,14 @@ class LibraryView(QWidget):
         self.search_input.textChanged.connect(self.set_search_text)
         header.addWidget(self.search_input)
 
-        self.import_button = QPushButton("+  Импортировать")
+        self.import_button = QPushButton("Импортировать")
         self.import_button.setObjectName("library-import")
         self.import_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.import_button.setProperty("variant", "primary")
         self.import_button.clicked.connect(self.import_requested.emit)
         header.addWidget(self.import_button)
 
-        self.refresh_button = QPushButton("⟳  Обновить")
+        self.refresh_button = QPushButton("Обновить")
         self.refresh_button.setObjectName("library-refresh")
         self.refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.refresh_button.setProperty("variant", "secondary")
@@ -121,6 +122,17 @@ class LibraryView(QWidget):
         startup_layout.addLayout(startup_actions)
         layout.addWidget(self.startup_card)
 
+        self.library_empty_state = EmptyStatePanel(
+            "library",
+            "Библиотека пока пуста",
+            "Импортируйте первый DOCX или PDF, чтобы собрать билеты, карту знаний и открыть тренировочные режимы.",
+            shadow_color=shadow_color,
+            role="card",
+            primary_action=("Импортировать первый документ", self.import_requested.emit, "primary", "import"),
+            secondary_action=("Как подготовить среду", self.readme_requested.emit, "outline", "spark"),
+        )
+        layout.addWidget(self.library_empty_state)
+
         self.content_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.content_row.setContentsMargins(0, 0, 0, 0)
         self.content_row.setSpacing(16)
@@ -154,7 +166,9 @@ class LibraryView(QWidget):
         right_col_widget.setMaximumWidth(348)
         right_col_widget.setLayout(right_col)
         self.content_row.addWidget(right_col_widget, 3)
-        layout.addLayout(self.content_row, 1)
+        self.content_host = QWidget()
+        self.content_host.setLayout(self.content_row)
+        layout.addWidget(self.content_host, 1)
 
         self.training_panel = TrainingModesPanel(DEFAULT_TRAINING_MODES, shadow_color)
         self.training_panel.mode_selected.connect(self.training_mode_selected.emit)
@@ -196,16 +210,18 @@ class LibraryView(QWidget):
         dlc_text.addWidget(dlc_meta)
         dlc_layout.addLayout(dlc_text, 1)
 
-        dlc_button = QPushButton("Открыть модуль")
-        dlc_button.setObjectName("library-dlc-teaser")
-        dlc_button.setProperty("variant", "secondary")
-        dlc_button.clicked.connect(self.dlc_requested.emit)
-        dlc_layout.addWidget(dlc_button, 0, Qt.AlignmentFlag.AlignBottom)
+        self.dlc_button = QPushButton("Открыть модуль")
+        self.dlc_button.setObjectName("library-dlc-teaser")
+        self.dlc_button.setProperty("variant", "secondary")
+        self.dlc_button.clicked.connect(self.dlc_requested.emit)
+        dlc_layout.addWidget(self.dlc_button, 0, Qt.AlignmentFlag.AlignBottom)
         layout.addWidget(self.dlc_card)
 
         self.document_list.document_selected.connect(self._select_document)
         self.startup_card.hide()
+        self.library_empty_state.hide()
         self._apply_responsive_layout()
+        self.refresh_theme()
 
     def set_data(self, documents: list[DocumentData], snapshot: StatisticsSnapshot) -> None:
         self.documents = documents[:]
@@ -213,8 +229,11 @@ class LibraryView(QWidget):
         self.stats_panel.set_snapshot(snapshot)
 
         has_documents = bool(documents)
-        self.import_button.setText("+  Импортировать" if has_documents else "+  Импортировать билеты")
+        self.import_button.setText("Импортировать" if has_documents else "Импортировать билеты")
         self.refresh_button.setVisible(has_documents)
+        self.search_input.setEnabled(has_documents)
+        self.content_host.setVisible(has_documents)
+        self.library_empty_state.setVisible(not has_documents)
 
         if self.document_list.filtered:
             self._select_document(self.document_list.filtered[0].id)
@@ -335,3 +354,12 @@ class LibraryView(QWidget):
             self.detail_panel.setMinimumWidth(300)
             self.stats_panel.setMinimumWidth(282)
             self.stats_panel.setMaximumWidth(348)
+
+    def refresh_theme(self) -> None:
+        apply_button_icon(self.import_button, "import")
+        apply_button_icon(self.refresh_button, "refresh")
+        apply_button_icon(self.startup_primary, "settings")
+        apply_button_icon(self.startup_secondary, "refresh")
+        apply_button_icon(self.startup_tertiary, "spark")
+        apply_button_icon(self.dlc_button, "defense")
+        self.library_empty_state.refresh_theme()

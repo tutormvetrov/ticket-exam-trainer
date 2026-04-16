@@ -198,6 +198,15 @@ def alpha_color(hex_color: str, alpha: float) -> str:
 
 def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     family = typography["family"]
+    is_dark = colors["app_bg"] == DARK["app_bg"]
+    primary_pressed = QColor(colors["primary"]).darker(120 if is_dark else 114).name()
+    card_pressed = QColor(colors["card_bg"]).darker(108 if is_dark else 102).name()
+    secondary_hover = alpha_color(colors["primary"], 0.12 if is_dark else 0.08)
+    secondary_pressed = alpha_color(colors["primary"], 0.2 if is_dark else 0.14)
+    toolbar_hover = alpha_color(colors["primary"], 0.1 if is_dark else 0.06)
+    toolbar_pressed = alpha_color(colors["primary"], 0.18 if is_dark else 0.12)
+    nav_pressed = alpha_color(colors["primary"], 0.22 if is_dark else 0.12)
+    muted_hover = alpha_color(colors["primary"], 0.1 if is_dark else 0.05)
     return f"""
     QWidget {{
         color: {colors["text"]};
@@ -248,6 +257,11 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         background: {colors["card_soft"]};
         border: 1px solid {colors["border"]};
         border-radius: 16px;
+    }}
+    QFrame[role="empty-icon-shell"] {{
+        background: {colors["primary_soft"]};
+        border: 1px solid {alpha_color(colors["primary"], 0.18 if is_dark else 0.1)};
+        border-radius: 18px;
     }}
     QFrame[role="mode-card"] {{
         border-radius: 16px;
@@ -392,6 +406,19 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     }}
     QPushButton:hover {{
         border-color: {colors["border_strong"]};
+        background: {muted_hover};
+    }}
+    QPushButton:pressed {{
+        background: {card_pressed};
+        border-color: {colors["border_strong"]};
+    }}
+    QPushButton:focus {{
+        border-color: {colors["primary"]};
+    }}
+    QPushButton:disabled {{
+        background: {colors["card_muted"]};
+        color: {colors["text_tertiary"]};
+        border-color: {colors["border"]};
     }}
     QPushButton[variant="primary"] {{
         background: {colors["primary"]};
@@ -403,14 +430,46 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         background: {colors["primary_hover"]};
         border-color: {colors["primary_hover"]};
     }}
+    QPushButton[variant="primary"]:pressed {{
+        background: {primary_pressed};
+        border-color: {primary_pressed};
+    }}
+    QPushButton[variant="primary"]:focus {{
+        border-color: {QColor("#CFE1FF" if not is_dark else "#9CC3FF").name()};
+    }}
+    QPushButton[variant="primary"]:disabled {{
+        background: {colors["border_strong"]};
+        border-color: {colors["border_strong"]};
+        color: {colors["card_bg"]};
+    }}
     QPushButton[variant="secondary"] {{
         background: {colors["card_soft"]};
         color: {colors["text_secondary"]};
+    }}
+    QPushButton[variant="secondary"]:hover {{
+        background: {secondary_hover};
+        border-color: {colors["border_strong"]};
+        color: {colors["text"]};
+    }}
+    QPushButton[variant="secondary"]:pressed {{
+        background: {secondary_pressed};
+        border-color: {colors["primary"]};
+        color: {colors["text"]};
     }}
     QPushButton[variant="toolbar"] {{
         background: {colors["card_muted"]};
         padding: 10px 16px;
         color: {colors["text"]};
+    }}
+    QPushButton[variant="toolbar"]:hover,
+    QPushButton[variant="toolbar-ghost"]:hover {{
+        background: {toolbar_hover};
+        border-color: {colors["border_strong"]};
+    }}
+    QPushButton[variant="toolbar"]:pressed,
+    QPushButton[variant="toolbar-ghost"]:pressed {{
+        background: {toolbar_pressed};
+        border-color: {colors["primary"]};
     }}
     QPushButton[variant="toolbar-ghost"] {{
         background: {colors["card_muted"]};
@@ -422,10 +481,20 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         color: {colors["text_secondary"]};
         padding: 11px 18px;
     }}
+    QPushButton[variant="outline"]:hover {{
+        background: {secondary_hover};
+        border-color: {colors["primary"]};
+        color: {colors["text"]};
+    }}
+    QPushButton[variant="outline"]:pressed {{
+        background: {secondary_pressed};
+        border-color: {colors["primary"]};
+        color: {colors["text"]};
+    }}
     QPushButton[variant="nav"] {{
         background: transparent;
         border: 1px solid transparent;
-        color: {colors["text"]};
+        color: {colors["text_secondary"]};
         text-align: left;
         padding: 12px 16px;
         font-size: {typography["button"]}px;
@@ -434,11 +503,28 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     QPushButton[variant="nav"]:hover {{
         background: {colors["card_muted"]};
         border-color: {colors["border"]};
+        color: {colors["text"]};
+    }}
+    QPushButton[variant="nav"]:pressed {{
+        background: {nav_pressed};
+        border-color: {colors["primary"]};
+        color: {colors["text"]};
     }}
     QPushButton[variant="nav"]:checked {{
         background: {colors["primary"]};
         color: white;
         border-color: {colors["primary"]};
+    }}
+    QPushButton[variant="nav"]:checked:hover,
+    QPushButton[variant="nav"]:checked:pressed {{
+        background: {primary_pressed};
+        border-color: {primary_pressed};
+        color: white;
+    }}
+    QPushButton[variant="nav"]:disabled {{
+        background: transparent;
+        border-color: transparent;
+        color: {colors["text_tertiary"]};
     }}
     QPushButton[variant="tab"] {{
         background: transparent;
@@ -449,6 +535,14 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         color: {colors["text_secondary"]};
         font-size: {typography["body"]}px;
         font-weight: 600;
+    }}
+    QPushButton[variant="tab"]:hover {{
+        color: {colors["text"]};
+        border-bottom: 2px solid {colors["border_strong"]};
+    }}
+    QPushButton[variant="tab"]:pressed {{
+        color: {colors["primary"]};
+        border-bottom: 2px solid {colors["primary"]};
     }}
     QPushButton[variant="tab"]:checked {{
         color: {colors["primary"]};
@@ -463,9 +557,21 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         padding: 14px 18px;
         color: {colors["text"]};
     }}
+    QPushButton[variant="settings-nav"]:hover {{
+        background: {colors["card_muted"]};
+        border-left: 4px solid {colors["border_strong"]};
+    }}
+    QPushButton[variant="settings-nav"]:pressed {{
+        background: {secondary_pressed};
+        border-left: 4px solid {colors["primary"]};
+    }}
     QPushButton[variant="settings-nav"]:checked {{
         background: {colors["primary_soft"]};
         border-left: 4px solid {colors["primary"]};
+    }}
+    QPushButton[variant="settings-nav"]:disabled,
+    QPushButton[variant="tab"]:disabled {{
+        color: {colors["text_tertiary"]};
     }}
     QLabel[debugText="true"] {{
         background: rgba(3, 199, 126, 0.08);

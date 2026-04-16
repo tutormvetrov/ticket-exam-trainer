@@ -3,14 +3,17 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 
 from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication
 
 from application.facade import AppFacade
 from application.settings_store import SettingsStore
+from app.build_info import get_runtime_build_info
 from app.paths import get_workspace_root
 from infrastructure.db import connect_initialized, get_database_path
+from ui.components.splash import BrandedSplash
 from ui.main_window import MainWindow
 from ui.theme import app_font, set_app_theme
 
@@ -26,6 +29,18 @@ def parse_args() -> argparse.Namespace:
         choices=["library", "subjects", "sections", "tickets", "import", "training", "statistics", "defense", "settings"],
     )
     return parser.parse_args()
+
+
+def _should_show_splash(*, screenshot_mode: bool) -> bool:
+    if screenshot_mode:
+        return False
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return False
+    if os.environ.get("TEZIS_DISABLE_SPLASH", "").strip().lower() in {"1", "true", "yes"}:
+        return False
+    if os.environ.get("QT_QPA_PLATFORM", "").strip().lower() in {"offscreen", "minimal"}:
+        return False
+    return True
 
 
 def run() -> int:
@@ -45,6 +60,16 @@ def run() -> int:
     set_app_theme(app, effective_theme, facade.settings.font_preset, facade.settings.font_size)
 
     screenshot_mode = bool(args.screenshot)
+    splash: BrandedSplash | None = None
+    splash_started_at = 0.0
+    if _should_show_splash(screenshot_mode=screenshot_mode):
+        splash = BrandedSplash(get_runtime_build_info())
+        splash.center_on_screen(app.primaryScreen())
+        splash.show()
+        splash.raise_()
+        splash_started_at = time.monotonic()
+        app.processEvents()
+
     window = MainWindow(
         app,
         facade,
@@ -57,6 +82,17 @@ def run() -> int:
         window.resize(target_width, target_height)
     window.switch_view(effective_view)
     window.show()
+    if splash is not None:
+        splash.raise_()
+
+        def _finish_splash() -> None:
+            splash.close()
+            splash.deleteLater()
+            window.raise_()
+            window.activateWindow()
+
+        elapsed_ms = int((time.monotonic() - splash_started_at) * 1000)
+        QTimer.singleShot(max(0, 360 - elapsed_ms), _finish_splash)
 
     if screenshot_mode:
         loop = QEventLoop()

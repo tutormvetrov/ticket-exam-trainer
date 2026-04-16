@@ -9,27 +9,27 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSpacerItem,
-    QStyle,
     QVBoxLayout,
     QWidget,
 )
 
 from app.build_info import get_runtime_build_info
 from ui.components.common import CardFrame, LogoMark
+from ui.icons import apply_button_icon
 from ui.theme import current_colors
 
 
 NAV_ITEMS = [
-    ("library", "Библиотека", QStyle.StandardPixmap.SP_FileDialogDetailedView),
-    ("subjects", "Предметы", QStyle.StandardPixmap.SP_DirHomeIcon),
-    ("sections", "Разделы", QStyle.StandardPixmap.SP_DirIcon),
-    ("tickets", "Билеты", QStyle.StandardPixmap.SP_FileIcon),
-    ("import", "Импорт документов", QStyle.StandardPixmap.SP_ArrowUp),
-    ("training", "Тренировка", QStyle.StandardPixmap.SP_MediaPlay),
-    ("statistics", "Статистика", QStyle.StandardPixmap.SP_FileDialogInfoView),
-    ("knowledge-map", "Карта знаний", QStyle.StandardPixmap.SP_ComputerIcon),
-    ("defense", "Подготовка к защите", QStyle.StandardPixmap.SP_DialogHelpButton),
-    ("settings", "Настройки", QStyle.StandardPixmap.SP_FileDialogContentsView),
+    ("library", "Библиотека", "library"),
+    ("subjects", "Предметы", "subjects"),
+    ("sections", "Разделы", "sections"),
+    ("tickets", "Билеты", "tickets"),
+    ("import", "Импорт документов", "import"),
+    ("training", "Тренировка", "training"),
+    ("statistics", "Статистика", "statistics"),
+    ("knowledge-map", "Карта знаний", "knowledge-map"),
+    ("defense", "Подготовка к защите", "defense"),
+    ("settings", "Настройки", "settings"),
 ]
 
 
@@ -65,6 +65,10 @@ class Sidebar(QWidget):
         title.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         title_box.addWidget(title)
 
+        subtitle = QLabel("Local exam engine")
+        subtitle.setProperty("role", "brand-subtitle")
+        title_box.addWidget(subtitle)
+
         brand_layout.addLayout(title_box, 1)
         layout.addWidget(self.brand)
 
@@ -80,18 +84,18 @@ class Sidebar(QWidget):
         self.button_group.setExclusive(True)
         self.buttons: dict[str, QPushButton] = {}
 
-        for key, label, icon_kind in NAV_ITEMS:
+        self._button_icons: dict[str, str] = {}
+        for key, label, icon_name in NAV_ITEMS:
             button = QPushButton(label)
             button.setObjectName(f"sidebar-{key}")
             button.setCheckable(True)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setMinimumHeight(42)
             button.setProperty("variant", "nav")
-            button.setIcon(self.style().standardIcon(icon_kind))
-            button.setStyleSheet("text-align: left; padding-right: 10px;")
             button.clicked.connect(lambda checked=False, value=key: self.section_selected.emit(value))
             self.button_group.addButton(button)
             self.buttons[key] = button
+            self._button_icons[key] = icon_name
             layout.addWidget(button)
 
         layout.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
@@ -172,6 +176,8 @@ class Sidebar(QWidget):
             f"background: {colors['card_bg']}; border: 1px solid {colors['border_strong']}; border-radius: 18px;"
         )
         self.divider.setStyleSheet(f"background: {colors['border']};")
+        for key, button in self.buttons.items():
+            apply_button_icon(button, self._button_icons[key], size=18)
         self.status_dot.setStyleSheet(f"color: {colors['text_tertiary']}; font-size: 14px;")
         self.status_tail.setStyleSheet(f"color: {colors['text_tertiary']}; font-size: 14px;")
         self.status_label.setStyleSheet(f"color: {colors['text_secondary']}; font-size: 14px; font-weight: 700;")

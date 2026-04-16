@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QFrame,
     QFileDialog,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
@@ -78,6 +79,7 @@ class MainWindow(QMainWindow):
         self._update_prompted = False
         self._manual_update_check = False
         self._pending_training_mode: str | None = None
+        self._transitions_enabled = not suppress_startup_background_tasks
 
         self.setWindowTitle(APP_WINDOW_TITLE)
         self.setMinimumSize(1280, 720)
@@ -122,6 +124,12 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self.separator)
 
         self.stack = QStackedWidget()
+        self._stack_opacity = QGraphicsOpacityEffect(self.stack)
+        self._stack_opacity.setOpacity(1.0)
+        self.stack.setGraphicsEffect(self._stack_opacity)
+        self._stack_transition = QPropertyAnimation(self._stack_opacity, b"opacity", self)
+        self._stack_transition.setDuration(200)
+        self._stack_transition.setEasingCurve(QEasingCurve.Type.OutCubic)
         content_layout.addWidget(self.stack, 1)
         self.stack_pages: dict[str, QWidget] = {}
         self.current_key = "library"
@@ -150,6 +158,12 @@ class MainWindow(QMainWindow):
         self.views["library"].recheck_requested.connect(self.refresh_sidebar_ollama_status)
         self.views["library"].readme_requested.connect(self.open_readme)
         self.views["library"].dlc_requested.connect(self.show_dlc_teaser)
+        self.views["subjects"].open_library_requested.connect(lambda: self.switch_view("library"))
+        self.views["sections"].open_library_requested.connect(lambda: self.switch_view("library"))
+        self.views["tickets"].open_library_requested.connect(lambda: self.switch_view("library"))
+        self.views["training"].open_library_requested.connect(lambda: self.switch_view("library"))
+        self.views["training"].import_requested.connect(self.open_import_dialog)
+        self.views["statistics"].open_library_requested.connect(lambda: self.switch_view("library"))
         self.views["defense"].activate_requested.connect(self.activate_defense_dlc)
         self.views["defense"].create_project_requested.connect(self.create_defense_project)
         self.views["defense"].project_selected.connect(self.refresh_defense_view)
@@ -214,7 +228,7 @@ class MainWindow(QMainWindow):
             self.refresh_defense_view(self.views["defense"].current_project_id or None)
         self.current_key = key
         self.sidebar.set_current(key)
-        self.stack.setCurrentWidget(self.stack_pages[key])
+        self._show_stack_page(self.stack_pages[key])
         if key in {"tickets", "training"}:
             QTimer.singleShot(0, self._refresh_heavy_views)
         self._apply_interface_text_overrides()
@@ -230,6 +244,18 @@ class MainWindow(QMainWindow):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setWidget(view)
         return scroll
+
+    def _show_stack_page(self, page: QWidget) -> None:
+        self.stack.setCurrentWidget(page)
+        if not self._transitions_enabled or not self.isVisible():
+            self._stack_transition.stop()
+            self._stack_opacity.setOpacity(1.0)
+            return
+        self._stack_transition.stop()
+        self._stack_opacity.setOpacity(0.0)
+        self._stack_transition.setStartValue(0.0)
+        self._stack_transition.setEndValue(1.0)
+        self._stack_transition.start()
 
     def open_import_dialog(self) -> None:
         if self._import_thread is not None and self._import_thread.isRunning():

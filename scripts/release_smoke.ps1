@@ -29,7 +29,11 @@ if (Test-Path -LiteralPath $screenshotPath) {
 }
 
 Write-Host "Running packaged smoke: $releaseExe"
-$process = Start-Process -FilePath $releaseExe -PassThru
+$startInfo = New-Object System.Diagnostics.ProcessStartInfo
+$startInfo.FileName = $releaseExe
+$startInfo.UseShellExecute = $false
+$startInfo.EnvironmentVariables["TEZIS_DISABLE_SPLASH"] = "1"
+$process = [System.Diagnostics.Process]::Start($startInfo)
 try {
     $windowReady = $false
     for ($index = 0; $index -lt 40; $index++) {
@@ -46,6 +50,12 @@ try {
 
     if (-not $windowReady) {
         throw "Packaged app did not expose a main window handle in time."
+    }
+
+    Start-Sleep -Milliseconds 1200
+    $process.Refresh()
+    if ($process.HasExited) {
+        throw "Packaged app exited before the UI finished painting. ExitCode=$($process.ExitCode)"
     }
 
     Add-Type -AssemblyName System.Drawing

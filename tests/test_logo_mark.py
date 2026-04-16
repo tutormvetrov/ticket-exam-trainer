@@ -80,3 +80,22 @@ def test_logo_mark_falls_back_when_template_missing(qt_app, tmp_path, monkeypatc
     pixmap.fill()
     widget.render(pixmap)
     # Just confirming no exception escaped. The content is a monochrome disc + "Т".
+
+
+def test_logo_mark_theme_refresh_rebuilds_svg(qt_app) -> None:
+    from ui.components.common import LogoMark
+    from ui.theme import set_app_theme
+
+    set_app_theme(qt_app, "light", "inter-style", 14)
+    widget = LogoMark(size=52)
+    svg_light = bytes(widget._build_svg())
+    assert b"#228F64" in svg_light  # изумруд light
+
+    set_app_theme(qt_app, "dark", "inter-style", 14)
+    widget.refresh_theme()
+    svg_dark = bytes(widget._build_svg())
+    assert b"#2AA076" in svg_dark  # изумруд dark
+    assert svg_light != svg_dark
+
+    # Восстановить light, чтобы не зааффектить другие тесты.
+    set_app_theme(qt_app, "light", "inter-style", 14)

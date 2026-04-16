@@ -597,7 +597,6 @@ class MainWindow(QMainWindow):
         self.views["statistics"].set_data(statistics, mastery, weak_areas, state_exam_statistics)
         self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
         self.views["settings"].set_update_info(self.latest_update_info)
-        self._apply_interface_text_overrides()
         if include_heavy:
             self._refresh_heavy_views(mastery=mastery, weak_areas=weak_areas)
 

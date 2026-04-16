@@ -55,6 +55,7 @@
 ## Документация
 
 - [Быстрый старт](docs/quickstart.md)
+- [Быстрый старт: госэкзамен](docs/quickstart_state_exam.md)
 - [Подробное руководство пользователя](docs/user_guide.md)
 - [Архитектура](docs/architecture.md)
 - [Спецификация продукта](docs/product_spec.md)

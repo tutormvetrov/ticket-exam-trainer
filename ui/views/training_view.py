@@ -3,7 +3,7 @@ from __future__ import annotations
 from random import Random
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QComboBox, QGridLayout, QLabel, QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QGridLayout, QLabel, QHBoxLayout, QLineEdit, QStackedWidget, QVBoxLayout, QWidget
 
 from application.answer_profile_registry import answer_profile_label
 from application.ui_data import TrainingEvaluationResult, TrainingSnapshot
@@ -100,6 +100,12 @@ class TrainingView(QWidget):
         self.queue_title = QLabel("Адаптивная очередь")
         self.queue_title.setProperty("role", "section-title")
         queue_layout.addWidget(self.queue_title)
+        self.queue_filter = QLineEdit()
+        self.queue_filter.setPlaceholderText("Фильтр по билетам...")
+        self.queue_filter.setProperty("role", "search-plain")
+        self.queue_filter.setFixedHeight(36)
+        self.queue_filter.textChanged.connect(self._apply_queue_filter)
+        queue_layout.addWidget(self.queue_filter)
         self.queue_stack = QVBoxLayout()
         self.queue_stack.setContentsMargins(0, 0, 0, 0)
         self.queue_stack.setSpacing(10)
@@ -241,17 +247,19 @@ class TrainingView(QWidget):
         self._last_result_mode = self.selected_mode
         self.workspaces[self.selected_mode].show_evaluation(result)
 
-    def set_search_text(self, text: str) -> None:
+    def _apply_queue_filter(self, text: str) -> None:
         query = text.strip().lower()
+        saved_selection = self.selected_ticket_id
         if not query:
             self._rebuild_queue()
-            return
-
-        filtered = [item for item in self.snapshot.queue_items if query in item.ticket_title.lower()]
-        current = self.snapshot
-        self.snapshot = TrainingSnapshot(queue_items=filtered, tickets=current.tickets)
-        self._rebuild_queue()
-        self.snapshot = current
+        else:
+            filtered = [item for item in self.snapshot.queue_items if query in item.ticket_title.lower()]
+            current = self.snapshot
+            self.snapshot = TrainingSnapshot(queue_items=filtered, tickets=current.tickets)
+            self._rebuild_queue()
+            self.snapshot = current
+        if saved_selection in self.queue_buttons:
+            self.queue_buttons[saved_selection].set_selected(True)
 
     def _show_workspace(self, mode_key: str) -> None:
         spec = TRAINING_MODE_SPECS[mode_key]

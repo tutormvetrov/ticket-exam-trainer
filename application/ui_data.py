@@ -99,3 +99,22 @@ class TrainingEvaluationResult:
     criterion_scores: dict[str, int] = field(default_factory=dict)
     followup_questions: list[str] = field(default_factory=list)
     error: str = ""
+    review: ReviewVerdict | None = None
+
+
+@dataclass(slots=True)
+class ThesisVerdict:
+    thesis_label: str
+    status: str  # "covered" | "partial" | "missing"
+    comment: str
+    student_excerpt: str
+
+
+@dataclass(slots=True)
+class ReviewVerdict:
+    thesis_verdicts: list[ThesisVerdict]
+    structure_notes: list[str]
+    strengths: list[str]
+    recommendations: list[str]
+    overall_score: int
+    overall_comment: str

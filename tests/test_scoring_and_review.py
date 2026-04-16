@@ -105,6 +105,31 @@ def test_cross_ticket_concept_linking() -> None:
     assert ticket_b.cross_links_to_other_tickets
 
 
+def test_review_verdict_dataclass_defaults() -> None:
+    from application.ui_data import ReviewVerdict, ThesisVerdict, TrainingEvaluationResult
+
+    tv = ThesisVerdict(thesis_label="Определение", status="covered", comment="Точно.", student_excerpt="Это ресурс.")
+    assert tv.status == "covered"
+
+    rv = ReviewVerdict(
+        thesis_verdicts=[tv],
+        structure_notes=["Нет вывода"],
+        strengths=["Хорошее определение"],
+        recommendations=["Добавить пример"],
+        overall_score=72,
+        overall_comment="Неплохо.",
+    )
+    assert rv.overall_score == 72
+    assert len(rv.thesis_verdicts) == 1
+
+    result = TrainingEvaluationResult(ok=True, score_percent=72, feedback="ok", weak_points=[])
+    assert result.review is None
+
+    result_with_review = TrainingEvaluationResult(ok=True, score_percent=72, feedback="ok", weak_points=[], review=rv)
+    assert result_with_review.review is not None
+    assert result_with_review.review.overall_score == 72
+
+
 def test_state_exam_scoring_adds_block_and_criterion_scores() -> None:
     service = DocumentImportService()
     candidate = TicketCandidate(

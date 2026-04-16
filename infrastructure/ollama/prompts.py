@@ -118,3 +118,31 @@ def state_exam_blocks_user_prompt(
         f"CURRENT_BLOCKS: {json.dumps(existing_blocks, ensure_ascii=False)}\n"
         f"SOURCE: {source_text}"
     )
+
+
+def review_prompt(
+    ticket_title: str,
+    reference_theses: list[dict[str, str]],
+    student_answer: str,
+) -> tuple[str, str]:
+    system = (
+        "You are a strict exam answer reviewer. "
+        "Compare the student answer against each reference thesis. "
+        "For each thesis, decide: covered, partial, or missing. "
+        "Add a short comment in Russian explaining your verdict. "
+        "If the student's text covers the thesis, quote the relevant excerpt. "
+        "Note structural issues (missing intro, no conclusion, weak transitions). "
+        "List strengths and concrete recommendations in Russian. "
+        "Return valid JSON with keys: thesis_verdicts, structure_notes, strengths, recommendations, overall_score, overall_comment. "
+        "Each item in thesis_verdicts must have: thesis_label, status, comment, student_excerpt."
+    )
+    theses_text = "\n".join(
+        f"- {thesis['label']}: {thesis['text']}" for thesis in reference_theses
+    )
+    prompt = (
+        f"TICKET: {ticket_title}\n"
+        f"REFERENCE THESES:\n{theses_text}\n"
+        f"STUDENT ANSWER:\n{student_answer}\n"
+        "Review the answer against each thesis. Return JSON."
+    )
+    return system, prompt

@@ -83,3 +83,19 @@ def test_request_generation_does_not_fallback_to_unrelated_family(monkeypatch) -
 
     assert response.ok is False
     assert calls == ["qwen3:8b"]
+
+
+def test_review_prompt_includes_all_theses() -> None:
+    from infrastructure.ollama.prompts import review_prompt
+
+    theses = [
+        {"label": "Определение", "text": "Государственная собственность — это..."},
+        {"label": "Примеры", "text": "Земля, здания, транспорт."},
+    ]
+    system, prompt = review_prompt("Что такое госсобственность?", theses, "Госсобственность — это ресурс.")
+
+    assert "Определение" in prompt
+    assert "Примеры" in prompt
+    assert "Госсобственность — это ресурс" in prompt
+    assert "JSON" in system
+    assert "thesis_verdicts" in system or "thesis_verdicts" in prompt

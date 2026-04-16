@@ -21,3 +21,7 @@ local_tools/
 .claude/
 llm_inbox_*/
 smoke-*.png
+logomark-*.png
+mainwin-*.png
+app-light.png
+app-dark.png

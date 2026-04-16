@@ -311,6 +311,8 @@ class ReadingWorkspace(TrainingWorkspaceBase):
         self.answer_box.setStyleSheet(
             f"QFrame#ReadingAnswerBox {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
         )
+        if self.current_ticket is not None:
+            self._set_ticket(self.current_ticket)
 
 
 class ActiveRecallWorkspace(TrainingWorkspaceBase):
@@ -422,6 +424,8 @@ class ActiveRecallWorkspace(TrainingWorkspaceBase):
         self.answer_box.setStyleSheet(
             f"QFrame#RecallAnswerBox {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
         )
+        if self.current_ticket is not None:
+            self._set_ticket(self.current_ticket)
 
 
 class ClozeWorkspace(TrainingWorkspaceBase):
@@ -514,6 +518,11 @@ class ClozeWorkspace(TrainingWorkspaceBase):
             self.cloze_grid.addWidget(field, index, 1)
             self.inputs.append(field)
 
+    def refresh_theme(self) -> None:
+        super().refresh_theme()
+        if self.current_ticket is not None:
+            self._set_ticket(self.current_ticket)
+
 
 class MatchingWorkspace(TrainingWorkspaceBase):
     def __init__(self, spec: TrainingModeSpec) -> None:
@@ -595,6 +604,11 @@ class MatchingWorkspace(TrainingWorkspaceBase):
             row.addWidget(combo, 1)
             self.rows_layout.addLayout(row)
             self.controls.append((term_text, expected, combo))
+
+    def refresh_theme(self) -> None:
+        super().refresh_theme()
+        if self.current_ticket is not None:
+            self._set_ticket(self.current_ticket)
 
 
 class PlanWorkspace(TrainingWorkspaceBase):
@@ -801,6 +815,8 @@ class MiniExamWorkspace(TrainingWorkspaceBase):
     def refresh_theme(self) -> None:
         super().refresh_theme()
         self.timer_badge.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {current_colors()['danger']};")
+        if self.current_ticket is not None:
+            self._set_ticket(self.current_ticket)
 
 
 class StateExamFullWorkspace(TrainingWorkspaceBase):

@@ -488,7 +488,7 @@ class ClozeWorkspace(TrainingWorkspaceBase):
             reconstructed.append(prompt.original_text.replace(prompt.answer, value, 1))
             if value.lower() == prompt.answer.lower():
                 exact += 1
-        self.result_body.setText(f"Локально заполнено правильно: {exact} из {len(self.prompts)}.")
+        self.result_body.setText("Проверяем ответ...")
         self.evaluate_requested.emit("\n".join(reconstructed))
 
     def _set_ticket(self, ticket: TicketKnowledgeMap | None) -> None:
@@ -559,7 +559,7 @@ class MatchingWorkspace(TrainingWorkspaceBase):
             lines.append(f"{term}: {selected}")
             if selected == expected:
                 correct += 1
-        self.result_body.setText(f"Локально совпало пар: {correct} из {len(self.controls)}.")
+        self.result_body.setText("Проверяем ответ...")
         self.evaluate_requested.emit("\n".join(lines))
 
     def _set_ticket(self, ticket: TicketKnowledgeMap | None) -> None:
@@ -677,7 +677,7 @@ class PlanWorkspace(TrainingWorkspaceBase):
             self.result_body.setText("Нет тезисов для проверки порядка.")
             return
         exact = sum(1 for current, expected in zip(self.blocks, self.correct_order) if current == expected)
-        self.result_body.setText(f"Локально на месте: {exact} из {len(self.correct_order)} тезисов.")
+        self.result_body.setText("Проверяем ответ...")
         self.evaluate_requested.emit("\n".join(self.blocks))
 
     def _set_ticket(self, ticket: TicketKnowledgeMap | None) -> None:

@@ -26,6 +26,7 @@ NAV_ITEMS = [
     ("tickets", "Билеты", "tickets"),
     ("import", "Импорт документов", "import"),
     ("training", "Тренировка", "training"),
+    ("dialogue", "Диалог", "dialogue"),
     ("statistics", "Статистика", "statistics"),
     ("knowledge-map", "Карта знаний", "knowledge-map"),
     ("defense", "Подготовка к защите", "defense"),

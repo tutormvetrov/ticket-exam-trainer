@@ -69,6 +69,81 @@ class TrainingSnapshot:
 
 
 @dataclass(slots=True)
+class DialogueTicketItem:
+    ticket_id: str
+    title: str
+    section_title: str
+    difficulty: int
+    mastery_score: int = 0
+    has_active_session: bool = False
+    last_session_label: str = ""
+
+
+@dataclass(slots=True)
+class DialogueSessionSummary:
+    session_id: str
+    ticket_id: str
+    ticket_title: str
+    persona_kind: str
+    status: str
+    last_turn_index: int
+    user_turn_count: int
+    score_percent: int
+    verdict: str
+    summary: str
+    started_label: str
+    updated_label: str
+    completed_label: str = ""
+    resolved_model: str = ""
+
+
+@dataclass(slots=True)
+class DialogueTurn:
+    turn_id: str
+    turn_index: int
+    speaker: str
+    text: str
+    weakness_focus: str = ""
+    created_label: str = ""
+
+
+@dataclass(slots=True)
+class DialogueResult:
+    ok: bool
+    session_id: str
+    ticket_id: str = ""
+    persona_kind: str = "tutor"
+    score_percent: int = 0
+    feedback: str = ""
+    weak_points: list[str] = field(default_factory=list)
+    answer_profile_code: str = "standard_ticket"
+    block_scores: dict[str, int] = field(default_factory=dict)
+    criterion_scores: dict[str, int] = field(default_factory=dict)
+    followup_questions: list[str] = field(default_factory=list)
+    final_verdict: str = ""
+    final_summary: str = ""
+    review: ReviewVerdict | None = None
+    error: str = ""
+
+
+@dataclass(slots=True)
+class DialogueSessionState:
+    session: DialogueSessionSummary
+    ticket: TicketKnowledgeMap
+    turns: list[DialogueTurn] = field(default_factory=list)
+    result: DialogueResult | None = None
+
+
+@dataclass(slots=True)
+class DialogueSnapshot:
+    tickets: list[DialogueTicketItem] = field(default_factory=list)
+    active_sessions: list[DialogueSessionSummary] = field(default_factory=list)
+    recent_sessions: list[DialogueSessionSummary] = field(default_factory=list)
+    active_session: DialogueSessionState | None = None
+    readiness: ReadinessScore | None = None
+
+
+@dataclass(slots=True)
 class ImportExecutionResult:
     ok: bool
     document_id: str = ""

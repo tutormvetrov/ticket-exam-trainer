@@ -6,8 +6,13 @@ from infrastructure.ollama.service import (
     OllamaScenarioResult,
     OllamaService,
 )
+from infrastructure.ollama.dialogue import DialogueTranscriptLine, DialogueTurnContext, DialogueTurnPayload, DialogueTurnResult
 
 __all__ = [
+    "DialogueTranscriptLine",
+    "DialogueTurnContext",
+    "DialogueTurnPayload",
+    "DialogueTurnResult",
     "LLMStructuringResult",
     "OllamaDiagnostics",
     "OllamaScenarioResult",

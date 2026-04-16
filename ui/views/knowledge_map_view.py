@@ -12,6 +12,7 @@ from ui.theme import current_colors
 
 class KnowledgeMapView(QWidget):
     train_requested = Signal(str)
+    dialogue_requested = Signal(str)
 
     def __init__(self, shadow_color) -> None:
         super().__init__()
@@ -86,6 +87,13 @@ class KnowledgeMapView(QWidget):
         self.train_button.setEnabled(False)
         self.detail_layout.addWidget(self.train_button)
 
+        self.dialogue_button = QPushButton("Открыть в диалоге")
+        self.dialogue_button.setProperty("variant", "secondary")
+        self.dialogue_button.setObjectName("knowledge-map-dialogue")
+        self.dialogue_button.clicked.connect(self._emit_dialogue)
+        self.dialogue_button.setEnabled(False)
+        self.detail_layout.addWidget(self.dialogue_button)
+
         self.detail_layout.addStretch(1)
         body.addWidget(self.detail_card, 3)
         root.addLayout(body, 1)
@@ -134,6 +142,7 @@ class KnowledgeMapView(QWidget):
             self.detail_concepts.setText("Нет межбилетных связей.")
 
         self.train_button.setEnabled(True)
+        self.dialogue_button.setEnabled(True)
 
     def _clear_detail(self) -> None:
         self._selected_ticket_id = ""
@@ -143,10 +152,15 @@ class KnowledgeMapView(QWidget):
         self.detail_meta.setText("Кликните на узел, чтобы увидеть детали билета и перейти к тренировке.")
         self.detail_concepts.setText("")
         self.train_button.setEnabled(False)
+        self.dialogue_button.setEnabled(False)
 
     def _emit_train(self) -> None:
         if self._selected_ticket_id:
             self.train_requested.emit(self._selected_ticket_id)
+
+    def _emit_dialogue(self) -> None:
+        if self._selected_ticket_id:
+            self.dialogue_requested.emit(self._selected_ticket_id)
 
     def refresh_theme(self) -> None:
         colors = current_colors()

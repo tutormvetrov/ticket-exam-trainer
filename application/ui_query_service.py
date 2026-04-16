@@ -5,7 +5,21 @@ import json
 import sqlite3
 
 from application.answer_profile_registry import answer_profile_label
-from application.ui_data import ImportExecutionResult, SectionOverviewItem, StateExamStatisticsSnapshot, StatisticsSnapshot, TicketMasteryBreakdown, TrainingQueueItem, TrainingSnapshot
+from application.ui_data import (
+    DialogueResult,
+    DialogueSessionState,
+    DialogueSessionSummary,
+    DialogueSnapshot,
+    DialogueTicketItem,
+    DialogueTurn,
+    ImportExecutionResult,
+    SectionOverviewItem,
+    StateExamStatisticsSnapshot,
+    StatisticsSnapshot,
+    TicketMasteryBreakdown,
+    TrainingQueueItem,
+    TrainingSnapshot,
+)
 from domain.answer_profile import AnswerBlockCode, AnswerCriterionCode, AnswerProfileCode, TicketAnswerBlock
 from domain.knowledge import (
     AtomType,
@@ -498,6 +512,133 @@ class UiQueryService:
         ]
         return TrainingSnapshot(queue_items=queue, tickets=tickets if tickets is not None else self.load_ticket_maps())
 
+    def load_dialogue_sessions(
+        self,
+        user_id: str = "local-user",
+        *,
+        limit: int = 8,
+        ticket_id: str | None = None,
+        status: str | None = None,
+    ) -> list[DialogueSessionSummary]:
+        clauses = ["dialogue_sessions.user_id = ?"]
+        params: list[object] = [user_id]
+        if ticket_id:
+            clauses.append("dialogue_sessions.ticket_id = ?")
+            params.append(ticket_id)
+        if status:
+            clauses.append("dialogue_sessions.status = ?")
+            params.append(status)
+        params.append(max(1, min(limit, 48)))
+        rows = self.connection.execute(
+            f"""
+            SELECT dialogue_sessions.*,
+                   tickets.title AS ticket_title
+            FROM dialogue_sessions
+            JOIN tickets ON tickets.ticket_id = dialogue_sessions.ticket_id
+            WHERE {' AND '.join(clauses)}
+            ORDER BY dialogue_sessions.updated_at DESC, dialogue_sessions.started_at DESC
+            LIMIT ?
+            """,
+            tuple(params),
+        ).fetchall()
+        return [self._row_to_dialogue_session_summary(row) for row in rows]
+
+    def load_dialogue_session(self, session_id: str) -> DialogueSessionState:
+        row = self.connection.execute(
+            """
+            SELECT dialogue_sessions.*,
+                   tickets.title AS ticket_title
+            FROM dialogue_sessions
+            JOIN tickets ON tickets.ticket_id = dialogue_sessions.ticket_id
+            WHERE dialogue_sessions.session_id = ?
+            """,
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"Dialogue session '{session_id}' not found.")
+
+        turns = [
+            DialogueTurn(
+                turn_id=turn_row["turn_id"],
+                turn_index=int(turn_row["turn_index"] or 0),
+                speaker=turn_row["speaker"],
+                text=turn_row["text"],
+                weakness_focus=turn_row["weakness_focus"] or "",
+                created_label=self._format_dt(turn_row["created_at"]),
+            )
+            for turn_row in self.connection.execute(
+                """
+                SELECT *
+                FROM dialogue_turns
+                WHERE session_id = ?
+                ORDER BY turn_index, created_at, turn_id
+                """,
+                (session_id,),
+            ).fetchall()
+        ]
+        summary = self._row_to_dialogue_session_summary(row)
+        ticket = self.load_ticket_map(row["ticket_id"])
+        result = None
+        if row["status"] == "completed":
+            result = DialogueResult(
+                ok=True,
+                session_id=row["session_id"],
+                ticket_id=row["ticket_id"],
+                persona_kind=row["persona_kind"] or "tutor",
+                score_percent=int(row["final_score_percent"] or 0),
+                feedback=row["final_feedback"] or row["final_summary"] or "",
+                final_verdict=row["final_verdict"] or "",
+                final_summary=row["final_summary"] or row["final_feedback"] or "",
+                answer_profile_code=ticket.answer_profile_code.value,
+            )
+        return DialogueSessionState(
+            session=summary,
+            ticket=ticket,
+            turns=turns,
+            result=result,
+        )
+
+    def load_dialogue_snapshot(self, user_id: str = "local-user") -> DialogueSnapshot:
+        all_sessions = self.load_dialogue_sessions(user_id, limit=12)
+        active_sessions = self.load_dialogue_sessions(user_id, limit=12, status="active")
+        recent_sessions = self.load_dialogue_sessions(user_id, limit=8, status="completed")
+        active_session = self.load_dialogue_session(active_sessions[0].session_id) if active_sessions else None
+
+        section_rows = self.connection.execute("SELECT section_id, title FROM sections").fetchall()
+        section_titles = {row["section_id"]: row["title"] for row in section_rows}
+        mastery = self.load_mastery_breakdowns()
+        active_ticket_ids = {session.ticket_id for session in active_sessions}
+        latest_session_by_ticket: dict[str, DialogueSessionSummary] = {}
+        for session in all_sessions:
+            latest_session_by_ticket.setdefault(session.ticket_id, session)
+
+        tickets = [
+            DialogueTicketItem(
+                ticket_id=row["ticket_id"],
+                title=row["title"],
+                section_title=section_titles.get(row["section_id"], self._display_section_title(row["section_id"])),
+                difficulty=int(row["difficulty"] or 0),
+                mastery_score=int(round((mastery.get(row["ticket_id"]).confidence_score if row["ticket_id"] in mastery else 0.0) * 100)),
+                has_active_session=row["ticket_id"] in active_ticket_ids,
+                last_session_label=latest_session_by_ticket[row["ticket_id"]].updated_label if row["ticket_id"] in latest_session_by_ticket else "",
+            )
+            for row in self.connection.execute(
+                """
+                SELECT tickets.ticket_id, tickets.title, tickets.section_id, tickets.difficulty
+                FROM tickets
+                ORDER BY COALESCE((SELECT order_index FROM sections WHERE sections.section_id = tickets.section_id), 0),
+                         tickets.created_at DESC,
+                         tickets.ticket_id DESC
+                """
+            ).fetchall()
+        ]
+        return DialogueSnapshot(
+            tickets=tickets,
+            active_sessions=active_sessions,
+            recent_sessions=recent_sessions,
+            active_session=active_session,
+        )
+
     def load_weak_areas(self) -> list[sqlite3.Row]:
         return self.connection.execute(
             "SELECT * FROM weak_areas ORDER BY severity DESC, last_detected_at DESC"
@@ -578,6 +719,25 @@ class UiQueryService:
             llm_failed_tickets=llm_failed,
             resume_available=resume_available,
             error=row["last_error"] or "",
+        )
+
+    @staticmethod
+    def _row_to_dialogue_session_summary(row: sqlite3.Row) -> DialogueSessionSummary:
+        return DialogueSessionSummary(
+            session_id=row["session_id"],
+            ticket_id=row["ticket_id"],
+            ticket_title=row["ticket_title"] if "ticket_title" in row.keys() else "",
+            persona_kind=row["persona_kind"] or "tutor",
+            status=row["status"] or "active",
+            last_turn_index=int(row["last_turn_index"] or 0),
+            user_turn_count=int(row["user_turn_count"] or 0),
+            score_percent=int(row["final_score_percent"] or 0),
+            verdict=row["final_verdict"] or "",
+            summary=row["final_summary"] or row["final_feedback"] or "",
+            started_label=UiQueryService._format_dt(row["started_at"]),
+            updated_label=UiQueryService._format_dt(row["updated_at"]),
+            completed_label=UiQueryService._format_dt(row["completed_at"]),
+            resolved_model=row["resolved_model"] or "",
         )
 
     @staticmethod

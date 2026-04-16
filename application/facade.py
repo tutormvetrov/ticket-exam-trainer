@@ -4,24 +4,36 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 import sqlite3
+from uuid import uuid4
 
 from application.adaptive_review import AdaptiveReviewService
+from application.answer_profile_registry import answer_profile_label, get_answer_profile
 from application.readiness import ReadinessService
-from application.answer_profile_registry import answer_profile_label
 from application.defense_service import DefenseService
 from application.defense_ui_data import DefenseEvaluationResult, DefenseProcessingResult, DefenseWorkspaceSnapshot
 from application.import_service import DocumentImportService, TicketCandidate
 from application.scoring import MicroSkillScoringService
 from application.settings import OllamaSettings
 from application.settings_store import SettingsStore
-from application.ui_data import ImportExecutionResult, StateExamStatisticsSnapshot, StatisticsSnapshot, TicketMasteryBreakdown, TrainingEvaluationResult, TrainingSnapshot
+from application.ui_data import (
+    DialogueResult,
+    DialogueSessionState,
+    DialogueSnapshot,
+    ImportExecutionResult,
+    StateExamStatisticsSnapshot,
+    StatisticsSnapshot,
+    TicketMasteryBreakdown,
+    TrainingEvaluationResult,
+    TrainingSnapshot,
+)
 from application.ui_query_service import UiQueryService
 from domain.answer_profile import AnswerProfileCode, TicketBlockMasteryProfile
 from domain.knowledge import Exam, ExerciseType, ReviewMode, Section, TicketMasteryProfile
 from domain.models import DocumentData, SubjectData
-from infrastructure.db import DefenseRepository, KnowledgeRepository
+from infrastructure.db import DefenseRepository, DialogueRepository, KnowledgeRepository
 from infrastructure.importers.common import normalize_import_title
 from infrastructure.ollama import OllamaService
+from infrastructure.ollama.dialogue import DialogueTranscriptLine, DialogueTurnContext, DialogueTurnResult
 from infrastructure.ollama.service import OllamaDiagnostics
 
 
@@ -31,6 +43,7 @@ class AppFacade:
     connection: sqlite3.Connection
     settings_store: SettingsStore
     repository: KnowledgeRepository = field(init=False)
+    dialogue_repository: DialogueRepository = field(init=False)
     defense_repository: DefenseRepository = field(init=False)
     defense: DefenseService = field(init=False)
     queries: UiQueryService = field(init=False)
@@ -40,6 +53,7 @@ class AppFacade:
 
     def __post_init__(self) -> None:
         self.repository = KnowledgeRepository(self.connection)
+        self.dialogue_repository = DialogueRepository(self.connection)
         self.defense_repository = DefenseRepository(self.connection)
         self.queries = UiQueryService(self.connection)
         self.scoring = MicroSkillScoringService()
@@ -133,6 +147,356 @@ class AppFacade:
 
     def load_latest_import_result(self) -> ImportExecutionResult:
         return self.queries.load_latest_import_result()
+
+    def load_dialogue_snapshot(
+        self,
+        *,
+        tickets: list | None = None,
+        mastery: dict[str, TicketMasteryBreakdown] | None = None,
+    ) -> DialogueSnapshot:
+        snapshot = self.queries.load_dialogue_snapshot()
+        snapshot.readiness = self.load_readiness_score(
+            tickets=tickets if tickets is not None else self.load_ticket_maps(),
+            mastery=mastery if mastery is not None else self.load_mastery_breakdowns(),
+        )
+        return snapshot
+
+    def load_dialogue_session(self, session_id: str) -> DialogueSessionState:
+        return self.queries.load_dialogue_session(session_id)
+
+    def start_dialogue_session(
+        self,
+        ticket_id: str,
+        persona_kind: str = "tutor",
+        *,
+        seed_focus: str | None = None,
+    ) -> DialogueSessionState:
+        persona = self._normalize_dialogue_persona(persona_kind)
+        active_row = self.dialogue_repository.load_active_session_for_ticket("local-user", ticket_id, persona)
+        if active_row is not None:
+            return self.load_dialogue_session(active_row["session_id"])
+
+        ticket = self.queries.load_ticket_map(ticket_id)
+        now = datetime.now().isoformat()
+        session_id = f"dialogue-{uuid4().hex[:12]}"
+        with self.connection:
+            self.dialogue_repository.create_session(
+                session_id=session_id,
+                user_id="local-user",
+                ticket_id=ticket_id,
+                persona_kind=persona,
+                resolved_model=self._settings.model,
+                started_at=now,
+                updated_at=now,
+                commit=False,
+            )
+
+        opening = self._generate_dialogue_turn(ticket, session_id, persona, [], opening=True, seed_focus=seed_focus)
+        assistant_text = self._dialogue_message_text(opening.payload.feedback_text, opening.payload.next_question)
+        if not assistant_text:
+            assistant_text = self._dialogue_opening_fallback(ticket, persona)
+        with self.connection:
+            self.dialogue_repository.append_turn(
+                turn_id=f"turn-{uuid4().hex[:12]}",
+                session_id=session_id,
+                turn_index=1,
+                speaker="assistant",
+                text=assistant_text,
+                weakness_focus=opening.payload.weakness_focus if opening.ok else "",
+                created_at=now,
+                commit=False,
+            )
+            self.dialogue_repository.update_session_progress(
+                session_id=session_id,
+                last_turn_index=1,
+                user_turn_count=0,
+                updated_at=now,
+                commit=False,
+            )
+        return self.load_dialogue_session(session_id)
+
+    def submit_dialogue_turn(
+        self,
+        session_id: str,
+        user_text: str,
+        *,
+        expected_last_turn_index: int | None = None,
+    ) -> DialogueSessionState:
+        user_answer = user_text.strip()
+        if not user_answer:
+            return self.load_dialogue_session(session_id)
+
+        session = self.load_dialogue_session(session_id)
+        if session.session.status != "active":
+            return session
+        if expected_last_turn_index is not None and session.session.last_turn_index != expected_last_turn_index:
+            return session
+        if session.session.user_turn_count >= 5:
+            result = self.complete_dialogue_session(session_id)
+            if session.result is None:
+                session.result = result
+            return session
+
+        user_turn_index = session.session.last_turn_index + 1
+        now = datetime.now().isoformat()
+        with self.connection:
+            self.dialogue_repository.append_turn(
+                turn_id=f"turn-{uuid4().hex[:12]}",
+                session_id=session_id,
+                turn_index=user_turn_index,
+                speaker="user",
+                text=user_answer,
+                weakness_focus="",
+                created_at=now,
+                commit=False,
+            )
+            self.dialogue_repository.update_session_progress(
+                session_id=session_id,
+                last_turn_index=user_turn_index,
+                user_turn_count=session.session.user_turn_count + 1,
+                updated_at=now,
+                commit=False,
+            )
+
+        session = self.load_dialogue_session(session_id)
+        turn_result = self._generate_dialogue_turn(
+            session.ticket,
+            session.session.session_id,
+            session.session.persona_kind,
+            session.turns,
+            opening=False,
+        )
+        assistant_text = self._dialogue_message_text(turn_result.payload.feedback_text, turn_result.payload.next_question)
+        if not assistant_text:
+            assistant_text = self._dialogue_followup_fallback(session)
+        turn_now = datetime.now().isoformat()
+        final_turn_index = session.session.last_turn_index + 1
+        with self.connection:
+            self.dialogue_repository.append_turn(
+                turn_id=f"turn-{uuid4().hex[:12]}",
+                session_id=session_id,
+                turn_index=final_turn_index,
+                speaker="assistant",
+                text=assistant_text,
+                weakness_focus=turn_result.payload.weakness_focus if turn_result.ok else "",
+                created_at=turn_now,
+                commit=False,
+            )
+            self.dialogue_repository.update_session_progress(
+                session_id=session_id,
+                last_turn_index=final_turn_index,
+                user_turn_count=session.session.user_turn_count,
+                updated_at=turn_now,
+                commit=False,
+            )
+
+        if turn_result.payload.should_finish or session.session.user_turn_count >= 5:
+            result = self.complete_dialogue_session(session_id)
+            refreshed = self.load_dialogue_session(session_id)
+            refreshed.result = result
+            return refreshed
+        return self.load_dialogue_session(session_id)
+
+    def complete_dialogue_session(self, session_id: str) -> DialogueResult:
+        session = self.load_dialogue_session(session_id)
+        if session.session.status == "completed" and session.result is not None:
+            return session.result
+        if session.session.status == "completed":
+            return self._dialogue_result_from_session(session, ok=True)
+
+        user_answer = "\n\n".join(turn.text for turn in session.turns if turn.speaker == "user").strip()
+        if not user_answer:
+            return DialogueResult(False, session_id=session_id, ticket_id=session.ticket.ticket_id, error="Диалог не содержит пользовательских ответов.")
+
+        evaluation = self.evaluate_answer(
+            session.ticket.ticket_id,
+            "review",
+            user_answer,
+            model=session.session.resolved_model or self._settings.model,
+            include_followups=False,
+        )
+        final_summary = evaluation.feedback
+        final_verdict = evaluation.review.overall_comment if evaluation.review else evaluation.feedback
+        now = datetime.now().isoformat()
+        with self.connection:
+            self.dialogue_repository.mark_session_completed(
+                session_id=session_id,
+                last_turn_index=session.session.last_turn_index,
+                user_turn_count=session.session.user_turn_count,
+                final_score_percent=evaluation.score_percent,
+                final_verdict=final_verdict,
+                final_summary=final_summary,
+                final_feedback=evaluation.feedback,
+                completed_at=now,
+                updated_at=now,
+                commit=False,
+            )
+        return self._dialogue_result_from_evaluation(session, evaluation, final_verdict, final_summary)
+
+    @staticmethod
+    def _normalize_dialogue_persona(persona_kind: str) -> str:
+        normalized = (persona_kind or "tutor").strip().lower()
+        if normalized in {"examiner", "strict_examiner", "strict-examiner"}:
+            return "examiner"
+        return "tutor"
+
+    def _generate_dialogue_turn(
+        self,
+        ticket,
+        session_id: str,
+        persona_kind: str,
+        turns,
+        *,
+        opening: bool,
+        seed_focus: str | None = None,
+    ):
+        profile = get_answer_profile(ticket.answer_profile_code)
+        weak_points = self._dialogue_weak_points(ticket.ticket_id, turns=turns, seed_focus=seed_focus)
+        transcript = [
+            DialogueTranscriptLine(turn.speaker, turn.text)
+            for turn in turns[-8:]
+        ]
+        if opening and not transcript:
+            transcript = []
+        context = DialogueTurnContext(
+            session_id=session_id,
+            ticket_id=ticket.ticket_id,
+            ticket_title=ticket.title,
+            ticket_summary=ticket.canonical_answer_summary,
+            persona_kind=persona_kind,
+            turn_index=(turns[-1].turn_index + 1) if turns else 1,
+            transcript=transcript,
+            ticket_atoms=[
+                {
+                    "atom_id": atom.atom_id,
+                    "type": atom.type.value,
+                    "label": atom.label,
+                    "text": atom.text,
+                }
+                for atom in ticket.atoms[:8]
+            ],
+            ticket_answer_blocks=[
+                {
+                    "block_code": block.block_code.value,
+                    "title": block.title,
+                    "expected_content": block.expected_content,
+                }
+                for block in ticket.answer_blocks[:6]
+            ],
+            examiner_prompts=[prompt.text for prompt in ticket.examiner_prompts[:6]],
+            answer_profile_hints=[
+                hint
+                for hint in (
+                    [profile.description]
+                    + [block.training_hint for block in profile.blocks if block.training_hint]
+                    + [block.followup_hint for block in profile.blocks if block.followup_hint]
+                )
+                if hint
+            ][:8],
+            weak_points=weak_points,
+        )
+        session_row = None if opening else self.dialogue_repository.load_session_row(session_id)
+        resolved_model = session_row["resolved_model"] if session_row is not None and session_row["resolved_model"] else self._settings.model
+        return self.build_ollama_service().generate_dialogue_turn(context, resolved_model)
+
+    def _dialogue_weak_points(self, ticket_id: str, *, turns, seed_focus: str | None = None) -> list[str]:
+        points: list[str] = []
+        if seed_focus and seed_focus.strip():
+            points.append(seed_focus.strip())
+        for row in self.queries.load_weak_areas():
+            related_ids = json_load(row["related_ticket_ids_json"])
+            if row["reference_id"] == ticket_id or ticket_id in related_ids:
+                title = str(row["title"] or "").strip()
+                if title and title not in points:
+                    points.append(title)
+        for turn in turns:
+            if turn.speaker == "assistant":
+                focus = turn.weakness_focus.strip()
+                if focus and focus not in points:
+                    points.append(focus)
+        for session_row in self.dialogue_repository.load_recent_sessions(
+            "local-user",
+            limit=5,
+            ticket_id=ticket_id,
+            status="completed",
+        ):
+            for turn_row in self.dialogue_repository.load_session_turns(session_row["session_id"]):
+                focus = str(turn_row["weakness_focus"] or "").strip()
+                if focus and focus not in points:
+                    points.append(focus)
+                if len(points) >= 6:
+                    return points[:6]
+        return points[:6]
+
+    @staticmethod
+    def _dialogue_message_text(feedback_text: str, next_question: str) -> str:
+        parts = [feedback_text.strip(), next_question.strip()]
+        return "\n\n".join(part for part in parts if part)
+
+    @staticmethod
+    def _dialogue_opening_fallback(ticket, persona_kind: str) -> str:
+        persona_label = "экзаменатор" if persona_kind == "examiner" else "тьютор"
+        return (
+            f"Начинаем разбор билета «{ticket.title}». Я ваш локальный {persona_label}. "
+            "Держитесь только материала билета и начните с краткого опорного ответа."
+        )
+
+    def _dialogue_followup_fallback(self, session: DialogueSessionState) -> str:
+        weak_points = self._dialogue_weak_points(session.ticket.ticket_id, turns=session.turns)
+        if weak_points:
+            return (
+                f"Уточните слабый блок: {weak_points[0]}.\n\n"
+                f"Как именно этот фрагмент раскрывается в билете «{session.ticket.title}»?"
+            )
+        if session.ticket.examiner_prompts:
+            return session.ticket.examiner_prompts[0].text
+        return f"Сформулируйте связный ответ по билету «{session.ticket.title}» без выхода за пределы материала."
+
+    def _dialogue_result_from_evaluation(
+        self,
+        session: DialogueSessionState,
+        evaluation: TrainingEvaluationResult,
+        final_verdict: str,
+        final_summary: str,
+    ) -> DialogueResult:
+        return DialogueResult(
+            ok=evaluation.ok,
+            session_id=session.session.session_id,
+            ticket_id=session.ticket.ticket_id,
+            persona_kind=session.session.persona_kind,
+            score_percent=evaluation.score_percent,
+            feedback=evaluation.feedback,
+            weak_points=evaluation.weak_points,
+            answer_profile_code=evaluation.answer_profile_code,
+            block_scores=evaluation.block_scores,
+            criterion_scores=evaluation.criterion_scores,
+            followup_questions=evaluation.followup_questions,
+            final_verdict=final_verdict,
+            final_summary=final_summary,
+            review=evaluation.review,
+            error=evaluation.error,
+        )
+
+    def _dialogue_result_from_session(self, session: DialogueSessionState, *, ok: bool) -> DialogueResult:
+        weak_points = []
+        for turn in session.turns:
+            if turn.speaker == "assistant":
+                focus = turn.weakness_focus.strip()
+                if focus and focus not in weak_points:
+                    weak_points.append(focus)
+        return DialogueResult(
+            ok=ok,
+            session_id=session.session.session_id,
+            ticket_id=session.ticket.ticket_id,
+            persona_kind=session.session.persona_kind,
+            score_percent=session.session.score_percent,
+            feedback=session.result.feedback if session.result is not None else session.session.summary,
+            weak_points=weak_points[:4],
+            answer_profile_code=session.ticket.answer_profile_code.value,
+            final_verdict=session.session.verdict,
+            final_summary=session.session.summary,
+            review=session.result.review if session.result is not None else None,
+        )
 
     def load_readiness_score(self, tickets=None, mastery=None):
         from application.ui_data import ReadinessScore
@@ -411,12 +775,21 @@ class AppFacade:
             )
         return result
 
-    def evaluate_answer(self, ticket_id: str, mode_key: str, answer_text: str) -> TrainingEvaluationResult:
+    def evaluate_answer(
+        self,
+        ticket_id: str,
+        mode_key: str,
+        answer_text: str,
+        *,
+        model: str | None = None,
+        include_followups: bool = True,
+    ) -> TrainingEvaluationResult:
         answer = answer_text.strip()
         if not answer:
             return TrainingEvaluationResult(False, 0, "", [], error="Ответ пуст. Введите текст ответа перед проверкой.")
 
         ticket = self.queries.load_ticket_map(ticket_id)
+        resolved_model = model or self._settings.model
         exercise = self._pick_exercise(ticket, mode_key)
         profile = self._load_profile(ticket_id)
         block_profile = self._load_block_profile(ticket_id)
@@ -433,14 +806,14 @@ class AppFacade:
         self._refresh_review_queue()
 
         followups: list[str] = []
-        if self._settings.examiner_followups:
+        if include_followups and self._settings.examiner_followups:
             weak_titles = [area.title for area in outcome.weak_areas[:2]]
             if weak_titles:
                 llm_result = self.build_ollama_service().generate_followup_questions(
                     ticket.title,
                     ticket.canonical_answer_summary,
                     weak_titles,
-                    self._settings.model,
+                    resolved_model,
                     count=2,
                 )
                 if llm_result.ok and llm_result.content:
@@ -451,7 +824,7 @@ class AppFacade:
             review_verdict = self.scoring.build_review_verdict(
                 ticket, mode_key, answer,
                 ollama_service=self.build_ollama_service(),
-                model=self._settings.model,
+                model=resolved_model,
             )
 
         return TrainingEvaluationResult(

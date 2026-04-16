@@ -6,8 +6,10 @@ import json
 
 from domain.answer_profile import AnswerBlockCode, TicketAnswerBlock
 from domain.knowledge import AtomType, ExaminerPrompt, KnowledgeAtom
+from infrastructure.ollama.dialogue import DialogueTurnContext, DialogueTurnPayload, DialogueTurnResult
 from infrastructure.ollama.client import OllamaClient, OllamaResponse
 from infrastructure.ollama.prompts import (
+    dialogue_turn_prompt,
     followup_questions_prompt,
     logical_gaps_prompt,
     oral_answer_prompt,
@@ -217,6 +219,22 @@ class OllamaService:
             return OllamaScenarioResult(False, "", False, response.latency_ms, str(exc))
         return OllamaScenarioResult(True, json.dumps(parsed, ensure_ascii=False), True, response.latency_ms)
 
+    def generate_dialogue_turn(self, context: DialogueTurnContext, model: str) -> DialogueTurnResult:
+        system, prompt = dialogue_turn_prompt(context)
+        response = self.request_generation(model, prompt, system=system, format_name="json", temperature=0.25)
+        if not response.ok:
+            return self._dialogue_turn_fallback(context, model, response.latency_ms, response.error)
+
+        try:
+            payload = self._parse_json_response(response.payload.get("response", ""))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            return self._dialogue_turn_fallback(context, model, response.latency_ms, str(exc))
+
+        parsed_payload = self._parse_dialogue_turn_payload(payload, context)
+        if parsed_payload is None:
+            return self._dialogue_turn_fallback(context, model, response.latency_ms, "LLM returned incomplete dialogue JSON")
+        return DialogueTurnResult(True, parsed_payload, True, False, response.latency_ms)
+
     def refine_ticket_structure(
         self,
         title: str,
@@ -330,6 +348,66 @@ class OllamaService:
             content=str(response.payload.get("response", "")).strip(),
             used_llm=True,
             latency_ms=response.latency_ms,
+        )
+
+    def _dialogue_turn_fallback(
+        self,
+        context: DialogueTurnContext,
+        model: str,
+        latency_ms: int | None,
+        error_text: str,
+    ) -> DialogueTurnResult:
+        fallback_focus = self._dialogue_weakness_focus(context)
+        weak_points = context.weak_points or [fallback_focus] if fallback_focus else context.weak_points
+        fallback_result = self.generate_followup_questions(
+            context.ticket_title,
+            context.ticket_summary,
+            weak_points,
+            model,
+            count=1,
+        )
+        next_question = self._extract_first_followup_question(fallback_result.content) if fallback_result.ok else ""
+        if not next_question:
+            next_question = self._build_local_dialogue_question(context, fallback_focus)
+        feedback = self._build_local_dialogue_feedback(context, fallback_focus)
+        payload = DialogueTurnPayload(
+            feedback_text=feedback,
+            next_question=next_question,
+            weakness_focus=fallback_focus,
+            should_finish=False,
+            finish_reason="fallback_followup_generator" if fallback_result.ok and fallback_result.content else "fallback_local",
+        )
+        return DialogueTurnResult(
+            ok=True,
+            payload=payload,
+            used_llm=False,
+            used_fallback=True,
+            latency_ms=fallback_result.latency_ms if fallback_result.latency_ms is not None else latency_ms,
+            error=error_text,
+        )
+
+    @staticmethod
+    def _parse_dialogue_turn_payload(payload: dict[str, object], context: DialogueTurnContext) -> DialogueTurnPayload | None:
+        feedback_text = str(payload.get("feedback_text", "")).strip()
+        next_question = str(payload.get("next_question", "")).strip()
+        weakness_focus = str(payload.get("weakness_focus", "")).strip()
+        should_finish = OllamaService._coerce_bool(payload.get("should_finish"))
+        finish_reason = str(payload.get("finish_reason", "")).strip()
+
+        if not feedback_text:
+            return None
+        if not next_question and not should_finish:
+            return None
+        if not weakness_focus:
+            weakness_focus = OllamaService._dialogue_weakness_focus(context)
+        if should_finish and not finish_reason:
+            finish_reason = "LLM signaled completion"
+        return DialogueTurnPayload(
+            feedback_text=feedback_text,
+            next_question=next_question,
+            weakness_focus=weakness_focus,
+            should_finish=should_finish,
+            finish_reason=finish_reason,
         )
 
     def request_generation(
@@ -476,6 +554,53 @@ class OllamaService:
     def _is_missing_model_error(error_text: str) -> bool:
         lower = error_text.lower()
         return "model" in lower and "not found" in lower
+
+    @staticmethod
+    def _coerce_bool(value: object) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            return normalized in {"1", "true", "yes", "y", "on"}
+        return False
+
+    @staticmethod
+    def _dialogue_weakness_focus(context: DialogueTurnContext) -> str:
+        if context.weak_points:
+            return context.weak_points[0].strip()
+        if context.answer_profile_hints:
+            return context.answer_profile_hints[0].strip()
+        if context.examiner_prompts:
+            return context.examiner_prompts[0].strip()
+        return context.ticket_title.strip()
+
+    @staticmethod
+    def _build_local_dialogue_feedback(context: DialogueTurnContext, weakness_focus: str) -> str:
+        if weakness_focus:
+            return (
+                f"Сфокусируйтесь на блоке: {weakness_focus}. "
+                "Ответ держите строго в пределах материала билета."
+            )
+        return (
+            f"Сфокусируйтесь на ключевых блоках билета '{context.ticket_title}'. "
+            "Ответ держите строго в пределах материала билета."
+        )
+
+    @staticmethod
+    def _build_local_dialogue_question(context: DialogueTurnContext, weakness_focus: str) -> str:
+        if weakness_focus:
+            return f"Уточните, как в билете '{context.ticket_title}' раскрывается {weakness_focus}."
+        return f"Назовите ключевые блоки билета '{context.ticket_title}' по исходному материалу."
+
+    @staticmethod
+    def _extract_first_followup_question(content: str) -> str:
+        for line in content.splitlines():
+            cleaned = line.strip().lstrip("-•").strip()
+            if cleaned:
+                return cleaned
+        return ""
 
     def _resolve_installed_model_name(self, preferred_model: str) -> str:
         response = self.client.get_tags()

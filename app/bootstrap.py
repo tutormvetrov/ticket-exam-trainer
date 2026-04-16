@@ -26,7 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int)
     parser.add_argument(
         "--view",
-        choices=["library", "subjects", "sections", "tickets", "import", "training", "statistics", "defense", "settings"],
+        choices=["library", "subjects", "sections", "tickets", "import", "training", "dialogue", "statistics", "defense", "settings"],
     )
     return parser.parse_args()
 

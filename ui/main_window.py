@@ -37,6 +37,7 @@ from ui.theme import DARK, LIGHT, set_app_theme
 from ui.text_admin import InterfaceTextEditorDialog, apply_text_overrides, set_debug_mode
 from ui.views.defense_view import DefenseView
 from ui.views.import_view import ImportView
+from ui.views.dialogue_view import DialogueView
 from ui.views.library_view import LibraryView
 from ui.views.sections_view import SectionsView
 from ui.views.settings_view import SettingsView
@@ -67,6 +68,7 @@ class MainWindow(QMainWindow):
         self._import_thread: ProgressThread | None = None
         self._defense_thread: ProgressThread | None = None
         self._defense_eval_thread: FunctionThread | None = None
+        self._dialogue_thread: FunctionThread | None = None
         self._update_thread: FunctionThread | None = None
         self._is_closing = False
         self.admin_store = AdminAccessStore(self.facade.workspace_root / "app_data" / "admin_access.json")
@@ -141,6 +143,7 @@ class MainWindow(QMainWindow):
             "tickets": TicketsView(self.palette_colors["shadow"]),
             "import": ImportView(self.palette_colors["shadow"]),
             "training": TrainingView(self.palette_colors["shadow"]),
+            "dialogue": DialogueView(self.palette_colors["shadow"]),
             "statistics": StatisticsView(self.palette_colors["shadow"]),
             "knowledge-map": KnowledgeMapView(self.palette_colors["shadow"]),
             "defense": DefenseView(self.palette_colors["shadow"]),
@@ -161,9 +164,16 @@ class MainWindow(QMainWindow):
         self.views["subjects"].open_library_requested.connect(lambda: self.switch_view("library"))
         self.views["sections"].open_library_requested.connect(lambda: self.switch_view("library"))
         self.views["tickets"].open_library_requested.connect(lambda: self.switch_view("library"))
+        self.views["tickets"].dialogue_requested.connect(self.open_dialogue_ticket)
         self.views["training"].open_library_requested.connect(lambda: self.switch_view("library"))
         self.views["training"].import_requested.connect(self.open_import_dialog)
         self.views["statistics"].open_library_requested.connect(lambda: self.switch_view("library"))
+        self.views["dialogue"].open_library_requested.connect(lambda: self.switch_view("library"))
+        self.views["dialogue"].open_settings_requested.connect(lambda: self.open_settings_section("ollama"))
+        self.views["dialogue"].recheck_requested.connect(self.refresh_sidebar_ollama_status)
+        self.views["dialogue"].session_start_requested.connect(self.start_dialogue_session)
+        self.views["dialogue"].session_requested.connect(self.open_dialogue_session)
+        self.views["dialogue"].turn_submitted.connect(self.submit_dialogue_turn)
         self.views["defense"].activate_requested.connect(self.activate_defense_dlc)
         self.views["defense"].create_project_requested.connect(self.create_defense_project)
         self.views["defense"].project_selected.connect(self.refresh_defense_view)
@@ -179,6 +189,7 @@ class MainWindow(QMainWindow):
         self.views["import"].open_statistics_requested.connect(lambda: self.switch_view("statistics"))
 
         self.views["knowledge-map"].train_requested.connect(self._train_from_map)
+        self.views["knowledge-map"].dialogue_requested.connect(self.open_dialogue_ticket)
         self.views["training"].evaluate_requested.connect(self.handle_training_evaluation)
         self.views["settings"].diagnostics_changed.connect(self.apply_ollama_diagnostics)
         self.views["settings"].settings_saved.connect(self.persist_settings)
@@ -226,6 +237,8 @@ class MainWindow(QMainWindow):
                     settings_view.reset_form()
         if key == "defense":
             self.refresh_defense_view(self.views["defense"].current_project_id or None)
+        if key == "dialogue" and not self.suppress_startup_background_tasks and self.latest_diagnostics is None:
+            QTimer.singleShot(0, self.refresh_sidebar_ollama_status)
         self.current_key = key
         self.sidebar.set_current(key)
         self._show_stack_page(self.stack_pages[key])
@@ -622,6 +635,12 @@ class MainWindow(QMainWindow):
         self.views["knowledge-map"].set_data(km_tickets, mastery, readiness)
         self.sidebar.set_readiness(readiness.percent)
         self.views["library"].set_readiness(readiness)
+        self.views["dialogue"].set_snapshot(
+            self.facade.load_dialogue_snapshot(tickets=km_tickets, mastery=mastery),
+            tickets=km_tickets,
+            weak_areas=weak_areas,
+            diagnostics=current_diagnostics,
+        )
         self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
         self.views["settings"].set_update_info(self.latest_update_info)
         if include_heavy:
@@ -659,6 +678,94 @@ class MainWindow(QMainWindow):
         self.views["training"].show_evaluation(result)
         if result.ok:
             self.refresh_all_views()
+
+    def open_dialogue_ticket(self, ticket_id: str) -> None:
+        if not ticket_id:
+            return
+        self.switch_view("dialogue")
+        self.views["dialogue"].select_ticket(ticket_id)
+
+    def open_dialogue_session(self, session_id: str) -> None:
+        if not session_id:
+            return
+        try:
+            session = self.facade.load_dialogue_session(session_id)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Диалог", str(exc))
+            return
+        self.switch_view("dialogue")
+        self.views["dialogue"].show_session(session)
+
+    def start_dialogue_session(self, ticket_id: str, persona_kind: str, seed_focus: str = "") -> None:
+        if not ticket_id:
+            return
+        if self._dialogue_thread is not None and self._dialogue_thread.isRunning():
+            return
+        self.switch_view("dialogue")
+        self.views["dialogue"].set_pending(True, "Создаём dialogue-сессию и готовим первое сообщение.")
+        self._dialogue_thread = FunctionThread(
+            lambda: self._start_dialogue_in_background(ticket_id, persona_kind, seed_focus or None)
+        )
+        self._dialogue_thread.succeeded.connect(self._finish_dialogue_action)
+        self._dialogue_thread.failed.connect(self._fail_dialogue_action)
+        self._dialogue_thread.finished.connect(self._clear_dialogue_thread)
+        self._dialogue_thread.start()
+
+    def submit_dialogue_turn(self, session_id: str, user_text: str, expected_last_turn_index: int) -> None:
+        if not session_id or not user_text.strip():
+            return
+        if self._dialogue_thread is not None and self._dialogue_thread.isRunning():
+            return
+        self.views["dialogue"].set_pending(True, "Отправляем turn в локальный dialogue-оркестратор.")
+        self._dialogue_thread = FunctionThread(
+            lambda: self._submit_dialogue_in_background(session_id, user_text, expected_last_turn_index)
+        )
+        self._dialogue_thread.succeeded.connect(self._finish_dialogue_action)
+        self._dialogue_thread.failed.connect(self._fail_dialogue_action)
+        self._dialogue_thread.finished.connect(self._clear_dialogue_thread)
+        self._dialogue_thread.start()
+
+    def _start_dialogue_in_background(self, ticket_id: str, persona_kind: str, seed_focus: str | None):
+        database_path = get_database_path(self.facade.workspace_root)
+        connection = connect_initialized(database_path)
+        settings_store = SettingsStore(self.facade.workspace_root / "app_data" / "settings.json")
+        worker_facade = AppFacade(self.facade.workspace_root, connection, settings_store)
+        try:
+            return worker_facade.start_dialogue_session(ticket_id, persona_kind, seed_focus=seed_focus)
+        finally:
+            connection.close()
+
+    def _submit_dialogue_in_background(self, session_id: str, user_text: str, expected_last_turn_index: int):
+        database_path = get_database_path(self.facade.workspace_root)
+        connection = connect_initialized(database_path)
+        settings_store = SettingsStore(self.facade.workspace_root / "app_data" / "settings.json")
+        worker_facade = AppFacade(self.facade.workspace_root, connection, settings_store)
+        try:
+            return worker_facade.submit_dialogue_turn(
+                session_id,
+                user_text,
+                expected_last_turn_index=expected_last_turn_index,
+            )
+        finally:
+            connection.close()
+
+    def _finish_dialogue_action(self, session_state) -> None:
+        if self._is_closing:
+            return
+        self.refresh_all_views()
+        self.switch_view("dialogue")
+        self.views["dialogue"].show_session(session_state)
+
+    def _fail_dialogue_action(self, error_text: str) -> None:
+        if self._is_closing:
+            return
+        self.views["dialogue"].set_pending(False)
+        QMessageBox.critical(self, "Диалог", error_text)
+
+    def _clear_dialogue_thread(self) -> None:
+        if self._dialogue_thread is not None:
+            self._dialogue_thread.deleteLater()
+        self._dialogue_thread = None
 
     def open_readme(self) -> None:
         from PySide6.QtCore import QUrl
@@ -886,6 +993,16 @@ class MainWindow(QMainWindow):
                 pass
             try:
                 self._defense_eval_thread.failed.disconnect()
+            except Exception:
+                pass
+        self._wait_for_thread_shutdown(self._dialogue_thread)
+        if self._dialogue_thread is not None:
+            try:
+                self._dialogue_thread.succeeded.disconnect()
+            except Exception:
+                pass
+            try:
+                self._dialogue_thread.failed.disconnect()
             except Exception:
                 pass
         self._wait_for_thread_shutdown(self._update_thread)

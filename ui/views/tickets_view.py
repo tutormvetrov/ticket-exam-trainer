@@ -68,6 +68,7 @@ class TicketListItem(ClickableFrame):
 
 class TicketsView(QWidget):
     open_library_requested = Signal()
+    dialogue_requested = Signal(str)
 
     def __init__(self, shadow_color) -> None:
         super().__init__()
@@ -262,6 +263,16 @@ class TicketsView(QWidget):
         meta.setProperty("role", "body")
         meta.setWordWrap(True)
         layout.addWidget(meta)
+
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 0, 0, 0)
+        action_row.setSpacing(10)
+        dialogue_button = QPushButton("Открыть в диалоге")
+        dialogue_button.setProperty("variant", "secondary")
+        dialogue_button.clicked.connect(lambda: self.dialogue_requested.emit(ticket.ticket_id))
+        action_row.addWidget(dialogue_button, 0, Qt.AlignmentFlag.AlignLeft)
+        action_row.addStretch(1)
+        layout.addLayout(action_row)
 
         summary = QLabel(ticket.canonical_answer_summary or "Краткое каноническое резюме пока не сформировано.")
         summary.setWordWrap(True)

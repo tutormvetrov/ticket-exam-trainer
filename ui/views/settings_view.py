@@ -221,6 +221,7 @@ class SettingsView(QWidget):
             ("Билеты", "tickets"),
             ("Импорт документов", "import"),
             ("Тренировка", "training"),
+            ("Диалог", "dialogue"),
             ("Статистика", "statistics"),
             ("Настройки", "settings"),
         ]

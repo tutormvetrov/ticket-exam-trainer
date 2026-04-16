@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+from infrastructure.ollama.dialogue import DialogueTranscriptLine, DialogueTurnContext
+
 
 def structuring_system_prompt() -> str:
     return (
@@ -146,3 +148,57 @@ def review_prompt(
         "Review the answer against each thesis. Return JSON."
     )
     return system, prompt
+
+
+def dialogue_turn_prompt(context: DialogueTurnContext) -> tuple[str, str]:
+    persona = _dialogue_persona_label(context.persona_kind)
+    if persona == "Strict Examiner":
+        system = (
+            "You are a strict examiner in a session-aware oral dialogue. "
+            "Use only the provided ticket materials and the current transcript. "
+            "Do not introduce new facts, examples, terms, names, or conclusions that are not grounded in the ticket title, summary, atoms, answer blocks, examiner prompts, or answer-profile hints. "
+            "Keep the next question short, direct, and grounded. "
+            "Return valid JSON only with keys: feedback_text, next_question, weakness_focus, should_finish, finish_reason."
+        )
+    else:
+        system = (
+            "You are a Socratic tutor in a session-aware oral dialogue. "
+            "Use only the provided ticket materials and the current transcript. "
+            "Do not introduce new facts, examples, terms, names, or conclusions that are not grounded in the ticket title, summary, atoms, answer blocks, examiner prompts, or answer-profile hints. "
+            "Keep the next question focused and constructive. "
+            "Return valid JSON only with keys: feedback_text, next_question, weakness_focus, should_finish, finish_reason."
+        )
+
+    prompt = (
+        f"SESSION_ID: {context.session_id}\n"
+        f"TICKET_ID: {context.ticket_id}\n"
+        f"TICKET_TITLE: {context.ticket_title}\n"
+        f"TICKET_SUMMARY: {context.ticket_summary}\n"
+        f"PERSONA: {persona}\n"
+        f"TURN_INDEX: {context.turn_index}\n"
+        f"TICKET_ATOMS: {json.dumps(context.ticket_atoms, ensure_ascii=False)}\n"
+        f"ANSWER_BLOCKS: {json.dumps(context.ticket_answer_blocks, ensure_ascii=False)}\n"
+        f"EXAMINER_PROMPTS: {json.dumps(context.examiner_prompts, ensure_ascii=False)}\n"
+        f"ANSWER_PROFILE_HINTS: {json.dumps(context.answer_profile_hints, ensure_ascii=False)}\n"
+        f"WEAK_POINTS: {json.dumps(context.weak_points, ensure_ascii=False)}\n"
+        f"TRANSCRIPT: {json.dumps([_turn_line_to_dict(line) for line in context.transcript], ensure_ascii=False)}\n"
+        "Rules:\n"
+        "- Stay strictly within the provided ticket materials.\n"
+        "- If the student's answer is weak, explain only the missing or weak ticket-grounded part.\n"
+        "- Do not reference outside knowledge or invent new facts.\n"
+        "- If the answer is sufficient to close the ticket, set should_finish to true and explain why.\n"
+        "- If should_finish is false, next_question must be a single concise follow-up.\n"
+        "- Return JSON only."
+    )
+    return system, prompt
+
+
+def _dialogue_persona_label(persona_kind: str) -> str:
+    normalized = persona_kind.strip().lower()
+    if normalized in {"examiner", "strict_examiner", "strict-examiner"}:
+        return "Strict Examiner"
+    return "Socratic Tutor"
+
+
+def _turn_line_to_dict(line: DialogueTranscriptLine) -> dict[str, str]:
+    return {"speaker": line.speaker, "text": line.text}

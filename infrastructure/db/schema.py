@@ -219,6 +219,37 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             FOREIGN KEY (exam_id) REFERENCES exams (exam_id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS dialogue_sessions (
+            session_id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            ticket_id TEXT NOT NULL,
+            persona_kind TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            resolved_model TEXT NOT NULL DEFAULT '',
+            started_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT,
+            last_turn_index INTEGER NOT NULL DEFAULT 0,
+            user_turn_count INTEGER NOT NULL DEFAULT 0,
+            final_score_percent INTEGER NOT NULL DEFAULT 0,
+            final_verdict TEXT NOT NULL DEFAULT '',
+            final_summary TEXT NOT NULL DEFAULT '',
+            final_feedback TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (ticket_id) REFERENCES tickets (ticket_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS dialogue_turns (
+            turn_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            turn_index INTEGER NOT NULL,
+            speaker TEXT NOT NULL CHECK (speaker IN ('user', 'assistant')),
+            text TEXT NOT NULL,
+            weakness_focus TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (session_id) REFERENCES dialogue_sessions (session_id) ON DELETE CASCADE,
+            UNIQUE (session_id, turn_index)
+        );
+
         CREATE TABLE IF NOT EXISTS attempts (
             attempt_id TEXT PRIMARY KEY,
             exercise_id TEXT NOT NULL,
@@ -499,6 +530,15 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_attempts_ticket ON attempts (ticket_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_ticket_answer_blocks_ticket ON ticket_answer_blocks (ticket_id, block_code);
         CREATE INDEX IF NOT EXISTS idx_attempt_block_scores_attempt ON attempt_block_scores (attempt_id, block_code);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_dialogue_active_session
+            ON dialogue_sessions (user_id, ticket_id, persona_kind)
+            WHERE status = 'active';
+        CREATE INDEX IF NOT EXISTS idx_dialogue_sessions_user_updated
+            ON dialogue_sessions (user_id, updated_at DESC, started_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_dialogue_sessions_ticket_updated
+            ON dialogue_sessions (ticket_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_dialogue_turns_session
+            ON dialogue_turns (session_id, turn_index);
         CREATE INDEX IF NOT EXISTS idx_weak_areas_user ON weak_areas (user_id, severity DESC);
         CREATE INDEX IF NOT EXISTS idx_review_queue_user_due ON spaced_review_queue (user_id, due_at, priority DESC);
         CREATE INDEX IF NOT EXISTS idx_thesis_sources_project ON thesis_sources (project_id, version, imported_at);
@@ -510,7 +550,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_defense_repair_tasks_project ON defense_repair_tasks (project_id, status, updated_at DESC);
 
         INSERT INTO schema_meta (key, value)
-        VALUES ('schema_version', '5')
+        VALUES ('schema_version', '6')
         ON CONFLICT(key) DO UPDATE SET value = excluded.value;
         """
     )
@@ -524,6 +564,16 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     _ensure_column(connection, "tickets", "llm_status", "TEXT NOT NULL DEFAULT 'pending'")
     _ensure_column(connection, "tickets", "llm_error", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(connection, "tickets", "answer_profile_code", "TEXT NOT NULL DEFAULT 'standard_ticket'")
+    _ensure_column(connection, "dialogue_sessions", "status", "TEXT NOT NULL DEFAULT 'active'")
+    _ensure_column(connection, "dialogue_sessions", "resolved_model", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(connection, "dialogue_sessions", "updated_at", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(connection, "dialogue_sessions", "completed_at", "TEXT")
+    _ensure_column(connection, "dialogue_sessions", "last_turn_index", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(connection, "dialogue_sessions", "user_turn_count", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(connection, "dialogue_sessions", "final_score_percent", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(connection, "dialogue_sessions", "final_verdict", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(connection, "dialogue_sessions", "final_summary", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(connection, "dialogue_sessions", "final_feedback", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(connection, "defense_sessions", "persona_kind", "TEXT NOT NULL DEFAULT 'commission'")
     _ensure_column(connection, "defense_sessions", "timer_profile_sec", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(connection, "defense_sessions", "session_notes", "TEXT NOT NULL DEFAULT ''")

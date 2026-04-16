@@ -190,7 +190,7 @@ class LibraryView(QWidget):
         dlc_title = QLabel("Платный модуль: подготовка к защите")
         dlc_title.setProperty("role", "section-title")
         dlc_title_row.addWidget(dlc_title)
-        dlc_badge = QLabel("Paywall")
+        dlc_badge = QLabel("Доступ по ключу")
         dlc_badge.setProperty("role", "pill")
         dlc_title_row.addWidget(dlc_badge, 0, Qt.AlignmentFlag.AlignVCenter)
         dlc_title_row.addStretch(1)

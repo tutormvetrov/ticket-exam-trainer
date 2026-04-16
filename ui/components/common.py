@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import Qt, QRectF, Signal, QSize, QEasingCurve, Property, QPropertyAnimation
-from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtCore import Qt, QRectF, Signal, QSize, QEasingCurve, Property, QPropertyAnimation, QByteArray
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
+from app.paths import logo_assets_dir
 from ui.icons import SvgIconLabel
-from ui.theme import alpha_color, apply_shadow, current_colors, is_dark_palette, mastery_band_color
+from ui.theme import alpha_color, apply_shadow, current_colors, is_dark_palette, logo_palette, mastery_band_color
 
 
 def harden_plain_text(*labels: QLabel) -> None:
@@ -61,50 +63,108 @@ class CardFrame(QFrame):
             apply_shadow(self, shadow_color)
 
 
+_LOGO_VARIANT_THRESHOLD_PX = 40
+
+
 class LogoMark(QWidget):
+    """Академический медальон, загружаемый из SVG-шаблона.
+
+    Размер ≥ 40px — полная версия (кольца, пунктир, засечки).
+    Размер < 40px — упрощённая (только диск + «Т»).
+    При смене темы виджет перерисовывается через refresh_theme().
+
+    Внутренне SVG рендерится один раз в кэш-QPixmap; paintEvent только
+    копирует пиксмап на виджет. Это необходимо, потому что LogoMark
+    обычно сидит внутри CardFrame с QGraphicsDropShadowEffect — при
+    рендере эффекта Qt редиректит paintEvent дочерних виджетов в
+    effect-source pixmap, и QSvgRenderer.render(QPainter(self), …)
+    конфликтует с этим редиректом (плюёт QPainter/WorldTransform
+    warning'ами). Рендер SVG в отдельный QPixmap обходит проблему,
+    потому что там painter гарантированно «свой».
+    """
+
     def __init__(self, size: int = 52) -> None:
         super().__init__()
         self.setFixedSize(size, size)
+        self._variant = "full" if size >= _LOGO_VARIANT_THRESHOLD_PX else "minimal"
+        self._template_bytes: bytes | None = None
+        self._cached_pixmap: QPixmap | None = None
+        self._cached_palette_key: tuple[bool, ...] | None = None
+
+    def refresh_theme(self) -> None:
+        self._cached_pixmap = None
+        self._cached_palette_key = None
+        self.update()
+
+    def _load_template(self) -> bytes:
+        if self._template_bytes is None:
+            filename = f"mark-{self._variant}.svg.template"
+            path = logo_assets_dir() / filename
+            self._template_bytes = path.read_bytes()
+        return self._template_bytes
+
+    def _build_svg(self) -> QByteArray:
+        is_dark = is_dark_palette()
+        palette = logo_palette(is_dark)
+        template = self._load_template().decode("utf-8")
+        for key, value in palette.items():
+            template = template.replace(f"{{{{{key}}}}}", value)
+        return QByteArray(template.encode("utf-8"))
+
+    def _ensure_pixmap(self) -> QPixmap:
+        is_dark = is_dark_palette()
+        palette_key = (is_dark,)
+        if self._cached_pixmap is not None and self._cached_palette_key == palette_key:
+            return self._cached_pixmap
+        pixmap = QPixmap(self.width(), self.height())
+        pixmap.fill(Qt.GlobalColor.transparent)
+        try:
+            svg = self._build_svg()
+        except OSError:
+            pixmap = self._build_fallback_pixmap()
+            self._cached_pixmap = pixmap
+            self._cached_palette_key = palette_key
+            return pixmap
+        renderer = QSvgRenderer(svg)
+        if not renderer.isValid():
+            pixmap = self._build_fallback_pixmap()
+            self._cached_pixmap = pixmap
+            self._cached_palette_key = palette_key
+            return pixmap
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        renderer.render(painter, QRectF(0, 0, self.width(), self.height()))
+        painter.end()
+        self._cached_pixmap = pixmap
+        self._cached_palette_key = palette_key
+        return pixmap
+
+    def _build_fallback_pixmap(self) -> QPixmap:
+        pixmap = QPixmap(self.width(), self.height())
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        colors = current_colors()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(colors["primary"]))
+        painter.drawEllipse(QRectF(2, 2, self.width() - 4, self.height() - 4))
+        painter.setPen(QColor("#FFFFFF"))
+        painter.setFont(QFont(QApplication.font().family(), max(8, self.width() // 3), 800))
+        painter.drawText(QRectF(0, 0, self.width(), self.height()), Qt.AlignmentFlag.AlignCenter, "Т")
+        painter.end()
+        return pixmap
 
     def paintEvent(self, event) -> None:  # noqa: N802
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-
-        colors = current_colors()
-        gradient = QLinearGradient(8, 8, self.width() - 8, self.height() - 8)
-        if is_dark_palette():
-            gradient.setColorAt(0.0, QColor("#0A8C65"))
-            gradient.setColorAt(0.55, QColor("#23D18B"))
-            gradient.setColorAt(1.0, QColor("#88F2C2"))
-        else:
-            gradient.setColorAt(0.0, QColor("#047857"))
-            gradient.setColorAt(0.55, QColor("#10B981"))
-            gradient.setColorAt(1.0, QColor("#6EE7B7"))
-
-        def draw_slice(top: float, left: float, right: float, height: float, trim: float) -> None:
-            path = QPainterPath()
-            path.moveTo(left, top + height)
-            path.quadTo(left + 12, top + height - 12, left + 24, top)
-            path.lineTo(right - trim, top + height * 0.38)
-            path.quadTo(right + 2, top + height * 0.54, right - 2, top + height)
-            path.lineTo(left, top + height)
-            path.closeSubpath()
-            painter.drawPath(path)
-
-        glow_pen = QPen(QColor("#23D18B" if is_dark_palette() else "#0F9F6E"), 1.8)
-        glow_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        painter.setPen(glow_pen)
-        painter.setBrush(gradient)
-        draw_slice(7, 8, 42, 26, 2)
-        draw_slice(23, 15, 46, 19, 4)
-        draw_slice(35, 22, 48, 13, 5)
-
-        cut_pen = QPen(QColor(colors["card_bg"] if is_dark_palette() else "#ECFFF7"), 4.0)
-        cut_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(cut_pen)
-        painter.drawArc(QRectF(10, 11, 34, 24), 210 * 16, -70 * 16)
-        painter.drawArc(QRectF(17, 25, 28, 18), 205 * 16, -72 * 16)
+        painter = QPainter()
+        if not painter.begin(self):
+            # Paint device занят (обычно — в момент рендера родительского
+            # QGraphicsDropShadowEffect). Тихо пропускаем этот кадр:
+            # виджет перерисуется, когда Qt отпустит устройство.
+            return
+        try:
+            painter.drawPixmap(0, 0, self._ensure_pixmap())
+        finally:
+            painter.end()
 
 
 class IconBadge(QFrame):

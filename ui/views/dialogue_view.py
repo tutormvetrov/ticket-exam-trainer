@@ -32,6 +32,22 @@ from ui.icons import apply_button_icon
 from ui.theme import current_colors
 
 
+def _plural_replies(count: int) -> str:
+    """«0 реплик» / «1 реплика» / «2 реплики» / «5 реплик» (русский плюрал)."""
+    n = abs(int(count))
+    tens = n % 100
+    ones = n % 10
+    if 11 <= tens <= 14:
+        word = "реплик"
+    elif ones == 1:
+        word = "реплика"
+    elif 2 <= ones <= 4:
+        word = "реплики"
+    else:
+        word = "реплик"
+    return f"{count} {word}"
+
+
 class DialogueTicketRow(ClickableFrame):
     clicked_ticket = Signal(str)
 
@@ -56,7 +72,7 @@ class DialogueTicketRow(ClickableFrame):
         self.title_label.setWordWrap(True)
         head.addWidget(self.title_label, 1)
 
-        self.active_chip = QLabel("ACTIVE")
+        self.active_chip = QLabel("ИДЁТ")
         self.active_chip.setProperty("role", "pill")
         self.active_chip.setVisible(ticket.has_active_session)
         head.addWidget(self.active_chip, 0, Qt.AlignmentFlag.AlignTop)
@@ -149,7 +165,7 @@ class DialogueSessionRow(ClickableFrame):
         border = colors["primary"] if selected else colors["border"]
         background = colors["primary_soft"] if selected else colors["card_bg"]
         self.setStyleSheet(f"QFrame {{ background: {background}; border: 1px solid {border}; border-radius: 16px; }}")
-        persona = "Examiner" if self.session.persona_kind == "examiner" else "Tutor"
+        persona = "Экзаменатор" if self.session.persona_kind == "examiner" else "Наставник"
         meta_parts = [persona, self.session.updated_label]
         if self.session.completed_label and self.session.status == "completed":
             meta_parts.append(self.session.completed_label)
@@ -208,7 +224,7 @@ class DialogueTurnBubble(QWidget):
         else:
             background = colors["card_bg"]
             border = colors["border"]
-            header = "Examiner" if self.persona_kind == "examiner" else "Tutor"
+            header = "Экзаменатор" if self.persona_kind == "examiner" else "Наставник"
         self.card.setMaximumWidth(560)
         self.card.setStyleSheet(
             f"QFrame#DialogueTurnBubble {{ background: {background}; border: 1px solid {border}; border-radius: 18px; }}"
@@ -256,7 +272,7 @@ class DialogueView(QWidget):
         title = QLabel("Диалог")
         title.setProperty("role", "hero")
         titles.addWidget(title)
-        subtitle = QLabel("Отдельный билетный режим: grounded transcript, билетный контекст и итоговая оценка через существующий scoring pipeline.")
+        subtitle = QLabel("Отдельный билетный режим: связный диалог по выбранному билету, контекст материалов и итоговая оценка через существующий движок скоринга.")
         subtitle.setProperty("role", "page-subtitle")
         subtitle.setWordWrap(True)
         titles.addWidget(subtitle)
@@ -311,10 +327,10 @@ class DialogueView(QWidget):
         persona_row.setSpacing(8)
         self.persona_group = QButtonGroup(self)
         self.persona_group.setExclusive(True)
-        self.tutor_button = QPushButton("Tutor")
+        self.tutor_button = QPushButton("Наставник")
         self.tutor_button.setCheckable(True)
         self.tutor_button.setProperty("variant", "tab")
-        self.examiner_button = QPushButton("Examiner")
+        self.examiner_button = QPushButton("Экзаменатор")
         self.examiner_button.setCheckable(True)
         self.examiner_button.setProperty("variant", "tab")
         self.persona_group.addButton(self.tutor_button)
@@ -407,11 +423,11 @@ class DialogueView(QWidget):
         transcript_header = QHBoxLayout()
         transcript_header.setContentsMargins(0, 0, 0, 0)
         transcript_header.setSpacing(8)
-        transcript_title = QLabel("Transcript")
+        transcript_title = QLabel("Протокол")
         transcript_title.setProperty("role", "section-title")
         transcript_header.addWidget(transcript_title)
         transcript_header.addStretch(1)
-        self.transcript_chip = QLabel("0 turn")
+        self.transcript_chip = QLabel(_plural_replies(0))
         self.transcript_chip.setProperty("role", "pill")
         transcript_header.addWidget(self.transcript_chip)
         transcript_layout.addLayout(transcript_header)
@@ -490,7 +506,7 @@ class DialogueView(QWidget):
         summary_layout = QVBoxLayout(self.summary_card)
         summary_layout.setContentsMargins(18, 16, 18, 16)
         summary_layout.setSpacing(10)
-        summary_title = QLabel("Summary")
+        summary_title = QLabel("Резюме")
         summary_title.setProperty("role", "section-title")
         summary_layout.addWidget(summary_title)
         self.summary_body = QLabel("Выберите билет, чтобы увидеть каноническое резюме.")
@@ -508,7 +524,7 @@ class DialogueView(QWidget):
         structure_layout = QVBoxLayout(self.structure_card)
         structure_layout.setContentsMargins(18, 16, 18, 16)
         structure_layout.setSpacing(10)
-        structure_title = QLabel("Structure")
+        structure_title = QLabel("Структура")
         structure_title.setProperty("role", "section-title")
         structure_layout.addWidget(structure_title)
         self.structure_body = QLabel("Здесь появятся answer blocks, atoms и examiner prompts.")
@@ -522,7 +538,7 @@ class DialogueView(QWidget):
         weak_layout = QVBoxLayout(self.weak_card)
         weak_layout.setContentsMargins(18, 16, 18, 16)
         weak_layout.setSpacing(10)
-        weak_title = QLabel("Weak Areas")
+        weak_title = QLabel("Слабые места")
         weak_title.setProperty("role", "section-title")
         weak_layout.addWidget(weak_title)
         self.weak_body = QLabel("Для выбранного билета слабые места пока не показаны.")
@@ -726,13 +742,13 @@ class DialogueView(QWidget):
                     role="subtle-card",
                 )
             )
-            self.transcript_chip.setText("0 turn")
+            self.transcript_chip.setText(_plural_replies(0))
             return
         persona_kind = self.current_session.session.persona_kind if self.current_session is not None else self.persona_kind
         for turn in turns:
             self.transcript_body_layout.addWidget(DialogueTurnBubble(turn, persona_kind=persona_kind))
         self.transcript_body_layout.addStretch(1)
-        self.transcript_chip.setText(f"{len(turns)} turn")
+        self.transcript_chip.setText(_plural_replies(len(turns)))
         self.transcript_scroll.verticalScrollBar().setValue(self.transcript_scroll.verticalScrollBar().maximum())
 
     def _refresh_context(self) -> None:

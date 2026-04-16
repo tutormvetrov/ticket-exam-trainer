@@ -66,7 +66,7 @@ class Sidebar(QWidget):
         title.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         title_box.addWidget(title)
 
-        subtitle = QLabel("Local exam engine")
+        subtitle = QLabel("Локальный тренажёр билетов")
         subtitle.setProperty("role", "brand-subtitle")
         title_box.addWidget(subtitle)
 

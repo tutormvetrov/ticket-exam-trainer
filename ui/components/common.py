@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QRectF, Signal, QSize
+from PySide6.QtCore import Qt, QRectF, Signal, QSize, QEasingCurve, Property, QPropertyAnimation
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
@@ -242,6 +242,37 @@ class DonutChart(QWidget):
     def set_percent(self, percent: int) -> None:
         self.percent = max(0, min(100, int(percent)))
         self.update()
+
+    def animate_to(self, percent: int) -> None:
+        target = max(0, min(100, int(percent)))
+        if not hasattr(self, "_animation"):
+            self._animation = QPropertyAnimation(self, b"animatedPercent", self)
+            self._animation.setDuration(800)
+            self._animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._animation.stop()
+        self._animation.setStartValue(self.percent)
+        self._animation.setEndValue(target)
+        self._animation.start()
+
+    def get_animated_percent(self) -> int:
+        return self.percent
+
+    def set_animated_percent(self, value: int) -> None:
+        self.percent = max(0, min(100, int(value)))
+        self._update_accent_for_percent()
+        self.update()
+
+    animatedPercent = Property(int, get_animated_percent, set_animated_percent)
+
+    def _update_accent_for_percent(self) -> None:
+        if self.percent <= 30:
+            self.accent = QColor("#EF5350")
+        elif self.percent <= 60:
+            self.accent = QColor("#FFA726")
+        elif self.percent <= 80:
+            self.accent = QColor("#FFEE58")
+        else:
+            self.accent = QColor("#66BB6A")
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)

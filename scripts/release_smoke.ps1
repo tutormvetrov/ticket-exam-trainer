@@ -72,8 +72,16 @@ public static class TezisNativeWindow {
     }
     [DllImport("user32.dll")]
     public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 }
 "@
+
+    [void][TezisNativeWindow]::ShowWindow($process.MainWindowHandle, 5)
+    [void][TezisNativeWindow]::SetForegroundWindow($process.MainWindowHandle)
+    Start-Sleep -Milliseconds 600
 
     $rect = New-Object TezisNativeWindow+RECT
     $ok = [TezisNativeWindow]::GetWindowRect($process.MainWindowHandle, [ref]$rect)

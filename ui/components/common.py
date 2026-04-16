@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import Qt, QRectF, Signal, QSize, QEasingCurve, Property, QPropertyAnimation, QByteArray
-from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
@@ -80,7 +80,7 @@ class LogoMark(QWidget):
         self._variant = "full" if size >= _LOGO_VARIANT_THRESHOLD_PX else "minimal"
         self._template_bytes: bytes | None = None
         self._cached_svg: QByteArray | None = None
-        self._cached_palette_key: tuple[bool] | None = None
+        self._cached_palette_key: tuple[bool, ...] | None = None
 
     def refresh_theme(self) -> None:
         self._cached_svg = None

@@ -71,8 +71,9 @@ def logo_assets_dir() -> Path:
     """Папка с брендовыми SVG-шаблонами логотипа.
 
     В dev-режиме — `<repo>/assets/logo`. В PyInstaller-сборке `sys.frozen`
-    выставлено, и данные лежат рядом с исполняемым файлом (см. `--add-data`
-    в scripts/build_exe.ps1).
+    выставлено, и данные распаковываются в `sys._MEIPASS` (см. `--add-data`
+    в scripts/build_exe.ps1). Это может быть `_internal/` в onedir-режиме
+    или временный каталог в onefile-режиме.
     """
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "assets" / "logo"  # type: ignore[attr-defined]

@@ -86,19 +86,20 @@ def test_logo_mark_theme_refresh_rebuilds_svg(qt_app) -> None:
     from ui.components.common import LogoMark
     from ui.theme import set_app_theme
 
-    set_app_theme(qt_app, "light", "inter-style", 14)
-    widget = LogoMark(size=52)
-    svg_light = bytes(widget._build_svg())
-    assert b"#228F64" in svg_light  # изумруд light
+    try:
+        set_app_theme(qt_app, "light", "inter-style", 14)
+        widget = LogoMark(size=52)
+        svg_light = bytes(widget._build_svg())
+        assert b"#228F64" in svg_light  # изумруд light
 
-    set_app_theme(qt_app, "dark", "inter-style", 14)
-    widget.refresh_theme()
-    svg_dark = bytes(widget._build_svg())
-    assert b"#2AA076" in svg_dark  # изумруд dark
-    assert svg_light != svg_dark
-
-    # Восстановить light, чтобы не зааффектить другие тесты.
-    set_app_theme(qt_app, "light", "inter-style", 14)
+        set_app_theme(qt_app, "dark", "inter-style", 14)
+        widget.refresh_theme()
+        svg_dark = bytes(widget._build_svg())
+        assert b"#2AA076" in svg_dark  # изумруд dark
+        assert svg_light != svg_dark
+    finally:
+        # Восстановить light, чтобы не зааффектить другие тесты даже при падении.
+        set_app_theme(qt_app, "light", "inter-style", 14)
 
 
 def test_logo_mark_svg_has_no_unresolved_placeholders(qt_app) -> None:

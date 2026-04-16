@@ -163,33 +163,48 @@ class TrainingWorkspaceBase(QWidget):
         result_layout.addWidget(self.result_body)
         self.content_layout.addWidget(self.result_box)
 
+        self.review_widget = ReviewVerdictWidget()
+        self.review_widget.hide()
+        self.content_layout.addWidget(self.review_widget)
+
     def deactivate(self) -> None:
         return
 
     def set_ticket(self, ticket: TicketKnowledgeMap | None) -> None:
         self.current_ticket = ticket
         self.result_body.setText("Действие ещё не выполнялось.")
+        self.review_widget.hide()
+        self.result_box.show()
         self._set_ticket(ticket)
 
     def show_evaluation(self, result: TrainingEvaluationResult) -> None:
         if not result.ok:
+            self.review_widget.hide()
+            self.result_box.show()
             self.result_body.setText(result.error or "Проверка завершилась ошибкой.")
             return
-        lines = [f"Оценка: {result.score_percent}%"]
-        if result.feedback:
-            lines.append(result.feedback)
-        if result.weak_points:
-            lines.append("Слабые места: " + ", ".join(result.weak_points[:4]))
-        if result.block_scores:
-            lines.append("Блоки госответа:")
-            lines.extend(f"• {_block_display_name(code)}: {score}%" for code, score in result.block_scores.items())
-        if result.criterion_scores:
-            lines.append("Критерии оценки:")
-            lines.extend(f"• {_criterion_display_name(code)}: {score}%" for code, score in result.criterion_scores.items())
-        if result.followup_questions:
-            lines.append("Уточняющие вопросы:")
-            lines.extend(f"• {question}" for question in result.followup_questions[:3])
-        self.result_body.setText("\n".join(lines))
+        if result.review is not None:
+            self.result_box.hide()
+            self.review_widget.set_verdict(result.review)
+            self.review_widget.show()
+        else:
+            self.review_widget.hide()
+            self.result_box.show()
+            lines = [f"Оценка: {result.score_percent}%"]
+            if result.feedback:
+                lines.append(result.feedback)
+            if result.weak_points:
+                lines.append("Слабые места: " + ", ".join(result.weak_points[:4]))
+            if result.block_scores:
+                lines.append("Блоки госответа:")
+                lines.extend(f"• {_block_display_name(code)}: {score}%" for code, score in result.block_scores.items())
+            if result.criterion_scores:
+                lines.append("Критерии оценки:")
+                lines.extend(f"• {_criterion_display_name(code)}: {score}%" for code, score in result.criterion_scores.items())
+            if result.followup_questions:
+                lines.append("Уточняющие вопросы:")
+                lines.extend(f"• {question}" for question in result.followup_questions[:3])
+            self.result_body.setText("\n".join(lines))
 
     def _show_empty(self, title: str | None = None, body: str | None = None) -> None:
         self.empty_title.setText(title or self.spec.empty_title)
@@ -197,6 +212,7 @@ class TrainingWorkspaceBase(QWidget):
         self.empty_box.show()
         self.content.hide()
         self.hint_label.hide()
+        self.review_widget.hide()
 
     def _show_content(self) -> None:
         self.empty_box.hide()

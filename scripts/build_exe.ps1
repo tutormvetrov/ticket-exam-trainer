@@ -76,6 +76,7 @@ if (Test-Path -LiteralPath $specDir) {
     Remove-Item -LiteralPath $specDir -Recurse -Force
 }
 
+$logoAssets = Join-Path $root "assets/logo"
 & $PythonExe -m PyInstaller `
     --noconfirm `
     --clean `
@@ -84,6 +85,7 @@ if (Test-Path -LiteralPath $specDir) {
     --distpath $stageDistRoot `
     --workpath $workDir `
     --specpath $specDir `
+    --add-data "${logoAssets};assets/logo" `
     (Join-Path $root "main.py")
 
 if (-not (Test-Path -LiteralPath $stageReleaseDir)) {

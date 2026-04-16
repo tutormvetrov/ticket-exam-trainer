@@ -62,7 +62,8 @@ def test_defense_view_unlocks_and_creates_project(tmp_path: Path, monkeypatch) -
     view = window.views["defense"]
 
     assert not view.paywall_card.isHidden()
-    code = facade.issue_local_defense_activation_code()
+    license_service = facade.defense.license_service
+    code = license_service.issue_legacy_code(license_service.ensure_install_id())
     view.activation_input.setText(code)
     view.activate_button.click()
 

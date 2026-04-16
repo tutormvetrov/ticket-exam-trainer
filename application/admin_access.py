@@ -9,6 +9,11 @@ import secrets
 from app.json_storage import load_json_dict, save_json_dict
 
 
+_PBKDF2_ALGO = "pbkdf2_sha256"
+_PBKDF2_ITERATIONS = 200_000
+_LEGACY_ALGO = "sha256"
+
+
 @dataclass(slots=True)
 class AdminAccessState:
     configured: bool
@@ -32,10 +37,21 @@ class AdminAccessStore:
         payload = self._load_payload()
         password_hash = payload.get("password_hash", "")
         salt = payload.get("salt", "")
+        algo = str(payload.get("algo", "")) or _LEGACY_ALGO
         if not password_hash or not salt or not password:
             return False
-        candidate = self._hash_password(password, salt)
-        return hmac.compare_digest(candidate, password_hash)
+        if algo == _PBKDF2_ALGO:
+            iterations = int(payload.get("iterations", _PBKDF2_ITERATIONS))
+            candidate = self._pbkdf2_hash(password, salt, iterations)
+            return hmac.compare_digest(candidate, password_hash)
+        if algo == _LEGACY_ALGO:
+            candidate = self._legacy_sha256_hash(password, salt)
+            if not hmac.compare_digest(candidate, password_hash):
+                return False
+            # Upgrade legacy hash to PBKDF2 on successful login.
+            self._rewrite_password_hash(password, payload)
+            return True
+        return False
 
     def set_password(self, password: str, password_hint: str = "") -> None:
         if not password.strip():
@@ -43,7 +59,9 @@ class AdminAccessStore:
         salt = secrets.token_hex(16)
         payload = self._load_payload()
         payload["salt"] = salt
-        payload["password_hash"] = self._hash_password(password, salt)
+        payload["password_hash"] = self._pbkdf2_hash(password, salt, _PBKDF2_ITERATIONS)
+        payload["algo"] = _PBKDF2_ALGO
+        payload["iterations"] = _PBKDF2_ITERATIONS
         payload["password_hint"] = password_hint.strip()
         payload.setdefault("debug_mode", False)
         self._save_payload(payload)
@@ -53,6 +71,8 @@ class AdminAccessStore:
         payload["salt"] = ""
         payload["password_hash"] = ""
         payload["password_hint"] = ""
+        payload["algo"] = ""
+        payload["iterations"] = 0
         payload["debug_mode"] = False
         self._save_payload(payload)
 
@@ -75,6 +95,24 @@ class AdminAccessStore:
     def _save_payload(self, payload: dict) -> None:
         save_json_dict(self.path, payload)
 
+    def _rewrite_password_hash(self, password: str, payload: dict) -> None:
+        salt = secrets.token_hex(16)
+        payload["salt"] = salt
+        payload["password_hash"] = self._pbkdf2_hash(password, salt, _PBKDF2_ITERATIONS)
+        payload["algo"] = _PBKDF2_ALGO
+        payload["iterations"] = _PBKDF2_ITERATIONS
+        self._save_payload(payload)
+
     @staticmethod
-    def _hash_password(password: str, salt: str) -> str:
+    def _pbkdf2_hash(password: str, salt: str, iterations: int) -> str:
+        derived = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt.encode("utf-8"),
+            iterations,
+        )
+        return derived.hex()
+
+    @staticmethod
+    def _legacy_sha256_hash(password: str, salt: str) -> str:
         return hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()

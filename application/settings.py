@@ -1,12 +1,48 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from ipaddress import ip_address
 from pathlib import Path
+from urllib.parse import urlparse
 
 from app.platform import default_models_path
 from application.ui_defaults import DEFAULT_FONT_PRESET, DEFAULT_FONT_SIZE
 
 DEFAULT_OLLAMA_MODEL = "qwen3:8b"
+
+
+def validate_ollama_base_url(url: str) -> tuple[bool, str]:
+    """Accepts only localhost/loopback or private LAN ranges for Ollama endpoint.
+
+    Returns (is_ok, error_message). Empty message on success.
+    """
+    text = (url or "").strip()
+    if not text:
+        return False, "Адрес API не может быть пустым."
+    try:
+        parsed = urlparse(text)
+    except ValueError:
+        return False, "Не удалось разобрать адрес API."
+    if parsed.scheme not in ("http", "https"):
+        return False, "Адрес API должен начинаться с http:// или https://."
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False, "В адресе API не указан хост."
+    if host in ("localhost", "ip6-localhost"):
+        return True, ""
+    try:
+        addr = ip_address(host)
+    except ValueError:
+        return (
+            False,
+            "Разрешены только локальные адреса: localhost, 127.x, ::1 или частные LAN-сети.",
+        )
+    if addr.is_loopback or addr.is_private or addr.is_link_local:
+        return True, ""
+    return (
+        False,
+        "Ollama должен быть локальным. Публичные адреса заблокированы для защиты содержимого билетов.",
+    )
 
 @dataclass(slots=True)
 class OllamaSettings:

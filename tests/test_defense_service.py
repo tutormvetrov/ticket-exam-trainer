@@ -87,7 +87,11 @@ def test_defense_service_unlocks_imports_and_scores(tmp_path: Path, monkeypatch)
         ),
     )
 
-    code = facade.issue_local_defense_activation_code()
+    # Legacy HMAC-код нужен только для теста: в production коды выпускаются
+    # отдельным CLI (local_tools/dlc_issuer.py) с Ed25519-приватным ключом.
+    license_service = facade.defense.license_service
+    install_id = license_service.ensure_install_id()
+    code = license_service.issue_legacy_code(install_id)
     state = facade.activate_defense_dlc(code)
     assert state.activated is True
 
@@ -164,7 +168,7 @@ def test_dlc_activation_detects_wrong_install(tmp_path: Path) -> None:
     service = DlcLicenseService(storage)
     install_a = "install-a"
     install_b = "install-b"
-    code = service.issue_code(install_a)
+    code = service.issue_legacy_code(install_a)
 
     state = service.activate(install_b, code)
 

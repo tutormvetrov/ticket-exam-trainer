@@ -5,8 +5,8 @@ import os
 import sys
 import time
 
-from PySide6.QtCore import QEventLoop, QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt, QEventLoop, QTimer
+from PySide6.QtWidgets import QApplication, QLabel
 
 from application.facade import AppFacade
 from application.settings_store import SettingsStore
@@ -16,6 +16,30 @@ from infrastructure.db import connect_initialized, get_database_path
 from ui.components.splash import BrandedSplash
 from ui.main_window import MainWindow
 from ui.theme import app_font, set_app_theme
+
+
+_QLABEL_PLAIN_TEXT_INSTALLED = False
+
+
+def _install_plain_text_default_for_qlabel() -> None:
+    """Default QLabel.textFormat to PlainText across the whole application.
+
+    Rationale: в приложении нет намеренного HTML в setText. Контент приходит
+    из БД, импортированных документов и локальной LLM, любой из этих источников
+    потенциально может содержать теги. PlainText-дефолт закрывает случайное
+    рендеринг HTML/изображений по сети без ручной правки сотен setText-сайтов.
+    """
+    global _QLABEL_PLAIN_TEXT_INSTALLED
+    if _QLABEL_PLAIN_TEXT_INSTALLED:
+        return
+    original_init = QLabel.__init__
+
+    def _init_with_plain_text(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        original_init(self, *args, **kwargs)
+        self.setTextFormat(Qt.TextFormat.PlainText)
+
+    QLabel.__init__ = _init_with_plain_text  # type: ignore[assignment]
+    _QLABEL_PLAIN_TEXT_INSTALLED = True
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,6 +78,7 @@ def run() -> int:
     effective_theme = args.theme or facade.settings.theme_name
     effective_view = args.view or facade.settings.startup_view
 
+    _install_plain_text_default_for_qlabel()
     app = QApplication(sys.argv)
     app.setApplicationName("Тренажёр билетов к вузовским экзаменам")
     app.setFont(app_font(facade.settings.font_preset, facade.settings.font_size))

@@ -27,7 +27,7 @@ from application.ui_data import (
 )
 from domain.knowledge import TicketKnowledgeMap
 from infrastructure.ollama.service import OllamaDiagnostics
-from ui.components.common import CardFrame, ClickableFrame, EmptyStatePanel, IconBadge, file_badge_colors
+from ui.components.common import CardFrame, ClickableFrame, EmptyStatePanel, IconBadge, file_badge_colors, harden_plain_text
 from ui.icons import apply_button_icon
 from ui.theme import current_colors
 
@@ -72,6 +72,7 @@ class DialogueTicketRow(ClickableFrame):
         self.tail_label.setWordWrap(True)
         layout.addWidget(self.tail_label)
 
+        harden_plain_text(self.title_label, self.meta_label, self.tail_label)
         self.refresh_theme()
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
@@ -130,6 +131,7 @@ class DialogueSessionRow(ClickableFrame):
         self.summary_label.setWordWrap(True)
         layout.addWidget(self.summary_label)
 
+        harden_plain_text(self.title_label, self.meta_label, self.summary_label)
         self.refresh_theme()
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
@@ -188,6 +190,9 @@ class DialogueTurnBubble(QWidget):
             self.focus_label.setProperty("role", "muted")
             self.focus_label.setWordWrap(True)
             card_layout.addWidget(self.focus_label)
+            harden_plain_text(self.body_label, self.focus_label)
+        else:
+            harden_plain_text(self.body_label)
 
         row.addWidget(self.card, 0)
         if turn.speaker != "user":
@@ -326,6 +331,7 @@ class DialogueView(QWidget):
         self.active_meta.setProperty("role", "body")
         self.active_meta.setWordWrap(True)
         active_layout.addWidget(self.active_meta)
+        harden_plain_text(self.active_title, self.active_meta)
 
         buttons_row = QHBoxLayout()
         buttons_row.setContentsMargins(0, 0, 0, 0)
@@ -435,6 +441,7 @@ class DialogueView(QWidget):
         self.result_body.setProperty("role", "body")
         self.result_body.setWordWrap(True)
         result_layout.addWidget(self.result_body)
+        harden_plain_text(self.result_head, self.result_body)
         self.retry_button = QPushButton("Повторить слабую нить")
         self.retry_button.setProperty("variant", "secondary")
         self.retry_button.clicked.connect(self._handle_retry)
@@ -494,6 +501,7 @@ class DialogueView(QWidget):
         self.summary_meta.setProperty("role", "muted")
         self.summary_meta.setWordWrap(True)
         summary_layout.addWidget(self.summary_meta)
+        harden_plain_text(self.summary_body, self.summary_meta)
         layout.addWidget(self.summary_card)
 
         self.structure_card = CardFrame(role="card", shadow_color=self.shadow_color)
@@ -507,6 +515,7 @@ class DialogueView(QWidget):
         self.structure_body.setProperty("role", "body")
         self.structure_body.setWordWrap(True)
         structure_layout.addWidget(self.structure_body)
+        harden_plain_text(self.structure_body)
         layout.addWidget(self.structure_card)
 
         self.weak_card = CardFrame(role="card", shadow_color=self.shadow_color)
@@ -520,6 +529,7 @@ class DialogueView(QWidget):
         self.weak_body.setProperty("role", "body")
         self.weak_body.setWordWrap(True)
         weak_layout.addWidget(self.weak_body)
+        harden_plain_text(self.weak_body)
         layout.addWidget(self.weak_card)
         layout.addStretch(1)
 

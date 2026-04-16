@@ -41,6 +41,7 @@ from domain.defense import (
     ThesisSourceKind,
 )
 from infrastructure.db.defense_repository import DefenseRepository
+from infrastructure.db.transaction import atomic
 from infrastructure.importers.common import ImportedDocumentText, normalize_import_title
 from infrastructure.importers.docx_importer import import_docx
 from infrastructure.importers.pdf_importer import import_pdf
@@ -154,9 +155,6 @@ class DefenseService:
         self.repository.save_license_state(state)
         return state
 
-    def issue_local_activation_code(self) -> str:
-        return self.license_service.issue_code(self.license_service.ensure_install_id())
-
     def update_gap_status(self, project_id: str, finding_id: str, status: str) -> None:
         resolved = DefenseGapStatus(status) if status in DefenseGapStatus._value2member_map_ else DefenseGapStatus.OPEN
         self.repository.update_gap_status(project_id, finding_id, resolved)
@@ -251,43 +249,35 @@ class DefenseService:
         if not imported_sources:
             return DefenseProcessingResult(False, project_id=project_id, warnings=warnings, error="Не удалось извлечь текст из выбранных файлов.")
 
-        self.repository.save_sources(imported_sources)
         combined_text = "\n\n".join(source.normalized_text for source in imported_sources if source.normalized_text.strip())
         claims, risk_topics, used_llm, claim_warnings = self._build_dossier(project, imported_sources, combined_text)
         warnings.extend(claim_warnings)
         llm_used = llm_used or used_llm
-        self.repository.replace_claims(project_id, claims)
 
         if progress_callback is not None:
             progress_callback(52, "Defense dossier", "Собираем ключевые тезисы и риск-темы")
 
         outlines, outline_used_llm = self._build_outlines(project, claims)
         llm_used = llm_used or outline_used_llm
-        for duration_label, segments in outlines.items():
-            self.repository.replace_outline(project_id, duration_label, segments)
 
         if progress_callback is not None:
             progress_callback(70, "Текст защиты", "Готовим контуры доклада на 5, 7 и 10 минут")
 
         slides, slides_used_llm = self._build_slides(project_id, claims, outlines.get("7", []))
         llm_used = llm_used or slides_used_llm
-        self.repository.replace_slides(project_id, slides)
 
         if progress_callback is not None:
             progress_callback(82, "Storyboard", "Строим план слайдов и опорных тезисов")
 
         questions, questions_used_llm = self._build_questions(project_id, claims, risk_topics, imported_sources)
         llm_used = llm_used or questions_used_llm
-        self.repository.replace_questions(project_id, questions)
 
         if progress_callback is not None:
             progress_callback(90, "Логические дыры", "Проверяем доказательность, связность и слабые места защиты")
 
         gap_findings = self._build_gap_findings(project_id, claims, outlines, slides, questions, imported_sources)
         gap_findings = self._enrich_gap_findings(gap_findings, claims, imported_sources)
-        self.repository.replace_gap_findings(project_id, gap_findings)
         repair_tasks = self._build_repair_tasks(project_id, gap_findings, [], [])
-        self.repository.replace_repair_tasks(project_id, repair_tasks)
 
         updated_project = ThesisProject(
             project_id=project.project_id,
@@ -303,7 +293,19 @@ class DefenseService:
             updated_at=datetime.now(),
             recommended_model=self._build_model_recommendation().model_name,
         )
-        self.repository.save_project(updated_project)
+
+        # Атомарный блок: либо все артефакты защиты сохранены согласованно,
+        # либо ничего (откатываемся, оставляем прошлую версию проекта).
+        with atomic(self.repository.connection):
+            self.repository.save_sources(imported_sources)
+            self.repository.replace_claims(project_id, claims)
+            for duration_label, segments in outlines.items():
+                self.repository.replace_outline(project_id, duration_label, segments)
+            self.repository.replace_slides(project_id, slides)
+            self.repository.replace_questions(project_id, questions)
+            self.repository.replace_gap_findings(project_id, gap_findings)
+            self.repository.replace_repair_tasks(project_id, repair_tasks)
+            self.repository.save_project(updated_project)
 
         if progress_callback is not None:
             progress_callback(100, "DLC обработан", "Материалы сохранены. Можно идти в mock defense.")

@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from application.admin_access import AdminAccessState
-from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
+from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings, validate_ollama_base_url
 from application.update_service import UpdateInfo
 from app import platform as platform_helpers
 from app.build_info import get_runtime_build_info
@@ -1137,6 +1137,13 @@ class SettingsView(QWidget):
             self.nav_panel.setMaximumWidth(304)
 
     def save_settings(self) -> None:
+        url_text = self.url_input.text().strip() or DEFAULT_OLLAMA_SETTINGS.base_url
+        url_ok, url_error = validate_ollama_base_url(url_text)
+        if not url_ok:
+            QMessageBox.warning(self, "Настройки", url_error)
+            self.url_input.setFocus()
+            return
+
         models_path_text = self.models_path_input.text().strip()
         if models_path_text and not Path(models_path_text).is_dir():
             QMessageBox.warning(

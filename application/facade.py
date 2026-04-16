@@ -31,6 +31,7 @@ from domain.answer_profile import AnswerProfileCode, TicketBlockMasteryProfile
 from domain.knowledge import Exam, ExerciseType, ReviewMode, Section, TicketMasteryProfile
 from domain.models import DocumentData, SubjectData
 from infrastructure.db import DefenseRepository, DialogueRepository, KnowledgeRepository
+from infrastructure.db.transaction import atomic
 from infrastructure.importers.common import normalize_import_title
 from infrastructure.ollama import OllamaService
 from infrastructure.ollama.dialogue import DialogueTranscriptLine, DialogueTurnContext, DialogueTurnResult
@@ -70,23 +71,35 @@ class AppFacade:
         self.settings_store.save(settings)
 
     def build_ollama_service(self, timeout_seconds: float | None = None) -> OllamaService:
-        resolved_timeout = float(self._settings.timeout_seconds if timeout_seconds is None else timeout_seconds)
-        return OllamaService(self._settings.base_url, resolved_timeout, self._settings.models_path)
+        # Раздельные таймауты: короткий на диагностику (tags/ping), длинный на
+        # генерацию. Override `timeout_seconds` по-прежнему уважается: он
+        # применяется только к генерации, inspect остаётся быстрым.
+        resolved_generation = float(
+            self._settings.timeout_seconds if timeout_seconds is None else timeout_seconds
+        )
+        return OllamaService(
+            self._settings.base_url,
+            models_path=self._settings.models_path,
+            inspect_timeout_seconds=3.0,
+            generation_timeout_seconds=resolved_generation,
+        )
 
     def build_import_ollama_service(self) -> OllamaService:
-        return OllamaService(self._settings.base_url, None, self._settings.models_path)
+        return OllamaService(
+            self._settings.base_url,
+            models_path=self._settings.models_path,
+            inspect_timeout_seconds=3.0,
+            generation_timeout_seconds=float(self._settings.timeout_seconds),
+        )
 
     def inspect_ollama(self) -> OllamaDiagnostics:
-        return self.build_ollama_service(timeout_seconds=min(float(self._settings.timeout_seconds), 3.0)).inspect(self._settings.model)
+        return self.build_ollama_service().inspect(self._settings.model)
 
     def load_defense_workspace_snapshot(self, project_id: str | None = None) -> DefenseWorkspaceSnapshot:
         return self.defense.load_workspace_snapshot(project_id)
 
     def activate_defense_dlc(self, activation_code: str):
         return self.defense.activate_dlc(activation_code)
-
-    def issue_local_defense_activation_code(self) -> str:
-        return self.defense.issue_local_activation_code()
 
     def create_defense_project(self, payload: dict[str, str]):
         return self.defense.create_project(**payload)
@@ -566,22 +579,26 @@ class AppFacade:
 
         if progress_callback is not None:
             progress_callback(30, "Сохранение каркаса импорта", "Фиксируем документ, фрагменты и очередь билетов в SQLite")
-        self.repository.save_exam(exam)
-        for section in unique_sections:
-            self.repository.save_section(section)
-        self.repository.save_source_document(
-            prepared.source_document,
-            raw_text=prepared.normalized_text,
-            status="importing",
-            warnings=prepared.warnings,
-            used_llm_assist=False,
-            ticket_total=len(queue_items),
-            tickets_llm_done=0,
-            last_attempted_at=datetime.now().isoformat(),
-            last_error="",
-        )
-        self.repository.save_chunks(prepared.source_document.document_id, prepared.chunks)
-        self.repository.save_import_queue(prepared.source_document.document_id, queue_items)
+        # Скелет импорта — одна транзакция: иначе крах между save_exam и
+        # save_import_queue оставит БД в рассинхронизированном состоянии
+        # (документ есть, а очередь пустая → UI показывает «0 билетов»).
+        with atomic(self.connection):
+            self.repository.save_exam(exam)
+            for section in unique_sections:
+                self.repository.save_section(section)
+            self.repository.save_source_document(
+                prepared.source_document,
+                raw_text=prepared.normalized_text,
+                status="importing",
+                warnings=prepared.warnings,
+                used_llm_assist=False,
+                ticket_total=len(queue_items),
+                tickets_llm_done=0,
+                last_attempted_at=datetime.now().isoformat(),
+                last_error="",
+            )
+            self.repository.save_chunks(prepared.source_document.document_id, prepared.chunks)
+            self.repository.save_import_queue(prepared.source_document.document_id, queue_items)
 
         warnings = list(prepared.warnings)
         used_llm_assist = False

@@ -7,7 +7,17 @@ from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPain
 from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from ui.icons import SvgIconLabel
-from ui.theme import alpha_color, apply_shadow, current_colors, is_dark_palette
+from ui.theme import alpha_color, apply_shadow, current_colors, is_dark_palette, mastery_band_color
+
+
+def harden_plain_text(*labels: QLabel) -> None:
+    """Force PlainText format on labels that render user/LLM/DB content.
+
+    Защита от случайной интерпретации HTML/rich-text в QLabel, если
+    исходный материал содержит теги (например, \"<img src=x onerror=...\").
+    """
+    for label in labels:
+        label.setTextFormat(Qt.TextFormat.PlainText)
 
 
 def tone_pair(tone: str) -> tuple[str, str]:
@@ -268,14 +278,7 @@ class DonutChart(QWidget):
     animatedPercent = Property(int, get_animated_percent, set_animated_percent)
 
     def _update_accent_for_percent(self) -> None:
-        if self.percent <= 30:
-            self.accent = QColor("#EF5350")
-        elif self.percent <= 60:
-            self.accent = QColor("#FFA726")
-        elif self.percent <= 80:
-            self.accent = QColor("#FFEE58")
-        else:
-            self.accent = QColor("#66BB6A")
+        self.accent = QColor(mastery_band_color(self.percent))
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)

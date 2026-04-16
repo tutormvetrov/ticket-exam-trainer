@@ -191,6 +191,22 @@ class MainWindow(QMainWindow):
     def switch_view(self, key: str) -> None:
         if key not in self.views:
             return
+        if self.current_key == "settings" and key != "settings":
+            settings_view = self.views["settings"]
+            if settings_view.has_unsaved_changes():
+                answer = QMessageBox.question(
+                    self,
+                    "Несохранённые изменения",
+                    "В настройках есть несохранённые изменения. Сохранить перед выходом?",
+                    QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+                    QMessageBox.StandardButton.Save,
+                )
+                if answer == QMessageBox.StandardButton.Save:
+                    settings_view.save_settings()
+                elif answer == QMessageBox.StandardButton.Cancel:
+                    return
+                else:
+                    settings_view.reset_form()
         if key == "defense":
             self.refresh_defense_view(self.views["defense"].current_project_id or None)
         self.current_key = key

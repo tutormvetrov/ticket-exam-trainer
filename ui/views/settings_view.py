@@ -98,6 +98,7 @@ class SettingsView(QWidget):
         self._diagnostics_thread: FunctionThread | None = None
         self._refresh_models_after_check = False
         self._last_diagnostics: OllamaDiagnostics | None = None
+        self._dirty = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -173,6 +174,7 @@ class SettingsView(QWidget):
 
         self.switch_section("ollama")
         self.reset_form()
+        self._connect_dirty_tracking()
         self._apply_responsive_layout()
 
     def _build_general_page(self) -> QWidget:
@@ -1070,6 +1072,34 @@ class SettingsView(QWidget):
         layout.addWidget(label)
         return wrapper
 
+    def _mark_dirty(self, *_args) -> None:
+        self._dirty = True
+
+    def has_unsaved_changes(self) -> bool:
+        return self._dirty
+
+    def _connect_dirty_tracking(self) -> None:
+        self.theme_combo.currentIndexChanged.connect(self._mark_dirty)
+        self.startup_view_combo.currentIndexChanged.connect(self._mark_dirty)
+        self.font_preset_combo.currentIndexChanged.connect(self._mark_dirty)
+        self.font_size_stepper.value_changed.connect(self._mark_dirty)
+        self.auto_check_card.toggle.toggled.connect(self._mark_dirty)
+        self.update_check_card.toggle.toggled.connect(self._mark_dirty)
+        self.dlc_card.toggle.toggled.connect(self._mark_dirty)
+        self.default_import_dir_input.textChanged.connect(self._mark_dirty)
+        self.import_format_combo.currentIndexChanged.connect(self._mark_dirty)
+        self.import_llm_card.toggle.toggled.connect(self._mark_dirty)
+        self.training_mode_combo.currentIndexChanged.connect(self._mark_dirty)
+        self.review_mode_combo.currentIndexChanged.connect(self._mark_dirty)
+        self.queue_size_combo.currentIndexChanged.connect(self._mark_dirty)
+        self.url_input.textChanged.connect(self._mark_dirty)
+        self.model_combo.currentTextChanged.connect(self._mark_dirty)
+        self.models_path_input.textChanged.connect(self._mark_dirty)
+        self.timeout_stepper.value_changed.connect(self._mark_dirty)
+        self.rewrite_card.toggle.toggled.connect(self._mark_dirty)
+        self.followups_card.toggle.toggled.connect(self._mark_dirty)
+        self.fallback_card.toggle.toggled.connect(self._mark_dirty)
+
     def switch_section(self, section: str) -> None:
         self.nav_panel.set_current(section)
         mapping = {
@@ -1131,6 +1161,7 @@ class SettingsView(QWidget):
         self.check_connection()
         self.settings_saved.emit(self.settings)
         QMessageBox.information(self, "Настройки", "Параметры сохранены и применены.")
+        self._dirty = False
 
     def reset_form(self) -> None:
         self.url_input.setText(self.settings.base_url)
@@ -1159,6 +1190,7 @@ class SettingsView(QWidget):
             self.check_connection()
         else:
             self.set_diagnostics_pending("Статус ещё не проверен. Нажмите «Проверить соединение».")
+        self._dirty = False
 
     def select_import_dir(self) -> None:
         path = QFileDialog.getExistingDirectory(

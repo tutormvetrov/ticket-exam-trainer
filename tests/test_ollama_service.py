@@ -85,6 +85,47 @@ def test_request_generation_does_not_fallback_to_unrelated_family(monkeypatch) -
     assert calls == ["qwen3:8b"]
 
 
+def test_review_answer_parses_json_response(monkeypatch) -> None:
+    import json
+    from infrastructure.ollama.client import OllamaResponse
+    from infrastructure.ollama.service import OllamaService
+
+    service = OllamaService("http://localhost:11434")
+
+    verdict_json = json.dumps({
+        "thesis_verdicts": [
+            {"thesis_label": "Определение", "status": "covered", "comment": "Верно.", "student_excerpt": "Это ресурс."},
+            {"thesis_label": "Примеры", "status": "missing", "comment": "Не указаны.", "student_excerpt": ""},
+        ],
+        "structure_notes": ["Нет вывода"],
+        "strengths": ["Точное определение"],
+        "recommendations": ["Добавить примеры"],
+        "overall_score": 55,
+        "overall_comment": "Половина тезисов раскрыта.",
+    })
+
+    monkeypatch.setattr(
+        service.client,
+        "generate",
+        lambda model, prompt, *, system="", format_name=None, temperature=0.2: OllamaResponse(
+            ok=True, status_code=200, payload={"response": verdict_json}, latency_ms=500,
+        ),
+    )
+
+    result = service.review_answer(
+        "Что такое госсобственность?",
+        [{"label": "Определение", "text": "Это..."}, {"label": "Примеры", "text": "Земля..."}],
+        "Госсобственность — это ресурс.",
+        "qwen3:8b",
+    )
+
+    assert result.ok is True
+    assert result.used_llm is True
+    parsed = json.loads(result.content)
+    assert len(parsed["thesis_verdicts"]) == 2
+    assert parsed["overall_score"] == 55
+
+
 def test_review_prompt_includes_all_theses() -> None:
     from infrastructure.ollama.prompts import review_prompt
 

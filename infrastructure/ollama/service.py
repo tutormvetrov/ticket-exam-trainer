@@ -12,6 +12,7 @@ from infrastructure.ollama.prompts import (
     logical_gaps_prompt,
     oral_answer_prompt,
     outline_prompt,
+    review_prompt,
     rewrite_question_prompt,
     state_exam_blocks_system_prompt,
     state_exam_blocks_user_prompt,
@@ -190,6 +191,23 @@ class OllamaService:
 
     def analyze_logical_gaps(self, question: str, user_answer: str, expected_summary: str, model: str) -> OllamaScenarioResult:
         system, prompt = logical_gaps_prompt(question, user_answer, expected_summary)
+        response = self.request_generation(model, prompt, system=system, format_name="json", temperature=0.2)
+        if not response.ok:
+            return OllamaScenarioResult(False, "", False, response.latency_ms, response.error)
+        try:
+            parsed = self._parse_json_response(response.payload.get("response", ""))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            return OllamaScenarioResult(False, "", False, response.latency_ms, str(exc))
+        return OllamaScenarioResult(True, json.dumps(parsed, ensure_ascii=False), True, response.latency_ms)
+
+    def review_answer(
+        self,
+        ticket_title: str,
+        reference_theses: list[dict[str, str]],
+        student_answer: str,
+        model: str,
+    ) -> OllamaScenarioResult:
+        system, prompt = review_prompt(ticket_title, reference_theses, student_answer)
         response = self.request_generation(model, prompt, system=system, format_name="json", temperature=0.2)
         if not response.ok:
             return OllamaScenarioResult(False, "", False, response.latency_ms, response.error)

@@ -4,6 +4,7 @@ import json
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QBoxLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -101,12 +102,15 @@ class TicketsView(QWidget):
         header.addWidget(self.search_input)
         layout.addLayout(header)
 
-        body = QHBoxLayout()
-        body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(16)
+        self.body_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.body_layout.setContentsMargins(0, 0, 0, 0)
+        self.body_layout.setSpacing(16)
 
         self.left_card = CardFrame(role="card", shadow_color=shadow_color)
-        self.left_card.setFixedWidth(360)
+        # Ширина списка билетов: на обычных экранах — фиксированная колонка;
+        # на узких — resize к полной ширине (см. _apply_responsive_layout).
+        self.left_card.setMinimumWidth(320)
+        self.left_card.setMaximumWidth(396)
         left_layout = QVBoxLayout(self.left_card)
         left_layout.setContentsMargins(16, 16, 16, 16)
         left_layout.setSpacing(12)
@@ -119,7 +123,7 @@ class TicketsView(QWidget):
         self.ticket_list.setSpacing(10)
         left_layout.addLayout(self.ticket_list)
         left_layout.addStretch(1)
-        body.addWidget(self.left_card)
+        self.body_layout.addWidget(self.left_card)
 
         self.detail_scroll = QScrollArea()
         self.detail_scroll.setWidgetResizable(True)
@@ -131,10 +135,30 @@ class TicketsView(QWidget):
         self.detail_layout.setSpacing(16)
         self.detail_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
         self.detail_scroll.setWidget(self.detail_widget)
-        body.addWidget(self.detail_scroll, 1)
-        layout.addLayout(body, 1)
+        self.body_layout.addWidget(self.detail_scroll, 1)
+        layout.addLayout(self.body_layout, 1)
 
         self._render_placeholder()
+        self._apply_responsive_layout()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        self._apply_responsive_layout()
+        super().resizeEvent(event)
+
+    def _apply_responsive_layout(self) -> None:
+        width = self.window().width() if self.window() is not None else self.width()
+        narrow = width < 1060
+        target_direction = (
+            QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight
+        )
+        if self.body_layout.direction() != target_direction:
+            self.body_layout.setDirection(target_direction)
+        if narrow:
+            self.left_card.setMinimumWidth(0)
+            self.left_card.setMaximumWidth(16777215)
+        else:
+            self.left_card.setMinimumWidth(320)
+            self.left_card.setMaximumWidth(396)
 
     def set_data(
         self,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QBoxLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from application.ui_data import ReadinessScore, TicketMasteryBreakdown
 from domain.knowledge import TicketKnowledgeMap
@@ -44,9 +44,9 @@ class KnowledgeMapView(QWidget):
         header_layout.addWidget(self.readiness_label)
         root.addWidget(header)
 
-        body = QHBoxLayout()
-        body.setContentsMargins(16, 0, 16, 16)
-        body.setSpacing(12)
+        self.body_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.body_layout.setContentsMargins(16, 0, 16, 16)
+        self.body_layout.setSpacing(12)
 
         graph_frame = CardFrame(role="card", shadow_color=shadow_color)
         graph_frame.setMinimumHeight(400)
@@ -56,7 +56,8 @@ class KnowledgeMapView(QWidget):
         self.graph.node_selected.connect(self._show_detail)
         self.graph.node_deselected.connect(self._clear_detail)
         graph_layout.addWidget(self.graph)
-        body.addWidget(graph_frame, 7)
+        self.graph_frame = graph_frame
+        self.body_layout.addWidget(graph_frame, 7)
 
         self.detail_card = CardFrame(role="card", shadow_color=shadow_color)
         self.detail_card.setMinimumWidth(280)
@@ -95,10 +96,32 @@ class KnowledgeMapView(QWidget):
         self.detail_layout.addWidget(self.dialogue_button)
 
         self.detail_layout.addStretch(1)
-        body.addWidget(self.detail_card, 3)
-        root.addLayout(body, 1)
+        self.body_layout.addWidget(self.detail_card, 3)
+        root.addLayout(self.body_layout, 1)
 
         self._selected_ticket_id = ""
+        self._apply_responsive_layout()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        self._apply_responsive_layout()
+        super().resizeEvent(event)
+
+    def _apply_responsive_layout(self) -> None:
+        width = self.window().width() if self.window() is not None else self.width()
+        narrow = width < 1060
+        target_direction = (
+            QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight
+        )
+        if self.body_layout.direction() != target_direction:
+            self.body_layout.setDirection(target_direction)
+        if narrow:
+            self.detail_card.setMinimumWidth(0)
+            self.detail_card.setMaximumWidth(16777215)
+            self.graph_frame.setMinimumHeight(320)
+        else:
+            self.detail_card.setMinimumWidth(280)
+            self.detail_card.setMaximumWidth(380)
+            self.graph_frame.setMinimumHeight(400)
 
     def set_data(
         self,

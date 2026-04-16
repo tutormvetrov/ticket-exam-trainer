@@ -196,6 +196,33 @@ def alpha_color(hex_color: str, alpha: float) -> str:
     return f"rgba({color.red()}, {color.green()}, {color.blue()}, {color.alpha()})"
 
 
+def mastery_band_color(percent: int) -> str:
+    """Цвет для категорий владения материалом (0..100%).
+
+    Использует семантические цвета темы (danger/warning/success), чтобы
+    одинаково работать в light и dark: в тёмной теме свои более мягкие
+    оттенки. Раньше эти пороги были хардкод HEX'ами и плохо смотрелись
+    на dark палитре.
+    """
+    colors = current_colors()
+    p = max(0, min(100, int(percent)))
+    if p <= 30:
+        return colors["danger"]
+    if p <= 60:
+        return colors["warning"]
+    if p <= 80:
+        # Промежуточный «тёплый» тон — между warning и success.
+        warning = QColor(colors["warning"])
+        success = QColor(colors["success"])
+        mid = QColor(
+            (warning.red() + success.red()) // 2,
+            (warning.green() + success.green()) // 2,
+            (warning.blue() + success.blue()) // 2,
+        )
+        return mid.name()
+    return colors["success"]
+
+
 def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     family = typography["family"]
     is_dark = colors["app_bg"] == DARK["app_bg"]

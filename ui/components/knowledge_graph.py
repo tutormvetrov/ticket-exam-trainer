@@ -16,24 +16,21 @@ from PySide6.QtWidgets import (
 
 from application.ui_data import TicketMasteryBreakdown
 from domain.knowledge import TicketKnowledgeMap
-from ui.theme import current_colors
-
-
-MASTERY_TIERS = [
-    (0.0, "#B0BEC5", None),
-    (0.01, "#EF5350", "#EF5350"),
-    (0.31, "#FFA726", "#FFA726"),
-    (0.61, "#FFEE58", "#FFEE58"),
-    (0.81, "#66BB6A", "#66BB6A"),
-]
+from ui.theme import current_colors, mastery_band_color
 
 
 def _mastery_color(score: float) -> tuple[str, str | None]:
-    result = MASTERY_TIERS[0][1], MASTERY_TIERS[0][2]
-    for threshold, color, glow in MASTERY_TIERS:
-        if score >= threshold:
-            result = (color, glow)
-    return result
+    """Вернуть (fill, glow) для узла графа знаний.
+
+    Тест по диапазонам тот же, что в DonutChart: 0 → нейтральный, затем
+    danger → warning → midtone → success. Цвета берутся из темы, чтобы
+    и light, и dark читались одинаково.
+    """
+    if score <= 0:
+        return current_colors()["text_tertiary"], None
+    percent = int(round(score * 100))
+    hex_color = mastery_band_color(percent)
+    return hex_color, hex_color
 
 
 def _abbreviation(title: str) -> str:

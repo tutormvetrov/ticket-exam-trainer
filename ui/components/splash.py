@@ -32,7 +32,7 @@ class BrandedSplash(QWidget):
         text_col.setContentsMargins(0, 0, 0, 0)
         text_col.setSpacing(8)
 
-        eyebrow = QLabel("LOCAL EXAM ENGINE")
+        eyebrow = QLabel("ЛОКАЛЬНЫЙ ТРЕНАЖЁР БИЛЕТОВ")
         eyebrow.setProperty("role", "nav-caption")
         text_col.addWidget(eyebrow)
 

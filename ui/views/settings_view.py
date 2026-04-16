@@ -1136,6 +1136,24 @@ class SettingsView(QWidget):
             self.nav_panel.setMaximumWidth(304)
 
     def save_settings(self) -> None:
+        models_path_text = self.models_path_input.text().strip()
+        if models_path_text and not Path(models_path_text).is_dir():
+            QMessageBox.warning(
+                self,
+                "Настройки",
+                f"Папка с моделями не найдена:\n{models_path_text}\n\nУкажите существующую папку или оставьте поле пустым.",
+            )
+            return
+
+        import_dir_text = self.default_import_dir_input.text().strip()
+        if import_dir_text and not Path(import_dir_text).is_dir():
+            QMessageBox.warning(
+                self,
+                "Настройки",
+                f"Папка импорта не найдена:\n{import_dir_text}\n\nУкажите существующую папку или оставьте поле пустым.",
+            )
+            return
+
         self.settings = OllamaSettings(
             base_url=self.url_input.text().strip() or DEFAULT_OLLAMA_SETTINGS.base_url,
             model=self.model_combo.currentText().strip() or DEFAULT_OLLAMA_SETTINGS.model,

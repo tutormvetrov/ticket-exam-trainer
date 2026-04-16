@@ -439,6 +439,14 @@ class AppFacade:
                 if llm_result.ok and llm_result.content:
                     followups = [line.removeprefix("- ").strip() for line in llm_result.content.splitlines() if line.strip()]
 
+        review_verdict = None
+        if mode_key in {"active-recall", "mini-exam", "state-exam-full", "review"}:
+            review_verdict = self.scoring.build_review_verdict(
+                ticket, mode_key, answer,
+                ollama_service=self.build_ollama_service(),
+                model=self._settings.model,
+            )
+
         return TrainingEvaluationResult(
             ok=True,
             score_percent=int(round(outcome.attempt.score * 100)),
@@ -448,6 +456,7 @@ class AppFacade:
             block_scores={code.value: int(round(score * 100)) for code, score in outcome.block_scores.items()},
             criterion_scores={code.value: int(round(score * 100)) for code, score in outcome.criterion_scores.items()},
             followup_questions=followups,
+            review=review_verdict,
         )
 
     def _pick_exercise(self, ticket, mode_key: str):
@@ -459,6 +468,7 @@ class AppFacade:
             "plan": ExerciseType.STRUCTURE_RECONSTRUCTION,
             "mini-exam": ExerciseType.ORAL_FULL,
             "state-exam-full": ExerciseType.ORAL_FULL,
+            "review": ExerciseType.ORAL_FULL,
         }
         target_type = type_map.get(mode_key, ExerciseType.ATOM_RECALL)
         for template in ticket.exercise_templates:

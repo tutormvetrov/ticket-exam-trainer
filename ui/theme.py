@@ -223,6 +223,29 @@ def mastery_band_color(percent: int) -> str:
     return colors["success"]
 
 
+def logo_palette(is_dark: bool) -> dict[str, str]:
+    """Палитра бренд-медальона для подстановки в SVG-шаблон.
+
+    Ключи словаря совпадают с плейсхолдерами `{{name}}` в шаблонах
+    `assets/logo/mark-*.svg.template`. Значения зафиксированы отдельно
+    от LIGHT/DARK, потому что изумруд и золото — брендовые константы,
+    а не семантические цвета UI (success/warning/danger).
+    """
+    if is_dark:
+        return {
+            "emerald_stop_0": "#165A42",
+            "emerald_stop_1": "#2AA076",
+            "gold_stop_0": "#D8A74E",
+            "gold_stop_1": "#F4DB94",
+        }
+    return {
+        "emerald_stop_0": "#134734",
+        "emerald_stop_1": "#228F64",
+        "gold_stop_0": "#B9893D",
+        "gold_stop_1": "#E6C478",
+    }
+
+
 def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     family = typography["family"]
     is_dark = colors["app_bg"] == DARK["app_bg"]

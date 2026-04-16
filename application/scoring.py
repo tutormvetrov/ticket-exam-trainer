@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 import re
 from uuid import uuid4
 
 from application.state_exam_scoring import StateExamScoringService
+from application.ui_data import ReviewVerdict, ThesisVerdict
 from domain.answer_profile import AnswerBlockCode, AnswerCriterionCode, AnswerProfileCode, AttemptBlockScore, TicketBlockMasteryProfile
 from domain.knowledge import (
     AttemptRecord,
@@ -264,6 +266,101 @@ class MicroSkillScoringService:
                     )
                 )
         return weak_areas
+
+    def build_review_verdict(
+        self,
+        ticket: TicketKnowledgeMap,
+        mode_key: str,
+        answer_text: str,
+        ollama_service=None,
+        model: str = "",
+    ) -> ReviewVerdict | None:
+        reference_theses = self._extract_reference_theses(ticket)
+        if not reference_theses:
+            return None
+
+        if ollama_service is not None and model:
+            try:
+                result = ollama_service.review_answer(
+                    ticket.title, reference_theses, answer_text, model,
+                )
+                if result.ok and result.content:
+                    parsed = json.loads(result.content)
+                    return self._parse_review_verdict(parsed)
+            except Exception:  # noqa: BLE001
+                pass
+
+        return self.build_review_verdict_fallback(ticket, answer_text)
+
+    def build_review_verdict_fallback(
+        self,
+        ticket: TicketKnowledgeMap,
+        answer_text: str,
+    ) -> ReviewVerdict:
+        reference_theses = self._extract_reference_theses(ticket)
+        answer_tokens = self._normalize(answer_text)
+        verdicts: list[ThesisVerdict] = []
+        covered_count = 0.0
+
+        for thesis in reference_theses:
+            keywords = [kw.lower() for kw in WORD_PATTERN.findall(thesis["text"]) if len(kw) > 3][:8]
+            if not keywords:
+                verdicts.append(ThesisVerdict(thesis["label"], "missing", "", ""))
+                continue
+            matched = sum(1 for kw in keywords if kw.lower() in answer_tokens)
+            ratio = matched / len(keywords)
+            if ratio >= 0.5:
+                status = "covered"
+                covered_count += 1
+            elif ratio >= 0.2:
+                status = "partial"
+                covered_count += 0.5
+            else:
+                status = "missing"
+            verdicts.append(ThesisVerdict(thesis["label"], status, "", ""))
+
+        score = int(round(covered_count / max(len(reference_theses), 1) * 100))
+        return ReviewVerdict(
+            thesis_verdicts=verdicts,
+            structure_notes=[],
+            strengths=[],
+            recommendations=[],
+            overall_score=score,
+            overall_comment="Рецензия без LLM: только сопоставление ключевых слов.",
+        )
+
+    def _extract_reference_theses(self, ticket: TicketKnowledgeMap) -> list[dict[str, str]]:
+        if ticket.answer_profile_code is AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN and ticket.answer_blocks:
+            return [
+                {"label": block.title, "text": block.expected_content}
+                for block in ticket.answer_blocks
+                if not block.is_missing and block.expected_content.strip()
+            ]
+        return [
+            {"label": atom.label, "text": atom.text}
+            for atom in ticket.atoms
+            if atom.text.strip()
+        ]
+
+    @staticmethod
+    def _parse_review_verdict(data: dict) -> ReviewVerdict:
+        verdicts = [
+            ThesisVerdict(
+                thesis_label=item.get("thesis_label", ""),
+                status=item.get("status", "missing"),
+                comment=item.get("comment", ""),
+                student_excerpt=item.get("student_excerpt", ""),
+            )
+            for item in data.get("thesis_verdicts", [])
+        ]
+        return ReviewVerdict(
+            thesis_verdicts=verdicts,
+            structure_notes=data.get("structure_notes", []),
+            strengths=data.get("strengths", []),
+            recommendations=data.get("recommendations", []),
+            overall_score=int(data.get("overall_score", 0)),
+            overall_comment=str(data.get("overall_comment", "")),
+        )
 
     @staticmethod
     def _build_feedback(ticket: TicketKnowledgeMap, atom_scores: dict[str, float], skill_scores: dict[str, float]) -> str:

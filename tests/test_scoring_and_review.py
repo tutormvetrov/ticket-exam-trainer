@@ -130,6 +130,27 @@ def test_review_verdict_dataclass_defaults() -> None:
     assert result_with_review.review.overall_score == 72
 
 
+def test_build_review_verdict_fallback_keyword_matching() -> None:
+    from application.scoring import MicroSkillScoringService
+    from application.ui_data import ReviewVerdict
+
+    ticket = build_ticket(
+        "What is public property?",
+        "Public property is a public resource. Examples include land and buildings. It has a legal regime. The management cycle includes accounting and review.",
+    )
+
+    service = MicroSkillScoringService()
+    verdict = service.build_review_verdict_fallback(ticket, "Public property is a public resource with a legal regime.")
+
+    assert isinstance(verdict, ReviewVerdict)
+    assert len(verdict.thesis_verdicts) == len(ticket.atoms)
+    statuses = {tv.status for tv in verdict.thesis_verdicts}
+    assert statuses <= {"covered", "partial", "missing"}
+    assert verdict.overall_score >= 0
+    assert verdict.overall_score <= 100
+    assert "ключевых слов" in verdict.overall_comment
+
+
 def test_state_exam_scoring_adds_block_and_criterion_scores() -> None:
     service = DocumentImportService()
     candidate = TicketCandidate(

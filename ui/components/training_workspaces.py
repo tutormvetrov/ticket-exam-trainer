@@ -26,6 +26,7 @@ from application.ui_data import TrainingEvaluationResult
 from domain.knowledge import KnowledgeAtom, TicketKnowledgeMap
 from ui.training_mode_registry import TRAINING_MODE_SPECS, TrainingModeSpec
 from ui.theme import current_colors
+from ui.components.review_verdict import ReviewVerdictWidget
 
 
 WORD_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё0-9-]+")
@@ -920,6 +921,79 @@ class StateExamFullWorkspace(TrainingWorkspaceBase):
             self._set_ticket(self.current_ticket)
 
 
+class ReviewWorkspace(TrainingWorkspaceBase):
+    def __init__(self, spec: TrainingModeSpec) -> None:
+        super().__init__(spec)
+
+        self.context_label = QLabel()
+        self.context_label.setWordWrap(True)
+        self.context_label.setProperty("role", "body")
+        self.content_layout.insertWidget(0, self.context_label)
+
+        self.answer_input = QTextEdit()
+        self.answer_input.setObjectName("training-review-input")
+        self.answer_input.setProperty("role", "editor")
+        self.answer_input.setPlaceholderText("Напишите полный ответ на билет, как на экзамене.")
+        self.answer_input.setMinimumHeight(300)
+        self.content_layout.insertWidget(1, self.answer_input)
+
+        self.submit_button = QPushButton("Отправить на рецензию")
+        self.submit_button.setObjectName("training-review-submit")
+        self.submit_button.setProperty("variant", "primary")
+        self.submit_button.clicked.connect(self._submit)
+        self.content_layout.insertWidget(2, self.submit_button, 0, Qt.AlignmentFlag.AlignLeft)
+
+        self.verdict_widget = ReviewVerdictWidget()
+        self.content_layout.insertWidget(3, self.verdict_widget)
+        self.verdict_widget.hide()
+        self._show_empty()
+
+    def _submit(self) -> None:
+        answer_text = self.answer_input.toPlainText().strip()
+        if not answer_text:
+            self.result_body.setText("Напишите ответ перед отправкой на рецензию.")
+            return
+        self.result_body.setText("Рецензируем ответ...")
+        self.verdict_widget.hide()
+        self.evaluate_requested.emit(answer_text)
+
+    def show_evaluation(self, result) -> None:
+        if not result.ok:
+            self.verdict_widget.hide()
+            super().show_evaluation(result)
+            return
+        if result.review is not None:
+            self.result_box.hide()
+            self.verdict_widget.set_verdict(result.review)
+            self.verdict_widget.show()
+        else:
+            self.verdict_widget.hide()
+            super().show_evaluation(result)
+
+    def _set_ticket(self, ticket: TicketKnowledgeMap | None) -> None:
+        self.answer_input.clear()
+        self.verdict_widget.hide()
+        if ticket is None:
+            self._show_empty()
+            return
+        self._show_content()
+        if ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN and ticket.answer_blocks:
+            self.context_label.setText(
+                "Структура ответа: "
+                + ", ".join(block.title for block in ticket.answer_blocks)
+            )
+        else:
+            labels = [atom.label for atom in ticket.atoms[:6]]
+            self.context_label.setText(
+                "Ключевые тезисы: " + ", ".join(labels) if labels else "Тезисы пока не выделены."
+            )
+
+    def refresh_theme(self) -> None:
+        super().refresh_theme()
+        if self.current_ticket is not None:
+            self._set_ticket(self.current_ticket)
+
+
 def create_training_workspaces() -> dict[str, TrainingWorkspaceBase]:
     return {
         "reading": ReadingWorkspace(TRAINING_MODE_SPECS["reading"]),
@@ -929,4 +1003,5 @@ def create_training_workspaces() -> dict[str, TrainingWorkspaceBase]:
         "plan": PlanWorkspace(TRAINING_MODE_SPECS["plan"]),
         "mini-exam": MiniExamWorkspace(TRAINING_MODE_SPECS["mini-exam"]),
         "state-exam-full": StateExamFullWorkspace(TRAINING_MODE_SPECS["state-exam-full"]),
+        "review": ReviewWorkspace(TRAINING_MODE_SPECS["review"]),
     }

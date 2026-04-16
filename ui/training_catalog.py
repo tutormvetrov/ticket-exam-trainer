@@ -11,4 +11,5 @@ DEFAULT_TRAINING_MODES = [
     TrainingModeData("plan", "Сбор плана ответа", "Расположите тезисы в правильном порядке", "⌘", "#F1FBFF", "#59C7DB"),
     TrainingModeData("mini-exam", "Мини-экзамен", "Случайный билет с таймером", "◔", "#FFF5F6", "#F27A89"),
     TrainingModeData("state-exam-full", "Полный госответ", "Ответьте по структуре госэкзамена", "≣", "#F0FAF6", "#18B06A"),
+    TrainingModeData("review", "Рецензия ответа", "Потезисный разбор письменного ответа", "✎", "#FFF8F0", "#D4863A"),
 ]

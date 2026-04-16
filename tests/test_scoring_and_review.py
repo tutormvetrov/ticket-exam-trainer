@@ -195,3 +195,38 @@ def test_state_exam_scoring_adds_block_and_criterion_scores() -> None:
     assert outcome.block_profile is not None
     assert outcome.attempt_block_scores
     assert any(area.kind is WeakAreaKind.ANSWER_BLOCK or area.kind is WeakAreaKind.RUBRIC_CRITERION for area in outcome.weak_areas) or outcome.attempt.score > 0
+
+
+def test_readiness_score_zero_tickets() -> None:
+    from application.readiness import ReadinessService
+    from application.ui_data import ReadinessScore
+
+    service = ReadinessService()
+    score = service.calculate([], {})
+    assert isinstance(score, ReadinessScore)
+    assert score.percent == 0
+    assert score.tickets_total == 0
+    assert score.tickets_practiced == 0
+    assert score.weakest_area == ""
+
+
+def test_readiness_score_partial_coverage() -> None:
+    from application.readiness import ReadinessService
+    from application.ui_data import TicketMasteryBreakdown
+
+    ticket_a = build_ticket("Ticket A", "Content A about definitions and examples.")
+    ticket_b = build_ticket("Ticket B", "Content B about processes and stages.")
+    ticket_c = build_ticket("Ticket C", "Content C about classification.")
+
+    mastery = {
+        ticket_a.ticket_id: TicketMasteryBreakdown(ticket_id=ticket_a.ticket_id, confidence_score=0.8),
+        ticket_b.ticket_id: TicketMasteryBreakdown(ticket_id=ticket_b.ticket_id, confidence_score=0.4),
+    }
+
+    service = ReadinessService()
+    score = service.calculate([ticket_a, ticket_b, ticket_c], mastery)
+
+    assert score.tickets_total == 3
+    assert score.tickets_practiced == 2
+    assert 0 < score.percent < 100
+    assert score.weakest_area != ""

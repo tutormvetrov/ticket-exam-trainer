@@ -118,3 +118,11 @@ class ReviewVerdict:
     recommendations: list[str]
     overall_score: int
     overall_comment: str
+
+
+@dataclass(slots=True)
+class ReadinessScore:
+    percent: int
+    tickets_total: int
+    tickets_practiced: int
+    weakest_area: str

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
+    QLineEdit,
     QProgressBar,
     QScrollArea,
     QSizePolicy,
@@ -80,9 +81,22 @@ class TicketsView(QWidget):
         layout.setContentsMargins(28, 24, 28, 28)
         layout.setSpacing(18)
 
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(14)
         title = QLabel("Билеты")
         title.setProperty("role", "hero")
-        layout.addWidget(title)
+        header.addWidget(title)
+        header.addStretch(1)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Поиск...")
+        self.search_input.setProperty("role", "search-plain")
+        self.search_input.setFixedWidth(220)
+        self.search_input.setFixedHeight(36)
+        self.search_input.textChanged.connect(self.set_search_text)
+        header.addWidget(self.search_input)
+        layout.addLayout(header)
 
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QSizePolicy, QVBoxLayout, QWidget
 
 from application.ui_data import SectionOverviewItem
 from ui.components.common import CardFrame
@@ -22,6 +22,15 @@ class SectionsView(QWidget):
         title.setProperty("role", "hero")
         header.addWidget(title)
         header.addStretch(1)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Поиск...")
+        self.search_input.setProperty("role", "search-plain")
+        self.search_input.setFixedWidth(220)
+        self.search_input.setFixedHeight(36)
+        self.search_input.textChanged.connect(self.set_search_text)
+        header.addWidget(self.search_input)
+
         self.combo = QComboBox()
         self.combo.addItems(["Все предметы"])
         self.combo.setFixedWidth(180)

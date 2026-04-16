@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QBoxLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
 from application.ui_data import StatisticsSnapshot
 from domain.models import DocumentData
@@ -45,6 +45,14 @@ class LibraryView(QWidget):
         title.setProperty("role", "hero")
         header.addWidget(title)
         header.addStretch(1)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Поиск...")
+        self.search_input.setProperty("role", "search-plain")
+        self.search_input.setFixedWidth(220)
+        self.search_input.setFixedHeight(36)
+        self.search_input.textChanged.connect(self.set_search_text)
+        header.addWidget(self.search_input)
 
         self.import_button = QPushButton("+  Импортировать")
         self.import_button.setObjectName("library-import")

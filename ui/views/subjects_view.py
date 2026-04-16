@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QVBoxLayout, QWidget
 
 from domain.models import SubjectData
 from ui.components.common import CardFrame, IconBadge, MetricTile
@@ -19,9 +19,22 @@ class SubjectsView(QWidget):
         layout.setContentsMargins(28, 24, 28, 28)
         layout.setSpacing(18)
 
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(14)
         title = QLabel("Предметы")
         title.setProperty("role", "hero")
-        layout.addWidget(title)
+        header.addWidget(title)
+        header.addStretch(1)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Поиск...")
+        self.search_input.setProperty("role", "search-plain")
+        self.search_input.setFixedWidth(220)
+        self.search_input.setFixedHeight(36)
+        self.search_input.textChanged.connect(self.set_search_text)
+        header.addWidget(self.search_input)
+        layout.addLayout(header)
 
         self.summary_card = CardFrame(role="card", shadow_color=self.shadow_color)
         summary_layout = QHBoxLayout(self.summary_card)

@@ -62,3 +62,21 @@ def test_logo_mark_threshold_is_40(qt_app) -> None:
     from ui.components.common import LogoMark
     assert LogoMark(size=39)._variant == "minimal"
     assert LogoMark(size=40)._variant == "full"
+
+
+def test_logo_mark_falls_back_when_template_missing(qt_app, tmp_path, monkeypatch) -> None:
+    """Если файл шаблона не читается, paintEvent уходит в _paint_fallback и не крашится."""
+    from ui.components.common import LogoMark
+    from PySide6.QtGui import QPixmap
+
+    widget = LogoMark(size=52)
+
+    def _raise_oserror(self) -> bytes:
+        raise OSError("simulated missing template")
+
+    monkeypatch.setattr(LogoMark, "_load_template", _raise_oserror)
+
+    pixmap = QPixmap(52, 52)
+    pixmap.fill()
+    widget.render(pixmap)
+    # Just confirming no exception escaped. The content is a monochrome disc + "Т".

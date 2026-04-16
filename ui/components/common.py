@@ -80,7 +80,7 @@ class LogoMark(QWidget):
         self._variant = "full" if size >= _LOGO_VARIANT_THRESHOLD_PX else "minimal"
         self._template_bytes: bytes | None = None
         self._cached_svg: QByteArray | None = None
-        self._cached_palette_key: tuple | None = None
+        self._cached_palette_key: tuple[bool] | None = None
 
     def refresh_theme(self) -> None:
         self._cached_svg = None
@@ -95,10 +95,11 @@ class LogoMark(QWidget):
         return self._template_bytes
 
     def _build_svg(self) -> QByteArray:
-        palette = logo_palette(is_dark_palette())
-        palette_key = tuple(sorted(palette.items()))
+        is_dark = is_dark_palette()
+        palette_key = (is_dark,)
         if self._cached_svg is not None and self._cached_palette_key == palette_key:
             return self._cached_svg
+        palette = logo_palette(is_dark)
         template = self._load_template().decode("utf-8")
         for key, value in palette.items():
             template = template.replace(f"{{{{{key}}}}}", value)
@@ -110,12 +111,17 @@ class LogoMark(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         try:
-            renderer = QSvgRenderer(self._build_svg())
-            renderer.render(painter, QRectF(0, 0, self.width(), self.height()))
-        except Exception:
-            # Страховка: если SVG-шаблон сломан, рисуем монохромный диск + «Т»
+            svg = self._build_svg()
+        except OSError:
+            # Шаблон недоступен или нечитаем — рисуем fallback,
             # чтобы пустоты в брендовом месте пользователь не увидел.
             self._paint_fallback(painter)
+            return
+        renderer = QSvgRenderer(svg)
+        if not renderer.isValid():
+            self._paint_fallback(painter)
+            return
+        renderer.render(painter, QRectF(0, 0, self.width(), self.height()))
 
     def _paint_fallback(self, painter: QPainter) -> None:
         colors = current_colors()

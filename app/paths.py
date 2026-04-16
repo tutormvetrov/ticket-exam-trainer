@@ -67,6 +67,18 @@ def get_check_script_path() -> Path | None:
     return get_bundle_root() / "scripts" / script_name
 
 
+def logo_assets_dir() -> Path:
+    """Папка с брендовыми SVG-шаблонами логотипа.
+
+    В dev-режиме — `<repo>/assets/logo`. В PyInstaller-сборке `sys.frozen`
+    выставлено, и данные лежат рядом с исполняемым файлом (см. `--add-data`
+    в scripts/build_exe.ps1).
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "assets" / "logo"  # type: ignore[attr-defined]
+    return Path(__file__).resolve().parents[1] / "assets" / "logo"
+
+
 def _default_user_workspace_root() -> Path:
     if platform_helpers.is_windows():
         local_appdata = os.environ.get("LOCALAPPDATA", "").strip()

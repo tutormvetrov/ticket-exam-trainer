@@ -345,8 +345,11 @@ def test_import_ollama_timeout_is_unbounded_for_long_import_runs(tmp_path: Path)
     )
 
     assert service.ollama_service is not None
-    assert service.ollama_service.timeout_seconds is None
-    assert service.ollama_service.client.timeout_seconds is None
+    # Теперь даже импорт использует явный generation-таймаут из настроек,
+    # чтобы зависший LLM-ответ на одном билете не тормозил весь прогон.
+    # Inspect-таймаут отдельный и короткий.
+    assert service.ollama_service.generation_timeout_seconds == float(facade.settings.timeout_seconds)
+    assert service.ollama_service.inspect_timeout_seconds == 3.0
     facade.connection.close()
 
 

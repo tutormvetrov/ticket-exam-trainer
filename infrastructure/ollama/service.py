@@ -84,10 +84,27 @@ class LLMAnswerBlocksResult:
 
 
 class OllamaService:
-    def __init__(self, base_url: str, timeout_seconds: float | None = 2.5, models_path=None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout_seconds: float | None = None,
+        models_path=None,
+        *,
+        inspect_timeout_seconds: float | None = None,
+        generation_timeout_seconds: float | None = None,
+    ) -> None:
         self.base_url = base_url
-        self.timeout_seconds = timeout_seconds
-        self.client = OllamaClient(base_url, timeout_seconds)
+        # `timeout_seconds` сохраняем как generation-фактический таймаут, чтобы
+        # старый код (и логи) продолжали видеть осмысленное значение.
+        self.client = OllamaClient(
+            base_url,
+            timeout_seconds,
+            inspect_timeout_seconds=inspect_timeout_seconds,
+            generation_timeout_seconds=generation_timeout_seconds,
+        )
+        self.timeout_seconds = self.client.generation_timeout_seconds
+        self.inspect_timeout_seconds = self.client.inspect_timeout_seconds
+        self.generation_timeout_seconds = self.client.generation_timeout_seconds
         self.runtime = OllamaRuntimeManager(base_url, models_path)
 
     def inspect(self, preferred_model: str = "") -> OllamaDiagnostics:

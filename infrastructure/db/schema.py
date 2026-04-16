@@ -2,9 +2,24 @@ from __future__ import annotations
 
 import sqlite3
 
+from infrastructure.db.migrations import (
+    SCHEMA_BASELINE_VERSION,
+    SchemaDowngradeError,
+    current_schema_version,
+    latest_schema_version,
+    run_pending_migrations,
+)
+
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
     connection.execute("PRAGMA foreign_keys = ON;")
+    existing_version = _read_schema_version_if_any(connection)
+    if existing_version is not None and existing_version > latest_schema_version():
+        raise SchemaDowngradeError(
+            f"База данных использует schema_version={existing_version}, "
+            f"но текущее приложение знает только до {latest_schema_version()}. "
+            "Запустите более новую версию приложения или восстановите бэкап."
+        )
     connection.executescript(
         """
         CREATE TABLE IF NOT EXISTS schema_meta (
@@ -550,9 +565,9 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_defense_repair_tasks_project ON defense_repair_tasks (project_id, status, updated_at DESC);
 
         INSERT INTO schema_meta (key, value)
-        VALUES ('schema_version', '6')
+        VALUES ('schema_version', CAST(? AS TEXT))
         ON CONFLICT(key) DO UPDATE SET value = excluded.value;
-        """
+        """.replace("?", str(SCHEMA_BASELINE_VERSION))
     )
     _ensure_column(connection, "source_documents", "warnings_json", "TEXT NOT NULL DEFAULT '[]'")
     _ensure_column(connection, "source_documents", "used_llm_assist", "INTEGER NOT NULL DEFAULT 0")
@@ -578,6 +593,19 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     _ensure_column(connection, "defense_sessions", "timer_profile_sec", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(connection, "defense_sessions", "session_notes", "TEXT NOT NULL DEFAULT ''")
     connection.commit()
+
+    # Прогоняем любые форвард-миграции, зарегистрированные в migrations.py.
+    # Если применения нет — вызов безвреден.
+    run_pending_migrations(connection)
+
+
+def _read_schema_version_if_any(connection: sqlite3.Connection) -> int | None:
+    cursor = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_meta'"
+    )
+    if cursor.fetchone() is None:
+        return None
+    return current_schema_version(connection)
 
 
 def _ensure_column(connection: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:

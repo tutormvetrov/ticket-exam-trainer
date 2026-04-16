@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QBoxLayout, QComboBox, QGridLayout, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QBoxLayout, QGridLayout, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from application.ui_data import StatisticsSnapshot
 from domain.models import SessionData
@@ -48,10 +48,6 @@ class StatisticsPanel(QWidget):
         self.header_title.setProperty("role", "card-title")
         self.header_layout.addWidget(self.header_title)
         self.header_layout.addStretch(1)
-        self.subject_combo = QComboBox()
-        self.subject_combo.addItems(["Все предметы"])
-        self.subject_combo.setMaximumWidth(132 if compact else 152)
-        self.header_layout.addWidget(self.subject_combo)
         header.setLayout(self.header_layout)
         overall_layout.addWidget(header)
 
@@ -103,9 +99,6 @@ class StatisticsPanel(QWidget):
         recent_title.setProperty("role", "card-title")
         recent_header.addWidget(recent_title)
         recent_header.addStretch(1)
-        more = QLabel("Все →")
-        more.setStyleSheet(f"color: {current_colors()['primary']}; font-size: 13px; font-weight: 600;")
-        recent_header.addWidget(more)
         recent_layout.addLayout(recent_header)
 
         self.recent_rows = QVBoxLayout()
@@ -153,12 +146,6 @@ class StatisticsPanel(QWidget):
         return row
 
     def resizeEvent(self, event) -> None:  # noqa: N802
-        if self.compact:
-            narrow = self.width() < 300
-            direction = QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight
-            if self.header_layout.direction() != direction:
-                self.header_layout.setDirection(direction)
-                self.subject_combo.setMaximumWidth(16777215 if narrow else 132)
         super().resizeEvent(event)
 
     def refresh_theme(self) -> None:

@@ -322,13 +322,16 @@ class MainWindow(QMainWindow):
 
     def create_defense_project(self, payload: dict[str, str]) -> None:
         if not payload.get("title"):
+            self.views["defense"]._set_create_busy(False)
             QMessageBox.warning(self, "Платный модуль", "Укажите тему работы для проекта защиты.")
             return
         try:
             project = self.facade.create_defense_project(payload)
         except Exception as exc:  # noqa: BLE001
+            self.views["defense"]._set_create_busy(False)
             QMessageBox.critical(self, "Платный модуль", str(exc))
             return
+        self.views["defense"]._set_create_busy(False)
         self.refresh_defense_view(project.project_id)
         self.switch_view("defense")
 

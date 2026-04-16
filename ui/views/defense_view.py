@@ -684,6 +684,7 @@ class DefenseView(QWidget):
 
     def show_processing_result(self, result: DefenseProcessingResult) -> None:
         self._processing = False
+        self._set_import_busy(False)
         self._processing_result = result
         self.import_button.setEnabled(True)
         _, fg = tone_pair("success" if result.ok else "danger")
@@ -856,7 +857,16 @@ class DefenseView(QWidget):
         if code:
             self.activate_requested.emit(code)
 
+    def _set_create_busy(self, busy: bool) -> None:
+        self.create_button.setEnabled(not busy)
+        self.create_button.setText("Создание..." if busy else "Создать проект защиты")
+
+    def _set_import_busy(self, busy: bool) -> None:
+        self.import_button.setEnabled(not busy)
+        self.import_button.setText("Импорт..." if busy else "Импортировать материалы")
+
     def _emit_create_project(self) -> None:
+        self._set_create_busy(True)
         payload = {
             "title": self.project_title_input.text().strip(),
             "degree": "магистр",
@@ -870,6 +880,7 @@ class DefenseView(QWidget):
 
     def _emit_import(self) -> None:
         if self.current_project_id:
+            self._set_import_busy(True)
             self.import_requested.emit(self.current_project_id)
 
     def _emit_evaluate(self) -> None:
@@ -957,11 +968,13 @@ class DefenseView(QWidget):
     def _emit_gap_status(self, status: str) -> None:
         finding_id = str(self.gap_pick_combo.currentData() or "")
         if self.current_project_id and finding_id:
+            self._set_gap_buttons_enabled(False)
             self.gap_status_requested.emit(self.current_project_id, finding_id, status)
 
     def _emit_repair_status(self, status: str) -> None:
         task_id = str(self.repair_pick_combo.currentData() or "")
         if self.current_project_id and task_id:
+            self._set_repair_buttons_enabled(False)
             self.repair_task_status_requested.emit(self.current_project_id, task_id, status)
 
     def _sync_timer_controls(self) -> None:

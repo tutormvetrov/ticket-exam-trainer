@@ -113,9 +113,6 @@ class MainWindow(QMainWindow):
 
         self.topbar = TopBar()
         self.topbar.settings_clicked.connect(lambda: self.open_settings_section("general"))
-        self.topbar.ollama_clicked.connect(lambda: self.open_settings_section("ollama"))
-        self.topbar.theme_clicked.connect(self.toggle_theme)
-        self.topbar.search_changed.connect(self.forward_search)
         content_layout.addWidget(self.topbar)
 
         self.separator = QWidget()
@@ -177,7 +174,6 @@ class MainWindow(QMainWindow):
         self.views["settings"].open_release_requested.connect(self.open_release_page)
 
         self.switch_view("library")
-        self.topbar.set_theme_label(self.palette_name)
         self.views["library"].set_dlc_visible(self.facade.settings.show_dlc_teaser)
         self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
         self.views["settings"].set_update_info(self.latest_update_info)
@@ -202,17 +198,11 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(self.stack_pages[key])
         if key in {"tickets", "training"}:
             QTimer.singleShot(0, self._refresh_heavy_views)
-        self.forward_search(self.topbar.search_input.text())
         self._apply_interface_text_overrides()
 
     def open_settings_section(self, section: str) -> None:
         self.switch_view("settings")
         self.views["settings"].switch_section(section)
-
-    def forward_search(self, text: str) -> None:
-        current = self.views.get(self.current_key)
-        if hasattr(current, "set_search_text"):
-            current.set_search_text(text)
 
     def _wrap_view(self, view: QWidget) -> QScrollArea:
         scroll = QScrollArea()
@@ -482,21 +472,6 @@ class MainWindow(QMainWindow):
             self._import_thread.deleteLater()
         self._import_thread = None
 
-    def toggle_theme(self) -> None:
-        self.palette_name = "dark" if self.palette_name == "light" else "light"
-        settings = self.facade.settings
-        settings.theme_name = self.palette_name
-        self.palette_colors = set_app_theme(
-            self.app,
-            self.palette_name,
-            settings.font_preset,
-            settings.font_size,
-        )
-        self.topbar.set_theme_label(self.palette_name)
-        self._refresh_theme_widgets()
-        self.refresh_all_views()
-        self.facade.save_settings(settings)
-
     def refresh_sidebar_ollama_status(self) -> None:
         if self._diagnostics_thread is not None and self._diagnostics_thread.isRunning():
             return
@@ -548,7 +523,6 @@ class MainWindow(QMainWindow):
             settings.font_preset,
             settings.font_size,
         )
-        self.topbar.set_theme_label(self.palette_name)
         self._refresh_theme_widgets()
         self.views["library"].set_dlc_visible(settings.show_dlc_teaser)
         self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)

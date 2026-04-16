@@ -1392,9 +1392,6 @@ class SettingsView(QWidget):
             f"{preset['label']} • {preset['description']} • активное семейство: {resolved_family} • размер: {font_size} pt"
         )
 
-    def set_search_text(self, text: str) -> None:
-        return
-
     def set_diagnostics_pending(self, message: str = "Проверка...") -> None:
         self.status_pill.setStyleSheet(
             f"background: {current_colors()['warning_soft']}; color: {current_colors()['warning']}; border-radius: 999px; padding: 10px 18px; "

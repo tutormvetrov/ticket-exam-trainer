@@ -150,9 +150,6 @@ class StatisticsView(QWidget):
             self.weak_layout.addWidget(label)
         self.weak_layout.addStretch(1)
 
-    def set_search_text(self, text: str) -> None:
-        return
-
     def _render_state_exam(self, state_exam: StateExamStatisticsSnapshot) -> None:
         colors = current_colors()
         _clear_layout(self.state_exam_layout)

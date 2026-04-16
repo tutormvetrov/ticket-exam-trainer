@@ -528,9 +528,6 @@ class ImportView(QWidget):
             row_layout.addWidget(status, 0, Qt.AlignmentFlag.AlignTop)
             self.recent_stack.addWidget(row)
 
-    def set_search_text(self, text: str) -> None:
-        return
-
     def refresh_theme(self) -> None:
         colors = current_colors()
         self.summary_status.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {colors['text']};")

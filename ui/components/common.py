@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import Qt, QRectF, Signal, QSize, QEasingCurve, Property, QPropertyAnimation, QByteArray
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
@@ -72,6 +72,15 @@ class LogoMark(QWidget):
     Размер ≥ 40px — полная версия (кольца, пунктир, засечки).
     Размер < 40px — упрощённая (только диск + «Т»).
     При смене темы виджет перерисовывается через refresh_theme().
+
+    Внутренне SVG рендерится один раз в кэш-QPixmap; paintEvent только
+    копирует пиксмап на виджет. Это необходимо, потому что LogoMark
+    обычно сидит внутри CardFrame с QGraphicsDropShadowEffect — при
+    рендере эффекта Qt редиректит paintEvent дочерних виджетов в
+    effect-source pixmap, и QSvgRenderer.render(QPainter(self), …)
+    конфликтует с этим редиректом (плюёт QPainter/WorldTransform
+    warning'ами). Рендер SVG в отдельный QPixmap обходит проблему,
+    потому что там painter гарантированно «свой».
     """
 
     def __init__(self, size: int = 52) -> None:
@@ -79,11 +88,11 @@ class LogoMark(QWidget):
         self.setFixedSize(size, size)
         self._variant = "full" if size >= _LOGO_VARIANT_THRESHOLD_PX else "minimal"
         self._template_bytes: bytes | None = None
-        self._cached_svg: QByteArray | None = None
+        self._cached_pixmap: QPixmap | None = None
         self._cached_palette_key: tuple[bool, ...] | None = None
 
     def refresh_theme(self) -> None:
-        self._cached_svg = None
+        self._cached_pixmap = None
         self._cached_palette_key = None
         self.update()
 
@@ -96,34 +105,45 @@ class LogoMark(QWidget):
 
     def _build_svg(self) -> QByteArray:
         is_dark = is_dark_palette()
-        palette_key = (is_dark,)
-        if self._cached_svg is not None and self._cached_palette_key == palette_key:
-            return self._cached_svg
         palette = logo_palette(is_dark)
         template = self._load_template().decode("utf-8")
         for key, value in palette.items():
             template = template.replace(f"{{{{{key}}}}}", value)
-        self._cached_svg = QByteArray(template.encode("utf-8"))
-        self._cached_palette_key = palette_key
-        return self._cached_svg
+        return QByteArray(template.encode("utf-8"))
 
-    def paintEvent(self, event) -> None:  # noqa: N802
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    def _ensure_pixmap(self) -> QPixmap:
+        is_dark = is_dark_palette()
+        palette_key = (is_dark,)
+        if self._cached_pixmap is not None and self._cached_palette_key == palette_key:
+            return self._cached_pixmap
+        pixmap = QPixmap(self.width(), self.height())
+        pixmap.fill(Qt.GlobalColor.transparent)
         try:
             svg = self._build_svg()
         except OSError:
-            # Шаблон недоступен или нечитаем — рисуем fallback,
-            # чтобы пустоты в брендовом месте пользователь не увидел.
-            self._paint_fallback(painter)
-            return
+            pixmap = self._build_fallback_pixmap()
+            self._cached_pixmap = pixmap
+            self._cached_palette_key = palette_key
+            return pixmap
         renderer = QSvgRenderer(svg)
         if not renderer.isValid():
-            self._paint_fallback(painter)
-            return
+            pixmap = self._build_fallback_pixmap()
+            self._cached_pixmap = pixmap
+            self._cached_palette_key = palette_key
+            return pixmap
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         renderer.render(painter, QRectF(0, 0, self.width(), self.height()))
+        painter.end()
+        self._cached_pixmap = pixmap
+        self._cached_palette_key = palette_key
+        return pixmap
 
-    def _paint_fallback(self, painter: QPainter) -> None:
+    def _build_fallback_pixmap(self) -> QPixmap:
+        pixmap = QPixmap(self.width(), self.height())
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         colors = current_colors()
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(colors["primary"]))
@@ -131,6 +151,20 @@ class LogoMark(QWidget):
         painter.setPen(QColor("#FFFFFF"))
         painter.setFont(QFont(QApplication.font().family(), max(8, self.width() // 3), 800))
         painter.drawText(QRectF(0, 0, self.width(), self.height()), Qt.AlignmentFlag.AlignCenter, "Т")
+        painter.end()
+        return pixmap
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        painter = QPainter()
+        if not painter.begin(self):
+            # Paint device занят (обычно — в момент рендера родительского
+            # QGraphicsDropShadowEffect). Тихо пропускаем этот кадр:
+            # виджет перерисуется, когда Qt отпустит устройство.
+            return
+        try:
+            painter.drawPixmap(0, 0, self._ensure_pixmap())
+        finally:
+            painter.end()
 
 
 class IconBadge(QFrame):

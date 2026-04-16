@@ -268,6 +268,8 @@ xattr -dr com.apple.quarantine dist/Tezis.app
 - считать `build` временным артефактом
 - считать `dist` финальным output, который каждый раз пересобирается из актуального корня
 - packaged build теперь содержит `build_info.json`, а UI показывает текущую версию и commit
+- релиз по умолчанию не должен включать живую `exam_trainer.db` из workspace или машины сборщика
+- если для внутреннего smoke нужен seed, его можно подложить только явно: `powershell -File scripts\build_exe.ps1 -SeedDatabasePath C:\path\to\seed.db`
 
 Быстрый smoke для готового Windows release:
 

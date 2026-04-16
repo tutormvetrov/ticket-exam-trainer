@@ -10,15 +10,19 @@ WORK_DIR="$BUILD_ROOT/pyinstaller"
 APP_NAME="Tezis"
 APP_BUNDLE="$DIST_ROOT/$APP_NAME.app"
 BUILD_INFO_PATH="$APP_BUNDLE/Contents/MacOS/build_info.json"
+SEED_DB_INPUT="${TEZIS_SEED_DATABASE:-${2:-}}"
 SEED_DB=""
-if [[ -f "$HOME/Library/Application Support/Tezis/exam_trainer.db" ]]; then
-  SEED_DB="$HOME/Library/Application Support/Tezis/exam_trainer.db"
-elif [[ -f "$ROOT/exam_trainer.db" ]]; then
-  SEED_DB="$ROOT/exam_trainer.db"
+if [[ -n "$SEED_DB_INPUT" ]]; then
+  SEED_DB="$("$PYTHON_EXE" -c 'from app.release_seed import resolve_seed_database; import sys; resolved = resolve_seed_database(sys.argv[1]); print(resolved if resolved is not None else "")' "$SEED_DB_INPUT")"
 fi
 APP_VERSION="$("$PYTHON_EXE" -c 'from app.meta import APP_VERSION; print(APP_VERSION)')"
 
 echo "Building macOS app bundle into $APP_BUNDLE"
+if [[ -n "$SEED_DB" ]]; then
+  echo "Bundling explicit seed database: $SEED_DB"
+else
+  echo "No seed database requested; app bundle will create exam_trainer.db in the user workspace on first launch."
+fi
 
 rm -rf "$APP_BUNDLE" "$WORK_DIR" "$SPEC_DIR"
 

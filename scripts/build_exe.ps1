@@ -1,5 +1,6 @@
 param(
     [string]$PythonExe = "python",
+    [string]$SeedDatabasePath = "",
     [switch]$SkipZip
 )
 
@@ -16,15 +17,26 @@ $stageReleaseDir = Join-Path $stageDistRoot $releaseName
 $workDir = Join-Path $buildRoot "pyinstaller"
 $specDir = Join-Path $buildRoot "spec"
 $buildInfoPath = Join-Path $releaseDir "build_info.json"
-$seedWorkspaceRoot = Join-Path $env:LOCALAPPDATA "Tezis"
-$seedDbCandidates = @(
-    (Join-Path $seedWorkspaceRoot "exam_trainer.db"),
-    (Join-Path $root "exam_trainer.db")
-)
 $appVersion = (& $PythonExe -c "from app.meta import APP_VERSION; print(APP_VERSION)" | Select-Object -First 1).Trim()
+$resolvedSeedDbPath = ""
+
+if (-not $SeedDatabasePath) {
+    $SeedDatabasePath = $env:TEZIS_SEED_DATABASE
+}
+if ($SeedDatabasePath) {
+    $resolvedSeedDbPath = (
+        & $PythonExe -c "from app.release_seed import resolve_seed_database; import sys; resolved = resolve_seed_database(sys.argv[1]); print(resolved if resolved is not None else '')" $SeedDatabasePath |
+            Select-Object -First 1
+    ).Trim()
+}
 
 Write-Host "Building release into $releaseDir"
 Write-Host "Repo root is the source of truth; packaged README/docs/scripts will be regenerated from root."
+if ($resolvedSeedDbPath) {
+    Write-Host "Bundling explicit seed database: $resolvedSeedDbPath"
+} else {
+    Write-Host "No seed database requested; packaged app will create exam_trainer.db in the user workspace on first launch."
+}
 
 New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
 
@@ -85,16 +97,9 @@ Get-ChildItem -LiteralPath $stageReleaseDir -Force | ForEach-Object {
 
 New-Item -ItemType Directory -Force -Path (Join-Path $releaseDir "app_data") | Out-Null
 
-$seedDbPath = $null
-foreach ($candidate in $seedDbCandidates) {
-    if ((Test-Path -LiteralPath $candidate) -and ((Get-Item -LiteralPath $candidate).Length -gt 0)) {
-        $seedDbPath = $candidate
-        break
-    }
-}
-if ($seedDbPath) {
-    Copy-Item -LiteralPath $seedDbPath -Destination (Join-Path $releaseDir "exam_trainer.db") -Force
-    Write-Host "Bundled seeded database: $seedDbPath"
+if ($resolvedSeedDbPath) {
+    Copy-Item -LiteralPath $resolvedSeedDbPath -Destination (Join-Path $releaseDir "exam_trainer.db") -Force
+    Write-Host "Bundled seeded database: $resolvedSeedDbPath"
 }
 
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination (Join-Path $releaseDir "README.md") -Force

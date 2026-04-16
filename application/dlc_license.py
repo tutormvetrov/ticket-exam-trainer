@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from app.json_storage import load_json_dict, save_json_dict
 from domain.defense import DlcLicenseState
 
 
@@ -30,9 +31,7 @@ class DlcLicenseService:
         return install_id
 
     def load_state(self) -> DlcLicenseState:
-        if not self.storage_path.exists():
-            return DlcLicenseState(install_id="")
-        payload = json.loads(self.storage_path.read_text(encoding="utf-8"))
+        payload = load_json_dict(self.storage_path)
         return DlcLicenseState(
             install_id=str(payload.get("install_id", "")),
             activated=bool(payload.get("activated", False)),
@@ -48,7 +47,7 @@ class DlcLicenseService:
         payload = asdict(state)
         payload["last_checked_at"] = state.last_checked_at.isoformat() if state.last_checked_at else None
         payload["activated_at"] = state.activated_at.isoformat() if state.activated_at else None
-        self.storage_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        save_json_dict(self.storage_path, payload)
 
     def activate(self, install_id: str, activation_code: str) -> DlcLicenseState:
         state = self.load_state()

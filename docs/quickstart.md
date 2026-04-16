@@ -131,6 +131,7 @@ python main.py
 - содержимое `dist/Tezis/*` не редактируется вручную, а пересобирается через `scripts/build_exe.ps1`
 - packaged build содержит `build_info.json`, а интерфейс показывает текущую версию и commit
 - быстрый release smoke выполняется через `scripts/release_smoke.ps1`
+- release по умолчанию не должен содержать живую `exam_trainer.db`; если нужен внутренний seed для smoke, передавайте его только явно через `-SeedDatabasePath`
 
 ## 9. Если что-то не работает
 

@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import hmac
-import json
 from pathlib import Path
 import secrets
+
+from app.json_storage import load_json_dict, save_json_dict
 
 
 @dataclass(slots=True)
@@ -61,18 +62,18 @@ class AdminAccessStore:
         self._save_payload(payload)
 
     def _load_payload(self) -> dict:
-        if not self.path.exists():
+        payload = load_json_dict(self.path)
+        if not payload:
             return {
                 "salt": "",
                 "password_hash": "",
                 "password_hint": "",
                 "debug_mode": False,
             }
-        return json.loads(self.path.read_text(encoding="utf-8"))
+        return payload
 
     def _save_payload(self, payload: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        save_json_dict(self.path, payload)
 
     @staticmethod
     def _hash_password(password: str, salt: str) -> str:

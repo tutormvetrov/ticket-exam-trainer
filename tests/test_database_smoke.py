@@ -6,6 +6,7 @@ from pathlib import Path
 from domain.answer_profile import AnswerProfileCode
 from domain.knowledge import AtomType, CrossTicketLink, Exam, KnowledgeAtom, Section, SourceDocument, TicketKnowledgeMap
 from infrastructure.db import connect_initialized
+from infrastructure.db.connection import SQLITE_BUSY_TIMEOUT_MS
 from infrastructure.db.repository import KnowledgeRepository
 
 
@@ -21,6 +22,21 @@ def test_database_schema_smoke(tmp_path: Path) -> None:
     assert "atoms" in tables
     assert "ticket_mastery_profiles" in tables
     assert "spaced_review_queue" in tables
+
+
+def test_database_connection_enables_desktop_safe_pragmas(tmp_path: Path) -> None:
+    database_path = tmp_path / "exam.db"
+    connection = connect_initialized(database_path)
+
+    journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
+    busy_timeout = int(connection.execute("PRAGMA busy_timeout").fetchone()[0])
+    foreign_keys = int(connection.execute("PRAGMA foreign_keys").fetchone()[0])
+
+    connection.close()
+
+    assert journal_mode == "wal"
+    assert busy_timeout == SQLITE_BUSY_TIMEOUT_MS
+    assert foreign_keys == 1
 
 
 def test_save_ticket_map_tolerates_duplicate_concept_ids(tmp_path: Path) -> None:

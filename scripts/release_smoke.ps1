@@ -18,6 +18,7 @@ if ($Rebuild) {
 $releaseExe = Join-Path $ReleaseDir "Tezis.exe"
 $screenshotPath = Join-Path $ReleaseDir "release-smoke.png"
 $buildInfoPath = Join-Path $ReleaseDir "build_info.json"
+$packagedDbPath = Join-Path $ReleaseDir "exam_trainer.db"
 
 if (-not (Test-Path -LiteralPath $releaseExe)) {
     throw "Release executable not found: $releaseExe"
@@ -94,6 +95,9 @@ if (-not (Test-Path -LiteralPath $screenshotPath)) {
 
 if (-not (Test-Path -LiteralPath $buildInfoPath)) {
     throw "Packaged build info is missing: $buildInfoPath"
+}
+if (Test-Path -LiteralPath $packagedDbPath) {
+    throw "Release must not bundle a live workspace database by default: $packagedDbPath"
 }
 
 $checks = @(

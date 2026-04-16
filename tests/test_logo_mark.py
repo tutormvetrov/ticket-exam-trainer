@@ -99,3 +99,13 @@ def test_logo_mark_theme_refresh_rebuilds_svg(qt_app) -> None:
 
     # Восстановить light, чтобы не зааффектить другие тесты.
     set_app_theme(qt_app, "light", "inter-style", 14)
+
+
+def test_logo_mark_svg_has_no_unresolved_placeholders(qt_app) -> None:
+    from ui.components.common import LogoMark
+    for size, variant in ((52, "full"), (24, "minimal")):
+        widget = LogoMark(size=size)
+        assert widget._variant == variant
+        svg_bytes = bytes(widget._build_svg())
+        assert b"{{" not in svg_bytes, f"Нерезолвленные плейсхолдеры в {variant}"
+        assert b"}}" not in svg_bytes

@@ -42,6 +42,7 @@ from ui.views.settings_view import SettingsView
 from ui.views.statistics_view import StatisticsView
 from ui.views.subjects_view import SubjectsView
 from ui.views.tickets_view import TicketsView
+from ui.views.knowledge_map_view import KnowledgeMapView
 from ui.views.training_view import TrainingView
 
 
@@ -133,6 +134,7 @@ class MainWindow(QMainWindow):
             "import": ImportView(self.palette_colors["shadow"]),
             "training": TrainingView(self.palette_colors["shadow"]),
             "statistics": StatisticsView(self.palette_colors["shadow"]),
+            "knowledge-map": KnowledgeMapView(self.palette_colors["shadow"]),
             "defense": DefenseView(self.palette_colors["shadow"]),
             "settings": SettingsView(self.palette_colors["shadow"], self.facade.settings, self.facade.workspace_root),
         }
@@ -162,6 +164,7 @@ class MainWindow(QMainWindow):
         self.views["import"].open_training_requested.connect(lambda: self.switch_view("training"))
         self.views["import"].open_statistics_requested.connect(lambda: self.switch_view("statistics"))
 
+        self.views["knowledge-map"].train_requested.connect(self._train_from_map)
         self.views["training"].evaluate_requested.connect(self.handle_training_evaluation)
         self.views["settings"].diagnostics_changed.connect(self.apply_ollama_diagnostics)
         self.views["settings"].settings_saved.connect(self.persist_settings)
@@ -588,6 +591,10 @@ class MainWindow(QMainWindow):
         self.views["subjects"].set_subjects(subjects)
         self.views["sections"].set_sections(sections)
         self.views["statistics"].set_data(statistics, mastery, weak_areas, state_exam_statistics)
+        km_tickets = self.facade.load_ticket_maps()
+        readiness = self.facade.load_readiness_score(tickets=km_tickets, mastery=mastery)
+        self.views["knowledge-map"].set_data(km_tickets, mastery, readiness)
+        self.sidebar.set_readiness(readiness.percent)
         self.views["settings"].set_admin_state(self.admin_state, self.admin_unlocked)
         self.views["settings"].set_update_info(self.latest_update_info)
         if include_heavy:
@@ -610,6 +617,10 @@ class MainWindow(QMainWindow):
         target_mode = self._pending_training_mode or self.views["training"].selected_mode or self.facade.settings.default_training_mode
         self.views["training"].select_mode(target_mode)
         self._pending_training_mode = None
+
+    def _train_from_map(self, ticket_id: str) -> None:
+        self.switch_view("training")
+        self.views["training"].select_ticket(ticket_id)
 
     def open_training_mode(self, mode_key: str) -> None:
         self._pending_training_mode = mode_key

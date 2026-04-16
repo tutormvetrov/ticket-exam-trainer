@@ -27,6 +27,7 @@ NAV_ITEMS = [
     ("import", "Импорт документов", QStyle.StandardPixmap.SP_ArrowUp),
     ("training", "Тренировка", QStyle.StandardPixmap.SP_MediaPlay),
     ("statistics", "Статистика", QStyle.StandardPixmap.SP_FileDialogInfoView),
+    ("knowledge-map", "Карта знаний", QStyle.StandardPixmap.SP_ComputerIcon),
     ("defense", "Подготовка к защите", QStyle.StandardPixmap.SP_DialogHelpButton),
     ("settings", "Настройки", QStyle.StandardPixmap.SP_FileDialogContentsView),
 ]
@@ -123,6 +124,11 @@ class Sidebar(QWidget):
         self.url_label.setProperty("role", "body")
         self.url_label.setWordWrap(True)
         status_layout.addWidget(self.url_label)
+
+        self.readiness_label = QLabel("Готовность: —")
+        self.readiness_label.setProperty("role", "body")
+        self.readiness_label.setWordWrap(True)
+        status_layout.addWidget(self.readiness_label)
         layout.addWidget(status_card)
 
         self.version_label = QLabel(self.build_info.release_label)
@@ -156,6 +162,9 @@ class Sidebar(QWidget):
         self.status_label.setText(label_text)
         self.model_label.setText(model_text)
         self.url_label.setText(url_text)
+
+    def set_readiness(self, percent: int) -> None:
+        self.readiness_label.setText(f"Готовность: {percent}%")
 
     def refresh_theme(self) -> None:
         colors = current_colors()

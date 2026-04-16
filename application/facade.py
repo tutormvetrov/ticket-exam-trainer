@@ -6,6 +6,7 @@ from pathlib import Path
 import sqlite3
 
 from application.adaptive_review import AdaptiveReviewService
+from application.readiness import ReadinessService
 from application.answer_profile_registry import answer_profile_label
 from application.defense_service import DefenseService
 from application.defense_ui_data import DefenseEvaluationResult, DefenseProcessingResult, DefenseWorkspaceSnapshot
@@ -132,6 +133,12 @@ class AppFacade:
 
     def load_latest_import_result(self) -> ImportExecutionResult:
         return self.queries.load_latest_import_result()
+
+    def load_readiness_score(self, tickets=None, mastery=None):
+        from application.ui_data import ReadinessScore
+        resolved_tickets = tickets if tickets is not None else self.load_ticket_maps()
+        resolved_mastery = mastery if mastery is not None else self.load_mastery_breakdowns()
+        return ReadinessService().calculate(resolved_tickets, resolved_mastery)
 
     def load_training_snapshot(self, tickets: list[TicketKnowledgeMap] | None = None) -> TrainingSnapshot:
         snapshot = self.queries.load_training_snapshot(limit=self._settings.training_queue_size, tickets=tickets)

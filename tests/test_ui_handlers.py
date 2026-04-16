@@ -127,7 +127,7 @@ def test_library_refresh_skips_heavy_ticket_loading(tmp_path: Path, monkeypatch)
     window.refresh_all_views()
     _qapp().processEvents()
 
-    assert calls["ticket_maps"] == 0
+    assert calls["ticket_maps"] == 1  # knowledge-map view needs ticket data
     assert calls["training_snapshot"] == 0
     window.close()
     window.facade.connection.close()

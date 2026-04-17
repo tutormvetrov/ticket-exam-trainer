@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from application.ui_data import TrainingEvaluationResult
 from domain.knowledge import KnowledgeAtom, TicketKnowledgeMap
+from ui.components.common import CardFrame, OrnamentalDivider
 from ui.training_mode_registry import TRAINING_MODE_SPECS, TrainingModeSpec
 from ui.theme import current_colors
 from ui.components.review_verdict import ReviewVerdictWidget
@@ -111,7 +112,7 @@ class TrainingWorkspaceBase(QWidget):
 
         colors = current_colors()
         self.header_label = QLabel(spec.workspace_title)
-        self.header_label.setStyleSheet(f"font-size: 18px; font-weight: 800; color: {colors['text']};")
+        self.header_label.setProperty("role", "section-title")
         self.header_label.setWordWrap(True)
         self.header_label.hide()
         root.addWidget(self.header_label)
@@ -131,7 +132,7 @@ class TrainingWorkspaceBase(QWidget):
         empty_layout.setContentsMargins(18, 18, 18, 18)
         empty_layout.setSpacing(8)
         self.empty_title = QLabel(spec.empty_title)
-        self.empty_title.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {colors['text']};")
+        self.empty_title.setProperty("role", "section-title")
         self.empty_body = QLabel(spec.empty_body)
         self.empty_body.setProperty("role", "body")
         self.empty_body.setWordWrap(True)
@@ -145,21 +146,19 @@ class TrainingWorkspaceBase(QWidget):
         self.content_layout.setSpacing(14)
         root.addWidget(self.content)
 
-        self.result_box = QFrame()
+        self.result_box = CardFrame(role="atelier", shadow=False, accent_strip="moss")
         self.result_box.setObjectName("ModeResultBox")
-        self.result_box.setStyleSheet(
-            f"QFrame#ModeResultBox {{ background: {colors['card_muted']}; border: 1px solid {colors['border']}; border-radius: 16px; }}"
-        )
         result_layout = QVBoxLayout(self.result_box)
-        result_layout.setContentsMargins(16, 14, 16, 14)
-        result_layout.setSpacing(6)
+        result_layout.setContentsMargins(18, 16, 18, 16)
+        result_layout.setSpacing(10)
         self.result_title = QLabel("Результат режима")
-        self.result_title.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {colors['text']};")
+        self.result_title.setProperty("role", "section-title")
         self.result_body = QLabel("Действие ещё не выполнялось.")
         self.result_body.setObjectName("training-mode-result")
         self.result_body.setProperty("role", "body")
         self.result_body.setWordWrap(True)
         result_layout.addWidget(self.result_title)
+        result_layout.addWidget(OrnamentalDivider())
         result_layout.addWidget(self.result_body)
         self.content_layout.addWidget(self.result_box)
 
@@ -223,15 +222,10 @@ class TrainingWorkspaceBase(QWidget):
 
     def refresh_theme(self) -> None:
         colors = current_colors()
-        self.header_label.setStyleSheet(f"font-size: 18px; font-weight: 800; color: {colors['text']};")
         self.empty_box.setStyleSheet(
             f"QFrame#ModeEmptyBox {{ background: {colors['card_soft']}; border: 1px dashed {colors['border_strong']}; border-radius: 16px; }}"
         )
-        self.empty_title.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {colors['text']};")
-        self.result_box.setStyleSheet(
-            f"QFrame#ModeResultBox {{ background: {colors['card_muted']}; border: 1px solid {colors['border']}; border-radius: 16px; }}"
-        )
-        self.result_title.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {colors['text']};")
+        self.review_widget.refresh_theme()
 
 
 class ReadingWorkspace(TrainingWorkspaceBase):
@@ -248,20 +242,18 @@ class ReadingWorkspace(TrainingWorkspaceBase):
         self.reveal_button.clicked.connect(self._toggle_answer)
         self.content_layout.insertWidget(1, self.reveal_button)
 
-        self.answer_box = QFrame()
+        self.answer_box = CardFrame(role="atelier", shadow=False, accent_strip="rust")
         self.answer_box.setObjectName("ReadingAnswerBox")
-        self.answer_box.setStyleSheet(
-            f"QFrame#ReadingAnswerBox {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
-        )
         answer_layout = QVBoxLayout(self.answer_box)
-        answer_layout.setContentsMargins(16, 14, 16, 14)
-        answer_layout.setSpacing(8)
+        answer_layout.setContentsMargins(18, 16, 18, 16)
+        answer_layout.setSpacing(10)
         answer_title = QLabel("Эталон ответа")
-        answer_title.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {current_colors()['text']};")
+        answer_title.setProperty("role", "section-title")
         self.answer_body = QLabel()
         self.answer_body.setWordWrap(True)
         self.answer_body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         answer_layout.addWidget(answer_title)
+        answer_layout.addWidget(OrnamentalDivider())
         answer_layout.addWidget(self.answer_body)
         self.content_layout.insertWidget(2, self.answer_box)
 
@@ -270,7 +262,7 @@ class ReadingWorkspace(TrainingWorkspaceBase):
         actions.setSpacing(10)
         self.understood_button = QPushButton("Понял")
         self.understood_button.setObjectName("training-reading-understood")
-        self.understood_button.setProperty("variant", "primary")
+        self.understood_button.setProperty("variant", "secondary")
         self.understood_button.clicked.connect(self._submit_understood)
         self.repeat_later_button = QPushButton("Повторить позже")
         self.repeat_later_button.setObjectName("training-reading-repeat")
@@ -278,7 +270,7 @@ class ReadingWorkspace(TrainingWorkspaceBase):
         self.repeat_later_button.clicked.connect(self._submit_repeat_later)
         self.next_button = QPushButton("Следующий билет")
         self.next_button.setObjectName("training-reading-next")
-        self.next_button.setProperty("variant", "ghost")
+        self.next_button.setProperty("variant", "primary")
         self.next_button.clicked.connect(self.advance_requested.emit)
         actions.addWidget(self.understood_button)
         actions.addWidget(self.repeat_later_button)
@@ -325,9 +317,6 @@ class ReadingWorkspace(TrainingWorkspaceBase):
 
     def refresh_theme(self) -> None:
         super().refresh_theme()
-        self.answer_box.setStyleSheet(
-            f"QFrame#ReadingAnswerBox {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
-        )
         if self.current_ticket is not None:
             self._set_ticket(self.current_ticket)
 
@@ -338,7 +327,7 @@ class ActiveRecallWorkspace(TrainingWorkspaceBase):
 
         self.prompt_box = QLabel()
         self.prompt_box.setWordWrap(True)
-        self.prompt_box.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {current_colors()['text']};")
+        self.prompt_box.setProperty("role", "card-title")
         self.content_layout.insertWidget(0, self.prompt_box)
 
         self.recall_input = QTextEdit()
@@ -378,20 +367,18 @@ class ActiveRecallWorkspace(TrainingWorkspaceBase):
         buttons.addWidget(self.submit_button)
         self.content_layout.insertLayout(3, buttons)
 
-        self.answer_box = QFrame()
+        self.answer_box = CardFrame(role="atelier", shadow=False, accent_strip="rust")
         self.answer_box.setObjectName("RecallAnswerBox")
-        self.answer_box.setStyleSheet(
-            f"QFrame#RecallAnswerBox {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
-        )
         answer_layout = QVBoxLayout(self.answer_box)
-        answer_layout.setContentsMargins(16, 14, 16, 14)
-        answer_layout.setSpacing(8)
+        answer_layout.setContentsMargins(18, 16, 18, 16)
+        answer_layout.setSpacing(10)
         answer_title = QLabel("Эталон после попытки")
-        answer_title.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {current_colors()['text']};")
+        answer_title.setProperty("role", "section-title")
         self.answer_body = QLabel()
         self.answer_body.setWordWrap(True)
         self.answer_body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         answer_layout.addWidget(answer_title)
+        answer_layout.addWidget(OrnamentalDivider())
         answer_layout.addWidget(self.answer_body)
         self.content_layout.insertWidget(4, self.answer_box)
         self._show_empty()
@@ -437,10 +424,6 @@ class ActiveRecallWorkspace(TrainingWorkspaceBase):
 
     def refresh_theme(self) -> None:
         super().refresh_theme()
-        self.prompt_box.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {current_colors()['text']};")
-        self.answer_box.setStyleSheet(
-            f"QFrame#RecallAnswerBox {{ background: {current_colors()['card_soft']}; border: 1px solid {current_colors()['border']}; border-radius: 16px; }}"
-        )
         if self.current_ticket is not None:
             self._set_ticket(self.current_ticket)
 

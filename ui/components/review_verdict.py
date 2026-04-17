@@ -1,67 +1,84 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from application.ui_data import ReviewVerdict
+from ui.components.common import CardFrame, OrnamentalDivider
 from ui.theme import current_colors
 
 
-STATUS_ICONS = {"covered": "✓", "partial": "◐", "missing": "✗"}
 STATUS_COLORS_KEY = {"covered": "success", "partial": "warning", "missing": "danger"}
+STATUS_TEXT = {"covered": "OK", "partial": "PART", "missing": "MISS"}
+STATUS_STATE = {"covered": "correct", "partial": "partial", "missing": "incorrect"}
 
 
 class ReviewVerdictWidget(QWidget):
     def __init__(self) -> None:
         super().__init__()
-        self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._verdict: ReviewVerdict | None = None
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        self.card = CardFrame(role="atelier", shadow=False, accent_strip="moss")
+        root.addWidget(self.card)
+        self._layout = QVBoxLayout(self.card)
+        self._layout.setContentsMargins(18, 16, 18, 16)
         self._layout.setSpacing(10)
 
     def set_verdict(self, verdict: ReviewVerdict) -> None:
+        self._verdict = verdict
         self._clear()
         colors = current_colors()
 
-        header = QLabel(f"Рецензия: {verdict.overall_score}% — {verdict.overall_comment}")
+        header = QLabel(f"Рецензия: {verdict.overall_score}%")
+        header.setProperty("role", "card-title")
         header.setWordWrap(True)
-        header.setStyleSheet(f"font-size: 15px; font-weight: 800; color: {colors['text']};")
         self._layout.addWidget(header)
 
+        if verdict.overall_comment:
+            summary = QLabel(verdict.overall_comment)
+            summary.setProperty("role", "subtitle-italic")
+            summary.setWordWrap(True)
+            self._layout.addWidget(summary)
+
         for tv in verdict.thesis_verdicts:
-            card = self._build_thesis_card(tv, colors)
-            self._layout.addWidget(card)
+            self._layout.addWidget(OrnamentalDivider())
+            self._layout.addWidget(self._build_thesis_card(tv, colors))
 
         if verdict.strengths:
-            self._layout.addWidget(self._build_section("Сильные стороны", verdict.strengths, colors))
+            self._layout.addWidget(OrnamentalDivider())
+            self._layout.addWidget(self._build_section("Сильные стороны", verdict.strengths))
         if verdict.recommendations:
-            self._layout.addWidget(self._build_section("Рекомендации", verdict.recommendations, colors))
+            self._layout.addWidget(OrnamentalDivider())
+            self._layout.addWidget(self._build_section("Рекомендации", verdict.recommendations))
         if verdict.structure_notes:
-            self._layout.addWidget(self._build_section("Замечания по структуре", verdict.structure_notes, colors))
+            self._layout.addWidget(OrnamentalDivider())
+            self._layout.addWidget(self._build_section("Замечания по структуре", verdict.structure_notes))
 
-    def _build_thesis_card(self, tv, colors: dict) -> QFrame:
-        card = QFrame()
-        card.setObjectName("ThesisVerdictCard")
-        color_key = STATUS_COLORS_KEY.get(tv.status, "danger")
-        border_color = colors.get(color_key, colors["border"])
-        card.setStyleSheet(
-            f"QFrame#ThesisVerdictCard {{ background: {colors['card_soft']}; "
-            f"border-left: 4px solid {border_color}; border-radius: 8px; }}"
-        )
+    def _build_thesis_card(self, tv, colors: dict) -> QWidget:
+        card = CardFrame(role="atelier", shadow=False)
+        card.setProperty("answer-state", STATUS_STATE.get(tv.status, "partial"))
+        card.style().unpolish(card)
+        card.style().polish(card)
+
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(4)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(6)
 
         top = QHBoxLayout()
         top.setContentsMargins(0, 0, 0, 0)
         top.setSpacing(8)
 
-        icon = QLabel(STATUS_ICONS.get(tv.status, "?"))
-        icon.setStyleSheet(f"font-size: 16px; color: {border_color};")
-        icon.setFixedWidth(20)
-        top.addWidget(icon)
+        badge = QLabel(STATUS_TEXT.get(tv.status, "?"))
+        badge.setStyleSheet(
+            f"font-size: 11px; font-weight: 700; color: {colors.get(STATUS_COLORS_KEY.get(tv.status, 'danger'), colors['border'])};"
+        )
+        badge.setFixedWidth(36)
+        top.addWidget(badge)
 
         label = QLabel(tv.thesis_label)
-        label.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {colors['text']};")
+        label.setProperty("role", "card-title")
         label.setWordWrap(True)
         top.addWidget(label, 1)
         layout.addLayout(top)
@@ -74,20 +91,21 @@ class ReviewVerdictWidget(QWidget):
 
         if tv.student_excerpt:
             excerpt = QLabel(f"«{tv.student_excerpt}»")
-            excerpt.setStyleSheet(f"font-size: 12px; font-style: italic; color: {colors['text_tertiary']};")
+            excerpt.setProperty("role", "subtitle-italic")
             excerpt.setWordWrap(True)
+            excerpt.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             layout.addWidget(excerpt)
 
         return card
 
-    def _build_section(self, title: str, items: list[str], colors: dict) -> QFrame:
-        section = QFrame()
+    def _build_section(self, title: str, items: list[str]) -> QWidget:
+        section = QWidget()
         layout = QVBoxLayout(section)
         layout.setContentsMargins(0, 6, 0, 0)
         layout.setSpacing(4)
 
         heading = QLabel(title)
-        heading.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {colors['text_secondary']};")
+        heading.setProperty("role", "section-title")
         layout.addWidget(heading)
 
         for item in items[:5]:
@@ -107,4 +125,5 @@ class ReviewVerdictWidget(QWidget):
                 widget.deleteLater()
 
     def refresh_theme(self) -> None:
-        pass  # Rebuilt on each set_verdict call
+        if self._verdict is not None:
+            self.set_verdict(self._verdict)

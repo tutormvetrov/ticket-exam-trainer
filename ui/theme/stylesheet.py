@@ -31,6 +31,12 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     rust = colors.get("rust", colors["primary"])
     rust_soft = colors.get("rust_soft", colors["primary_soft"])
     ink_muted = colors.get("ink_muted", colors["text_secondary"])
+    moss = colors.get("moss", colors.get("success", colors["primary"]))
+    moss_soft = colors.get("moss_soft", colors.get("success_soft", colors["primary_soft"]))
+    claret = colors.get("claret", colors.get("danger", colors["primary"]))
+    claret_soft = colors.get("claret_soft", colors.get("danger_soft", colors["primary_soft"]))
+    brick = colors.get("brick", colors.get("warning", colors["primary"]))
+    brick_soft = colors.get("brick_soft", colors.get("warning_soft", colors["primary_soft"]))
     primary_pressed = QColor(colors["primary"]).darker(120 if is_dark else 114).name()
     card_pressed = QColor(colors["card_bg"]).darker(108 if is_dark else 102).name()
     secondary_hover = alpha_color(colors["primary"], 0.12 if is_dark else 0.08)
@@ -494,9 +500,25 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         border: 1px solid {colors["border"]};
         border-radius: 12px;
     }}
+    QFrame[role="atelier-card"]:hover {{
+        border: 1px solid {colors["rust"]};
+        background: {colors["rust_soft"]};
+    }}
     QFrame[role="atelier-card"][selected="true"] {{
         border: 1px solid {colors["rust"]};
         background: {colors["rust_soft"]};
+    }}
+    QFrame[role="atelier-card"][answer-state="correct"] {{
+        border: 1px solid {moss};
+        background: {moss_soft};
+    }}
+    QFrame[role="atelier-card"][answer-state="incorrect"] {{
+        border: 1px solid {claret};
+        background: {claret_soft};
+    }}
+    QFrame[role="atelier-card"][answer-state="partial"] {{
+        border: 1px solid {brick};
+        background: {brick_soft};
     }}
     QFrame[role="paper-card"] {{
         background: {paper};

@@ -9,7 +9,15 @@ from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QHBoxLayout, QL
 
 from app.paths import logo_assets_dir
 from ui.icons import SvgIconLabel
-from ui.theme import alpha_color, apply_shadow, current_colors, is_dark_palette, logo_palette, mastery_band_color
+from ui.theme import (
+    alpha_color,
+    apply_shadow,
+    current_colors,
+    is_dark_palette,
+    logo_palette,
+    mastery_band_color,
+    resolve_ui_font,
+)
 
 
 def harden_plain_text(*labels: QLabel) -> None:
@@ -261,25 +269,30 @@ class IconBadge(QFrame):
         self.refresh_theme()
 
     def refresh_theme(self) -> None:
+        ui_family = resolve_ui_font()
         self.setStyleSheet(
             f"QFrame {{ background: {self._bg_color}; border-radius: {self._radius}px; }}"
-            f"QLabel {{ color: {self._fg_color}; font-size: {self._font_size}px; font-weight: 700; }}"
+            f"QLabel {{ color: {self._fg_color}; font-family: \"{ui_family}\"; font-size: {self._font_size}px; font-weight: 700; }}"
         )
 
 
 class StatusDot(QFrame):
-    def __init__(self, text: str, color: str = "#18B06A") -> None:
+    def __init__(self, text: str, color: str | None = None) -> None:
         super().__init__()
+        colors = current_colors()
+        dot_color = color or colors["moss"]
+        ui_family = resolve_ui_font()
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
         dot = QLabel("\u25cf")
-        dot.setStyleSheet(f"color: {color}; font-size: 12px;")
+        dot.setStyleSheet(f"color: {dot_color}; font-size: 12px;")
         layout.addWidget(dot, 0, Qt.AlignmentFlag.AlignVCenter)
 
         label = QLabel(text)
         label.setProperty("role", "status-ok")
+        label.setStyleSheet(f"font-family: \"{ui_family}\";")
         layout.addWidget(label, 0, Qt.AlignmentFlag.AlignVCenter)
         layout.addStretch(1)
 
@@ -294,7 +307,7 @@ class MetricTile(CardFrame):
         shadow_color: QColor,
         compact: bool = False,
     ) -> None:
-        super().__init__(role="subtle-card", shadow_color=shadow_color)
+        super().__init__(role="atelier", shadow_level="md")
         self.compact = compact
         self.tone = tone
         self._icon_text = icon_text
@@ -317,14 +330,14 @@ class MetricTile(CardFrame):
         top_row.addWidget(self.badge_shell, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self.value_label = QLabel()
-        self.value_label.setStyleSheet(f"font-size: {16 if compact else 18}px; font-weight: 800;")
+        self.value_label.setProperty("role", "metric-value")
         top_row.addWidget(self.value_label, 0, Qt.AlignmentFlag.AlignVCenter)
         top_row.addStretch(1)
         layout.addLayout(top_row)
 
         self.text_label = QLabel()
         self.text_label.setWordWrap(True)
-        self.text_label.setStyleSheet(f"font-size: {10 if compact else 11}px; font-weight: 600; line-height: 1.2;")
+        self.text_label.setProperty("role", "metric-label")
         layout.addWidget(self.text_label)
         self.badge: IconBadge | None = None
         self.set_content(icon_text, value, label_text, tone)
@@ -333,7 +346,6 @@ class MetricTile(CardFrame):
         self._icon_text = icon_text
         self._value = value
         self._label_text = label_text
-        colors = current_colors()
         self.tone = tone
         bg, fg = tone_pair(tone)
         while self.badge_holder.count():
@@ -347,30 +359,39 @@ class MetricTile(CardFrame):
         self.badge_holder.addWidget(self.badge, 0, Qt.AlignmentFlag.AlignLeft)
         self.value_label.setText(value)
         self.text_label.setText(label_text)
-        self.value_label.setStyleSheet(f"font-size: {16 if self.compact else 18}px; font-weight: 800; color: {colors['text']};")
-        self.text_label.setStyleSheet(
-            f"font-size: {10 if self.compact else 11}px; color: {colors['text_secondary']}; font-weight: 600; line-height: 1.2;"
-        )
+        self.value_label.style().unpolish(self.value_label)
+        self.value_label.style().polish(self.value_label)
+        self.text_label.style().unpolish(self.text_label)
+        self.text_label.style().polish(self.text_label)
 
     def refresh_theme(self) -> None:
         self.set_content(self._icon_text, self._value, self._label_text, self.tone)
 
 
 class ScoreBadge(QLabel):
-    def __init__(self, value: int, tone: str) -> None:
+    def __init__(self, value: int, tone: str | None = None) -> None:
         super().__init__(f"{value}%")
-        bg, fg = tone_pair(tone)
+        colors = current_colors()
+        ui_family = resolve_ui_font()
+        if value >= 70:
+            bg, fg = colors["moss_soft"], colors["moss"]
+        elif value >= 40:
+            bg, fg = colors["rust_soft"], colors["rust"]
+        else:
+            bg, fg = colors["claret_soft"], colors["claret"]
         self.setStyleSheet(
-            f"background: {bg}; color: {fg}; border-radius: 12px; padding: 7px 10px; font-size: 13px; font-weight: 700;"
+            f"background: {bg}; color: {fg}; border-radius: 12px; padding: 7px 10px; "
+            f"font-size: 13px; font-weight: 700; font-family: \"{ui_family}\"; font-feature-settings: 'tnum';"
         )
 
 
 class DonutChart(QWidget):
-    def __init__(self, percent: int, accent: str = "#18B06A", track: str = "#E6EEF6", diameter: int = 96) -> None:
+    def __init__(self, percent: int, accent: str | None = None, track: str | None = None, diameter: int = 96) -> None:
         super().__init__()
+        colors = current_colors()
         self.percent = percent
-        self.accent = QColor(accent)
-        self.track = QColor(track)
+        self.accent = QColor(accent or colors["moss"])
+        self.track = QColor(track or colors["sand"])
         self.diameter = diameter
         self.setMinimumSize(diameter + 36, diameter + 54)
 
@@ -428,7 +449,10 @@ class DonutChart(QWidget):
         painter.drawArc(rect, 90 * 16, span)
 
         painter.setPen(QColor(colors["text"]))
-        painter.setFont(QFont(QApplication.font().family(), max(15, int(round(diameter * 0.24))), 800))
+        proc_font = QFont(QApplication.font().family(), max(15, int(round(diameter * 0.24))), 800)
+        if hasattr(proc_font, "setFeature"):
+            proc_font.setFeature(QFont.Tag.fromString("tnum"), 1)
+        painter.setFont(proc_font)
         painter.drawText(
             QRectF(left, top + diameter * 0.26, diameter, diameter * 0.22),
             Qt.AlignmentFlag.AlignCenter,

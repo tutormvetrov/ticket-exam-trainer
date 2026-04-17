@@ -56,16 +56,76 @@ def file_badge_colors(file_type: str) -> tuple[str, str]:
 
 
 class CardFrame(QFrame):
+    """Карточка с материальностью из 3 уровней (folio / atelier / paper)
+    плюс legacy-роли (card, subtle-card, mode-card, etc.).
+
+    Новые параметры:
+        role: str — 'folio' | 'atelier' | 'paper' | <legacy>
+        accent_strip: str | None — 'rust' | 'moss' | None;
+            рисуется как 2×44 линия под atelier-карточкой (через paintEvent)
+            или как 4×44 закладка сверху folio-карточки.
+        shadow_level: str — 'sm' | 'md' | 'lg'. Для folio/paper —
+            автоматически подбирается ('lg'/'sm'). Для atelier по умолчанию 'md'.
+
+    Legacy:
+        shadow_color (QColor|None) — игнорируется (оставлен в сигнатуре
+            для неразрушающей миграции call-sites).
+    """
+
+    _ROLE_ALIASES = {"folio": "folio-card", "atelier": "atelier-card", "paper": "paper-card"}
+    _DEFAULT_SHADOW_LEVELS = {"folio": "lg", "atelier": "md", "paper": "sm"}
+
     def __init__(self, role: str = "card", shadow_color: QColor | None = None,
-                 shadow: bool = True, shadow_level: str = "md") -> None:
+                 shadow: bool = True, shadow_level: str | None = None,
+                 accent_strip: str | None = None) -> None:
         super().__init__()
-        self.setProperty("role", role)
-        # shadow_color параметр оставлен для обратной совместимости при
-        # поэтапной миграции call-sites на shadow_level; предпочитаемый
-        # путь — shadow_level. Если указан shadow_color — игнорируем и
-        # используем level из палитры.
-        if shadow and shadow_level:
-            apply_shadow(self, shadow_level, current_colors())
+        self._api_role = role
+        qss_role = self._ROLE_ALIASES.get(role, role)
+        self.setProperty("role", qss_role)
+        self._accent_strip = accent_strip
+        if shadow:
+            level = shadow_level or self._DEFAULT_SHADOW_LEVELS.get(role, "md")
+            from ui.theme.palette import current_colors
+            apply_shadow(self, level, current_colors())
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        """Folio и atelier (с accent_strip) рисуются вручную.
+
+        НИКАКИХ QGraphicsEffect внутри этого метода — регрессия
+        QPainter warnings (см. commit a2a5a6e и docs/PICKUP.md).
+        """
+        if self._api_role == "folio":
+            from ui.theme.materiality import paint_folio
+            from ui.theme.palette import current_colors
+            painter = QPainter(self)
+            try:
+                paint_folio(
+                    painter,
+                    QRectF(0, 0, self.width(), self.height()),
+                    current_colors(),
+                    accent=self._accent_strip or "rust",
+                )
+            finally:
+                painter.end()
+            return
+        # Остальные роли — QSS рисует фон/границу, добавляем accent_strip если задан
+        super().paintEvent(event)
+        if self._accent_strip:
+            from ui.theme.palette import current_colors
+            painter = QPainter(self)
+            try:
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                colors = current_colors()
+                accent = QColor(colors.get(self._accent_strip, colors["rust"]))
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(accent)
+                strip_w = min(44.0, self.width() * 0.6)
+                strip_h = 2.0
+                x = (self.width() - strip_w) / 2
+                y = self.height() - strip_h - 8
+                painter.drawRoundedRect(QRectF(x, y, strip_w, strip_h), 1, 1)
+            finally:
+                painter.end()
 
 
 _LOGO_VARIANT_THRESHOLD_PX = 40
@@ -528,3 +588,29 @@ class EmptyStatePanel(CardFrame):
                 apply_button_icon(button, icon_name)
             button.style().unpolish(button)
             button.style().polish(button)
+
+
+class OrnamentalDivider(QWidget):
+    """Тонкая 1px линия с центральной brass-точкой ⌀4.
+
+    Используется в editorial-местах как декоративный разделитель
+    секций. Minimum height 16px, ширина тянется layout-ом.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setMinimumHeight(16)
+        self.setFixedHeight(16)
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        from ui.theme.materiality import paint_ornamental_divider
+        from ui.theme.palette import current_colors
+        painter = QPainter(self)
+        try:
+            paint_ornamental_divider(
+                painter,
+                QRectF(0, 0, self.width(), self.height()),
+                current_colors(),
+            )
+        finally:
+            painter.end()

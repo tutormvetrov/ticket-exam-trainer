@@ -248,7 +248,7 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     }}
     QPushButton[variant="primary"] {{
         background: {colors["primary"]};
-        color: white;
+        color: {colors["parchment"]};
         border: 1px solid {colors["primary"]};
         padding: 11px 18px;
     }}
@@ -338,14 +338,14 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     }}
     QPushButton[variant="nav"]:checked {{
         background: {colors["primary"]};
-        color: white;
+        color: {colors["parchment"]};
         border-color: {colors["primary"]};
     }}
     QPushButton[variant="nav"]:checked:hover,
     QPushButton[variant="nav"]:checked:pressed {{
         background: {primary_pressed};
         border-color: {primary_pressed};
-        color: white;
+        color: {colors["parchment"]};
     }}
     QPushButton[variant="nav"]:disabled {{
         background: transparent;
@@ -434,5 +434,83 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     QScrollBar::add-page:vertical,
     QScrollBar::sub-page:vertical {{
         background: transparent;
+    }}
+    QFrame[role="folio-card"] {{
+        background: transparent;
+        border: none;
+    }}
+    QFrame[role="atelier-card"] {{
+        background: {colors["parchment"]};
+        border: 1px solid {colors["border"]};
+        border-radius: 12px;
+    }}
+    QFrame[role="paper-card"] {{
+        background: {colors["paper"]};
+        border: 1px solid {colors["border"]};
+        border-radius: 6px;
+    }}
+    QLabel[role="eyebrow"] {{
+        font-family: "{typography["ui_family"]}";
+        font-size: {typography["eyebrow"]}px;
+        color: {colors["rust"]};
+        font-weight: 600;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }}
+    QLabel[role="metric-value"] {{
+        font-family: "{typography["ui_family"]}";
+        font-size: {typography["metric_value"]}px;
+        color: {colors["moss"]};
+        font-weight: 700;
+    }}
+    QLabel[role="metric-label"] {{
+        font-family: "{typography["ui_family"]}";
+        font-size: {typography["metric_label"]}px;
+        color: {colors["ink_muted"]};
+        font-weight: 600;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }}
+    QLabel[role="subtitle-italic"] {{
+        font-family: "{family}";
+        font-size: {typography["subtitle"]}px;
+        font-style: italic;
+        color: {colors["ink_muted"]};
+    }}
+    QPushButton[variant="ghost"] {{
+        background: transparent;
+        border: 1px solid transparent;
+        color: {colors["ink_muted"]};
+        padding: 9px 16px;
+        font-family: "{typography["ui_family"]}";
+    }}
+    QPushButton[variant="ghost"]:hover {{
+        color: {colors["rust"]};
+        background: {colors["rust_soft"]};
+    }}
+    QPushButton[variant="ghost"]:pressed {{
+        background: {colors["rust_soft"]};
+        color: {colors["rust_hover"]};
+    }}
+    QPushButton[variant="danger"] {{
+        background: {colors["claret"]};
+        border: 1px solid {colors["claret"]};
+        color: {colors["parchment"]};
+        padding: 9px 16px;
+        font-family: "{typography["ui_family"]}";
+        font-weight: 600;
+    }}
+    QPushButton[variant="danger"]:hover {{
+        background: {QColor(colors["claret"]).darker(110).name()};
+    }}
+    QPushButton[variant="nav"][active-warm="true"] {{
+        background: transparent;
+        border: none;
+        border-left: 3px solid {colors["rust"]};
+        color: {colors["ink"]};
+        font-family: "{family}";
+        font-size: {typography["nav_caption"]}px;
+        font-weight: 600;
+        padding-left: 13px;
     }}
     """

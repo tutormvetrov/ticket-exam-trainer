@@ -470,6 +470,10 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         border: 1px solid {colors["border"]};
         border-radius: 12px;
     }}
+    QFrame[role="atelier-card"][selected="true"] {{
+        border: 1px solid {colors["rust"]};
+        background: {colors["rust_soft"]};
+    }}
     QFrame[role="paper-card"] {{
         background: {paper};
         border: 1px solid {colors["border"]};

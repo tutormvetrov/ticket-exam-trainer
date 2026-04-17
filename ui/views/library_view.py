@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushB
 from application.ui_data import ReadinessScore, StatisticsSnapshot
 from domain.models import DocumentData
 from infrastructure.ollama.service import OllamaDiagnostics
-from ui.components.common import CardFrame, DonutChart, EmptyStatePanel, IconBadge, file_badge_colors
+from ui.components.common import CardFrame, DonutChart, EmptyStatePanel, IconBadge, OrnamentalDivider, file_badge_colors
 from ui.components.document_detail import DocumentDetailPanel
 from ui.components.document_list import DocumentListPanel
 from ui.components.stats_panel import StatisticsPanel
@@ -38,14 +38,24 @@ class LibraryView(QWidget):
         layout.setContentsMargins(28, 22, 28, 28)
         layout.setSpacing(16)
 
-        header = QHBoxLayout()
-        header.setContentsMargins(0, 0, 0, 0)
-        header.setSpacing(14)
+        hero = QVBoxLayout()
+        hero.setContentsMargins(0, 0, 0, 0)
+        hero.setSpacing(10)
 
-        title = QLabel("Библиотека документов")
+        title = QLabel("Библиотека")
         title.setProperty("role", "hero")
-        header.addWidget(title)
-        header.addStretch(1)
+        hero.addWidget(title)
+
+        subtitle = QLabel("Материалы к подготовке, отсортированные и с прогрессом.")
+        subtitle.setProperty("role", "subtitle-italic")
+        hero.addWidget(subtitle)
+
+        hero.addWidget(OrnamentalDivider())
+        layout.addLayout(hero)
+
+        controls = QHBoxLayout()
+        controls.setContentsMargins(0, 0, 0, 0)
+        controls.setSpacing(14)
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Поиск...")
@@ -53,24 +63,25 @@ class LibraryView(QWidget):
         self.search_input.setFixedWidth(220)
         self.search_input.setFixedHeight(36)
         self.search_input.textChanged.connect(self.set_search_text)
-        header.addWidget(self.search_input)
+        controls.addWidget(self.search_input)
+        controls.addStretch(1)
 
         self.import_button = QPushButton("Импортировать")
         self.import_button.setObjectName("library-import")
         self.import_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.import_button.setProperty("variant", "primary")
         self.import_button.clicked.connect(self.import_requested.emit)
-        header.addWidget(self.import_button)
+        controls.addWidget(self.import_button)
 
         self.refresh_button = QPushButton("Обновить")
         self.refresh_button.setObjectName("library-refresh")
         self.refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.refresh_button.setProperty("variant", "secondary")
         self.refresh_button.clicked.connect(self.refresh_requested.emit)
-        header.addWidget(self.refresh_button)
-        layout.addLayout(header)
+        controls.addWidget(self.refresh_button)
+        layout.addLayout(controls)
 
-        self.startup_card = CardFrame(role="subtle-card", shadow_color=shadow_color, shadow=False)
+        self.startup_card = CardFrame(role="atelier", shadow_level="md", accent_strip="rust")
         startup_layout = QHBoxLayout(self.startup_card)
         startup_layout.setContentsMargins(16, 14, 16, 14)
         startup_layout.setSpacing(14)
@@ -135,12 +146,12 @@ class LibraryView(QWidget):
 
         self.content_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.content_row.setContentsMargins(0, 0, 0, 0)
-        self.content_row.setSpacing(16)
+        self.content_row.setSpacing(20)
 
         self.document_list = DocumentListPanel([], shadow_color)
-        self.document_list.setMinimumWidth(320)
-        self.document_list.setMaximumWidth(388)
-        self.content_row.addWidget(self.document_list, 4)
+        self.document_list.setMinimumWidth(560)
+        self.document_list.setMaximumWidth(760)
+        self.content_row.addWidget(self.document_list, 6)
 
         self.detail_panel = DocumentDetailPanel(shadow_color)
         self.detail_panel.setMinimumWidth(300)
@@ -174,7 +185,7 @@ class LibraryView(QWidget):
         self.training_panel.mode_selected.connect(self.training_mode_selected.emit)
         layout.addWidget(self.training_panel)
 
-        self.dlc_card = CardFrame(role="card", shadow_color=shadow_color)
+        self.dlc_card = CardFrame(role="atelier", shadow_level="md", accent_strip="rust")
         dlc_layout = QHBoxLayout(self.dlc_card)
         dlc_layout.setContentsMargins(18, 16, 18, 16)
         dlc_layout.setSpacing(14)
@@ -338,7 +349,7 @@ class LibraryView(QWidget):
         super().resizeEvent(event)
 
     def _apply_responsive_layout(self) -> None:
-        narrow = self.width() < 1060
+        narrow = self.width() < 1180
         target_direction = QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight
         if self.content_row.direction() != target_direction:
             self.content_row.setDirection(target_direction)
@@ -349,8 +360,8 @@ class LibraryView(QWidget):
             self.stats_panel.setMinimumWidth(0)
             self.stats_panel.setMaximumWidth(16777215)
         else:
-            self.document_list.setMinimumWidth(320)
-            self.document_list.setMaximumWidth(388)
+            self.document_list.setMinimumWidth(560)
+            self.document_list.setMaximumWidth(760)
             self.detail_panel.setMinimumWidth(300)
             self.stats_panel.setMinimumWidth(282)
             self.stats_panel.setMaximumWidth(348)

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QBoxLayout,
     QComboBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -22,7 +23,7 @@ class DocumentListItem(ClickableFrame):
     clicked = Signal(str)
 
     def __init__(self, document: DocumentData) -> None:
-        super().__init__(role="document-item", shadow=False)
+        super().__init__(role="atelier", shadow_level="md")
         self.document = document
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setProperty("selected", False)
@@ -41,9 +42,9 @@ class DocumentListItem(ClickableFrame):
         text_layout.setSpacing(6)
 
         self.title_label = QLabel(document.title)
-        self.title_label.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {colors['text']};")
+        self.title_label.setProperty("role", "card-title")
         self.title_label.setWordWrap(True)
-        self.title_label.setMaximumHeight(42)
+        self.title_label.setMaximumHeight(48)
         text_layout.addWidget(self.title_label)
 
         meta = QLabel(f"{document.subject} • {document.imported_at.split(' в ')[0]}")
@@ -73,11 +74,12 @@ class DocumentListPanel(CardFrame):
     document_selected = Signal(str)
 
     def __init__(self, documents: list[DocumentData], shadow_color) -> None:
-        super().__init__(role="card", shadow_color=shadow_color)
+        super().__init__(role="paper", shadow_level="sm")
         self.documents = documents
         self.filtered = documents[:]
         self.items: dict[str, DocumentListItem] = {}
         self.current_id = documents[0].id if documents else ""
+        self._grid_columns = 1
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -108,9 +110,10 @@ class DocumentListPanel(CardFrame):
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         inner = QWidget()
-        self.stack = QVBoxLayout(inner)
+        self.stack = QGridLayout(inner)
         self.stack.setContentsMargins(0, 0, 0, 0)
-        self.stack.setSpacing(12)
+        self.stack.setHorizontalSpacing(12)
+        self.stack.setVerticalSpacing(12)
         self.scroll.setWidget(inner)
         layout.addWidget(self.scroll, 1)
 
@@ -124,11 +127,13 @@ class DocumentListPanel(CardFrame):
             if widget is not None:
                 widget.deleteLater()
         self.items.clear()
+        columns = self._column_count()
+        self._grid_columns = columns
 
-        for document in self.filtered:
+        for index, document in enumerate(self.filtered):
             item = DocumentListItem(document)
             item.clicked.connect(self.select_document)
-            self.stack.addWidget(item)
+            self.stack.addWidget(item, index // columns, index % columns)
             self.items[document.id] = item
 
         if not self.filtered:
@@ -138,9 +143,11 @@ class DocumentListPanel(CardFrame):
                 if self.documents
                 else "После первого импорта здесь появится список документов и быстрый доступ к их содержимому."
             )
-            self.stack.addWidget(EmptyStatePanel("document", title, body, role="subtle-card"))
+            self.stack.addWidget(EmptyStatePanel("document", title, body, role="subtle-card"), 0, 0, 1, columns)
 
-        self.stack.addStretch(1)
+        for column in range(2):
+            self.stack.setColumnStretch(column, 1 if column < columns else 0)
+        self.stack.setRowStretch((len(self.filtered) + columns - 1) // columns + 1, 1)
         if self.filtered:
             selected_id = self.current_id if self.current_id in self.items else self.filtered[0].id
             self.select_document(selected_id, emit_signal=False)
@@ -192,7 +199,13 @@ class DocumentListPanel(CardFrame):
             self.header.setDirection(direction)
             self.sort_combo.setMaximumWidth(16777215 if narrow else 190)
             self.title_label.setMaximumHeight(48 if narrow else 28)
+        if self._grid_columns != self._column_count():
+            self._rebuild_items()
         super().resizeEvent(event)
 
     def refresh_theme(self) -> None:
         self._rebuild_items()
+
+    def _column_count(self) -> int:
+        available_width = max(self.width(), self.scroll.viewport().width())
+        return 2 if available_width >= 620 else 1

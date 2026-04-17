@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import logging
+
 from application.ui_defaults import DEFAULT_FONT_PRESET, DEFAULT_FONT_SIZE
 from PySide6.QtGui import QFont, QFontDatabase
+
+
+_log = logging.getLogger(__name__)
 
 
 FONT_PRESETS = {
@@ -32,7 +37,13 @@ def _clamp(value: int, minimum: int, maximum: int) -> int:
 
 
 def resolve_font_family(preset_key: str) -> str:
-    preset = FONT_PRESETS.get(preset_key, FONT_PRESETS[DEFAULT_FONT_PRESET])
+    preset = FONT_PRESETS.get(preset_key)
+    if preset is None:
+        _log.info(
+            "Unknown font_preset %r; falling back to %r",
+            preset_key, DEFAULT_FONT_PRESET,
+        )
+        preset = FONT_PRESETS[DEFAULT_FONT_PRESET]
     available = set(QFontDatabase.families())
     for family in preset["families"]:
         if family in available:
@@ -64,10 +75,10 @@ def build_typography(font_preset: str, font_size: int) -> dict[str, int | str]:
         "section_title": _clamp(body_px + 4, 18, 24),
         "card_title": _clamp(body_px + 2, 16, 22),
         "body": body_px,
-        "subtitle": _clamp(body_px - 1, 12, 18),
-        "brand_subtitle": _clamp(body_px - 1, 12, 18),
-        "page_subtitle": _clamp(body_px, 13, 20),
-        "muted": _clamp(body_px - 1, 12, 18),
+        "subtitle": _clamp(body_px - 1, 12, body_px),
+        "brand_subtitle": _clamp(body_px - 1, 12, body_px),
+        "page_subtitle": _clamp(body_px, 13, body_px + 1),
+        "muted": _clamp(body_px - 1, 12, body_px),
         "window_title": _clamp(body_px, 13, 18),
         # Sans micro-UI scale
         "eyebrow": _clamp(body_px - 4, 9, 12),

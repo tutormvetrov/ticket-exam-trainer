@@ -5,32 +5,26 @@ from PySide6.QtGui import QFont, QFontDatabase
 
 
 FONT_PRESETS = {
-    "segoe": {
-        "label": "Segoe UI",
-        "description": "Нейтральный системный шрифт для долгой работы.",
-        "families": ["Segoe UI", "Arial", "Helvetica Neue"],
+    "georgia": {
+        "label": "Georgia",
+        "description": "Классическая засечковая гарнитура для комфортного чтения.",
+        "families": ["Georgia", "Cambria", "Times New Roman"],
     },
-    "bahnschrift": {
-        "label": "Bahnschrift",
-        "description": "Более собранный и современный акцент без декоративности.",
-        "families": ["Bahnschrift", "Segoe UI", "Arial"],
+    "cambria": {
+        "label": "Cambria",
+        "description": "Современнее и чуть плотнее Georgia.",
+        "families": ["Cambria", "Georgia", "Times New Roman"],
     },
-    "trebuchet": {
-        "label": "Trebuchet MS",
-        "description": "Чуть более живой гуманистический гротеск.",
-        "families": ["Trebuchet MS", "Segoe UI", "Arial"],
-    },
-    "verdana": {
-        "label": "Verdana",
-        "description": "Максимально читабельный вариант для плотного текста.",
-        "families": ["Verdana", "Segoe UI", "Arial"],
-    },
-    "arial": {
-        "label": "Arial",
-        "description": "Классический запасной нейтральный вариант.",
-        "families": ["Arial", "Segoe UI", "Helvetica Neue"],
+    "palatino": {
+        "label": "Palatino",
+        "description": "Гуманистический сериф с мягкими формами.",
+        "families": ["Palatino Linotype", "Palatino", "Georgia"],
     },
 }
+
+# UI-шрифт для микро-элементов (пиллы, метрики, кнопки). Не выбирается
+# пользователем — закреплён за системой.
+UI_SANS_FAMILIES = ["Inter", "Segoe UI", "Bahnschrift", "Arial"]
 
 
 def _clamp(value: int, minimum: int, maximum: int) -> int:
@@ -46,23 +40,42 @@ def resolve_font_family(preset_key: str) -> str:
     return QFont().defaultFamily()
 
 
+def resolve_ui_font() -> str:
+    available = set(QFontDatabase.families())
+    for family in UI_SANS_FAMILIES:
+        if family in available:
+            return family
+    return QFont().defaultFamily()
+
+
 def build_typography(font_preset: str, font_size: int) -> dict[str, int | str]:
     base_point = _clamp(font_size or DEFAULT_FONT_SIZE, 9, 18)
     body_px = _clamp(round(base_point * 1.4), 13, 22)
     return {
-        "family": resolve_font_family(font_preset),
+        # Семьи
+        "family": resolve_font_family(font_preset),  # serif body
+        "ui_family": resolve_ui_font(),              # sans micro-UI
         "base_point": base_point,
-        "window_title": _clamp(body_px, 13, 18),
+        # Serif scale
+        "display": _clamp(body_px + 16, 28, 40),        # splash, welcome hero
+        "hero": _clamp(body_px + 12, 24, 34),           # legacy — синоним display-small
+        "page_title": _clamp(body_px + 10, 22, 30),
         "brand_title": _clamp(body_px + 8, 22, 34),
-        "brand_subtitle": _clamp(body_px - 1, 12, 18),
-        "nav_caption": _clamp(body_px - 1, 12, 17),
-        "hero": _clamp(body_px + 12, 24, 34),
-        "page_subtitle": _clamp(body_px, 13, 20),
-        "section_title": _clamp(body_px + 2, 16, 24),
-        "card_title": _clamp(body_px + 1, 15, 22),
+        "section_title": _clamp(body_px + 4, 18, 24),
+        "card_title": _clamp(body_px + 2, 16, 22),
         "body": body_px,
+        "subtitle": _clamp(body_px - 1, 12, 18),
+        "brand_subtitle": _clamp(body_px - 1, 12, 18),
+        "page_subtitle": _clamp(body_px, 13, 20),
         "muted": _clamp(body_px - 1, 12, 18),
+        "window_title": _clamp(body_px, 13, 18),
+        # Sans micro-UI scale
+        "eyebrow": _clamp(body_px - 4, 9, 12),
+        "micro": _clamp(body_px - 3, 10, 13),
         "pill": _clamp(body_px - 2, 11, 16),
+        "nav_caption": _clamp(body_px - 1, 12, 17),
+        "metric_value": _clamp(body_px + 6, 18, 26),
+        "metric_label": _clamp(body_px - 3, 10, 13),
         "status": _clamp(body_px - 1, 12, 18),
         "search": _clamp(body_px + 1, 14, 22),
         "input": body_px,

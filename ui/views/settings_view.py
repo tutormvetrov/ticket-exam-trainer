@@ -238,7 +238,7 @@ class SettingsView(QWidget):
 
         font_block = self._labeled_block("Шрифт интерфейса")
         self.font_preset_combo = QComboBox()
-        for preset_key in ("segoe", "bahnschrift", "trebuchet", "verdana", "arial"):
+        for preset_key in ("georgia", "cambria", "palatino"):
             self.font_preset_combo.addItem(FONT_PRESETS[preset_key]["label"], preset_key)
         self.font_preset_combo.setMinimumHeight(46)
         font_block.layout().addWidget(self.font_preset_combo)

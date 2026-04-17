@@ -380,18 +380,18 @@ def test_settings_typography_controls_offer_curated_fonts_and_preview(tmp_path: 
     window, _ = _build_window(tmp_path)
     settings_view = window.views["settings"]
 
-    assert settings_view.font_preset_combo.count() >= 4
+    assert settings_view.font_preset_combo.count() >= 3
     available_keys = {settings_view.font_preset_combo.itemData(index) for index in range(settings_view.font_preset_combo.count())}
-    assert {"segoe", "bahnschrift", "trebuchet", "verdana"}.issubset(available_keys)
+    assert {"georgia", "cambria", "palatino"}.issubset(available_keys)
 
-    settings_view._set_combo_value(settings_view.font_preset_combo, "bahnschrift")
+    settings_view._set_combo_value(settings_view.font_preset_combo, "cambria")
     settings_view.font_size_stepper.set_value(14)
     settings_view._refresh_typography_preview()
 
-    assert "Bahnschrift" in settings_view.typography_preview_meta.text()
+    assert "Cambria" in settings_view.typography_preview_meta.text()
     assert "размер: 14 pt" in settings_view.typography_preview_meta.text()
-    assert settings_view.typography_preview_body.font().family() == resolve_font_family("bahnschrift")
-    assert settings_view.typography_preview_button.font().family() == resolve_font_family("bahnschrift")
+    assert settings_view.typography_preview_body.font().family() == resolve_font_family("cambria")
+    assert settings_view.typography_preview_button.font().family() == resolve_font_family("cambria")
     assert settings_view.typography_preview_title.font().pointSize() >= settings_view.typography_preview_body.font().pointSize()
 
     window.close()
@@ -399,7 +399,7 @@ def test_settings_typography_controls_offer_curated_fonts_and_preview(tmp_path: 
 
 
 def test_font_presets_have_user_facing_descriptions() -> None:
-    for preset_key in ("segoe", "bahnschrift", "trebuchet", "verdana", "arial"):
+    for preset_key in ("georgia", "cambria", "palatino"):
         assert FONT_PRESETS[preset_key]["label"]
         assert FONT_PRESETS[preset_key]["description"]
 

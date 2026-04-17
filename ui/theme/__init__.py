@@ -19,6 +19,7 @@ from ui.theme.palette import (
 from ui.theme.typography import (
     FONT_PRESETS,
     resolve_font_family,
+    resolve_ui_font,
     build_typography,
     app_font,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "mastery_band_color",
     "logo_palette",
     "resolve_font_family",
+    "resolve_ui_font",
     "build_typography",
     "app_font",
     "apply_shadow",

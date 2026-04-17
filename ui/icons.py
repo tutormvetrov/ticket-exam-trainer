@@ -47,11 +47,30 @@ def icon_names() -> tuple[str, ...]:
     return tuple(sorted(_ICON_BODIES))
 
 
+def _tone_color(tone: str, colors: dict[str, str]) -> str:
+    mapping = {
+        "primary": ("rust", "primary"),
+        "secondary": ("moss", "success", "text_secondary"),
+        "accent": ("brass", "primary"),
+        "muted": ("ink_muted", "text_secondary"),
+        "faint": ("ink_faint", "text_tertiary"),
+        "active": ("rust", "primary"),
+        "decorative": ("brass", "primary"),
+        "danger": ("claret", "danger"),
+        "warning": ("brick", "warning"),
+        "success": ("sage", "success"),
+    }
+    tokens = mapping.get(tone, (tone,))
+    for token in tokens:
+        if token in colors:
+            return str(colors[token])
+    return tone
+
+
 def _resolve_color_token(token: str) -> str:
     colors = current_colors()
-    if token in colors:
-        return str(colors[token])
-    return token
+    return _tone_color(token, colors)
+
 
 
 def _svg_markup(name: str, color_hex: str) -> str:

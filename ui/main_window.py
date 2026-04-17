@@ -238,6 +238,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, self.refresh_sidebar_ollama_status)
         self.current_key = key
         self.sidebar.set_current(key)
+        self.topbar.set_current_section(key)
         self._show_stack_page(self.stack_pages[key])
         if key in {"tickets", "training"}:
             QTimer.singleShot(0, self._refresh_heavy_views)

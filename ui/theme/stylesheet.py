@@ -25,6 +25,7 @@ def set_app_theme(
 def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     family = typography["family"]
     is_dark = colors["app_bg"] == DARK["app_bg"]
+    page_title_size = typography.get("page_title", typography.get("hero", typography["section_title"]))
     primary_pressed = QColor(colors["primary"]).darker(120 if is_dark else 114).name()
     card_pressed = QColor(colors["card_bg"]).darker(108 if is_dark else 102).name()
     secondary_hover = alpha_color(colors["primary"], 0.12 if is_dark else 0.08)
@@ -135,6 +136,12 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         font-size: {typography["hero"]}px;
         font-weight: 800;
         color: {colors["text"]};
+    }}
+    QLabel[role="page-title-serif"] {{
+        font-family: "{family}";
+        font-size: {page_title_size}px;
+        font-weight: 600;
+        color: {colors["ink"]};
     }}
     QLabel[role="page-subtitle"] {{
         color: {colors["text_secondary"]};

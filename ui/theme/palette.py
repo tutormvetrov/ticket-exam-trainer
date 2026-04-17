@@ -5,58 +5,102 @@ from PySide6.QtWidgets import QApplication
 
 
 LIGHT = {
-    "app_bg": "#EEF3F8",
-    "sidebar_bg": "#F3F7FB",
-    "surface_bg": "#F8FBFE",
-    "card_bg": "#FFFFFF",
-    "card_soft": "#F5F8FC",
-    "card_muted": "#F8FAFD",
-    "input_bg": "#FBFCFE",
-    "primary": "#2E78E6",
-    "primary_soft": "#EEF5FF",
-    "primary_hover": "#246AD0",
-    "success": "#18B06A",
-    "success_soft": "#EAF9F1",
-    "warning": "#F59A23",
-    "warning_soft": "#FFF4E7",
-    "danger": "#F26C7F",
-    "danger_soft": "#FFF0F2",
-    "violet_soft": "#F5EEFF",
-    "cyan_soft": "#ECFAFE",
-    "text": "#1F2A3B",
-    "text_secondary": "#5F6B7A",
-    "text_tertiary": "#8E99A8",
-    "border": "#E4EAF2",
-    "border_strong": "#D4DEEA",
-    "shadow": QColor(23, 40, 74, 24),
+    # Поверхности (legacy keys)
+    "app_bg": "#F8EFE2",          # paper
+    "sidebar_bg": "#F1E4C9",      # sand (кожаный обрез)
+    "surface_bg": "#FBF6F0",      # parchment surface
+    "card_bg": "#FBF6F0",         # parchment
+    "card_soft": "#F4E9D6",       # soft parchment
+    "card_muted": "#EFE2CC",      # muted sand
+    "input_bg": "#FDFAF4",        # самый светлый paper
+    # Семантические акценты (legacy keys)
+    "primary": "#A04A22",         # rust
+    "primary_soft": "#E9D5BE",    # rust_soft
+    "primary_hover": "#8A3D1A",   # rust darker
+    "success": "#4A6150",         # sage
+    "success_soft": "#DFE5D4",    # sage_soft
+    "warning": "#9B4A28",         # brick
+    "warning_soft": "#F3DDC7",    # brick_soft
+    "danger": "#7A2E2E",          # claret
+    "danger_soft": "#F3D9D3",     # claret_soft
+    "violet_soft": "#EAE0D4",     # нейтрализовано в warm гамму
+    "cyan_soft": "#DCE5D6",       # нейтрализовано
+    # Текст
+    "text": "#2C2520",            # ink
+    "text_secondary": "#4E3E35",  # ink_muted
+    "text_tertiary": "#8A7064",   # ink_faint
+    # Границы
+    "border": "#E0CBA8",
+    "border_strong": "#C89A55",   # латунная рамка folio
+    "shadow": QColor(90, 55, 25, 45),  # warm brown shadow @ level=md
+
+    # === Semantic aliases (новый пласт имён, дублируют legacy) ===
+    "paper": "#F8EFE2",
+    "parchment": "#FBF6F0",
+    "sand": "#F1E4C9",
+    "ink": "#2C2520",
+    "ink_muted": "#4E3E35",
+    "ink_faint": "#8A7064",
+    "rust": "#A04A22",
+    "rust_soft": "#E9D5BE",
+    "rust_hover": "#8A3D1A",
+    "moss": "#3D4E2A",
+    "moss_soft": "#DCDDBC",
+    "brass": "#9C7A1E",
+    "brick": "#9B4A28",
+    "brick_soft": "#F3DDC7",
+    "claret": "#7A2E2E",
+    "claret_soft": "#F3D9D3",
+    "sage": "#4A6150",
+    "sage_soft": "#DFE5D4",
 }
 
 
 DARK = {
-    "app_bg": "#1D2734",
-    "sidebar_bg": "#222E3B",
-    "surface_bg": "#263343",
-    "card_bg": "#2B394A",
-    "card_soft": "#324255",
-    "card_muted": "#314154",
-    "input_bg": "#304052",
-    "primary": "#4C94FF",
-    "primary_soft": "#243A58",
-    "primary_hover": "#6CA8FF",
-    "success": "#37C983",
-    "success_soft": "#1E4335",
-    "warning": "#F5B14D",
-    "warning_soft": "#4B3921",
-    "danger": "#F58B98",
-    "danger_soft": "#4A2830",
-    "violet_soft": "#3E3558",
-    "cyan_soft": "#274852",
-    "text": "#F4F7FB",
-    "text_secondary": "#D0D8E3",
-    "text_tertiary": "#97A7BA",
-    "border": "#415163",
-    "border_strong": "#566679",
-    "shadow": QColor(6, 12, 18, 70),
+    "app_bg": "#271710",          # cognac
+    "sidebar_bg": "#2E1D12",      # sand dark — глубже чем app_bg
+    "surface_bg": "#3C2518",      # parchment-as-surface
+    "card_bg": "#3C2518",
+    "card_soft": "#4A2F1F",
+    "card_muted": "#381E12",
+    "input_bg": "#3C2518",
+    "primary": "#C97A57",         # rust-lit
+    "primary_soft": "#5C3220",    # rust_soft dark (opaque fallback)
+    "primary_hover": "#E08A63",
+    "success": "#9EB389",         # sage-lit
+    "success_soft": "#2F3A28",
+    "warning": "#D07A48",         # brick-lit
+    "warning_soft": "#452A1A",
+    "danger": "#D67580",          # claret-lit
+    "danger_soft": "#46211F",
+    "violet_soft": "#3A2C22",
+    "cyan_soft": "#2A3028",
+    "text": "#F0DDB2",            # parchment text
+    "text_secondary": "#C0A68A",  # linen
+    "text_tertiary": "#8A7560",
+    "border": "#4A3225",
+    "border_strong": "#7A5A32",
+    "shadow": QColor(0, 0, 0, 140),
+
+    # === Semantic aliases ===
+    "paper": "#271710",
+    "parchment": "#3C2518",
+    "sand": "#2E1D12",
+    "ink": "#F0DDB2",
+    "ink_muted": "#C0A68A",
+    "ink_faint": "#8A7560",
+    "rust": "#C97A57",
+    "rust_soft": "#5C3220",
+    "rust_hover": "#E08A63",
+    "moss": "#8BA267",            # moss-lit (CTA)
+    "moss_soft": "#2E3826",
+    "brass": "#C9A66B",
+    "brick": "#D07A48",
+    "brick_soft": "#452A1A",
+    "claret": "#D67580",
+    "claret_soft": "#46211F",
+    "sage": "#9EB389",
+    "sage_soft": "#2F3A28",
 }
 
 

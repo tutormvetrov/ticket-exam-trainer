@@ -50,25 +50,23 @@ class Sidebar(QWidget):
         layout.setSpacing(10)
 
         self.brand = QFrame()
-        self.brand.setMinimumHeight(76)
+        self.brand.setMinimumHeight(58)
         brand_layout = QHBoxLayout(self.brand)
-        brand_layout.setContentsMargins(10, 10, 12, 10)
-        brand_layout.setSpacing(12)
-        brand_layout.addWidget(LogoMark(52), 0, Qt.AlignmentFlag.AlignTop)
+        brand_layout.setContentsMargins(0, 2, 0, 2)
+        brand_layout.setSpacing(10)
+        brand_layout.addWidget(LogoMark(48), 0, Qt.AlignmentFlag.AlignVCenter)
 
         title_box = QVBoxLayout()
         title_box.setContentsMargins(0, 0, 0, 0)
         title_box.setSpacing(0)
+        title_box.addStretch(1)
 
         title = QLabel("Тезис")
         title.setProperty("role", "brand-title")
-        title.setWordWrap(True)
+        title.setWordWrap(False)
         title.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         title_box.addWidget(title)
-
-        subtitle = QLabel("Локальный тренажёр билетов")
-        subtitle.setProperty("role", "brand-subtitle")
-        title_box.addWidget(subtitle)
+        title_box.addStretch(1)
 
         brand_layout.addLayout(title_box, 1)
         layout.addWidget(self.brand)
@@ -169,11 +167,13 @@ class Sidebar(QWidget):
             button.style().unpolish(button)
             button.style().polish(button)
             self._nav_dots[nav_key].setVisible(is_active)
+            icon_tone = "rust" if is_active else "ink_muted"
             apply_button_icon(
                 button,
                 self._button_icons[nav_key],
                 size=18,
-                tone="rust" if is_active else "text_secondary",
+                tone=icon_tone,
+                on_tone=icon_tone,
             )
 
     def set_ollama_status(self, available: bool, label_text: str, model_text: str, url_text: str, tone: str = "auto") -> None:
@@ -199,9 +199,7 @@ class Sidebar(QWidget):
 
     def refresh_theme(self) -> None:
         colors = current_colors()
-        self.brand.setStyleSheet(
-            f"background: {colors['card_bg']}; border: 1px solid {colors['border_strong']}; border-radius: 18px;"
-        )
+        self.brand.setStyleSheet("background: transparent; border: none;")
         self.divider.setStyleSheet(f"background: {colors['border']};")
         self.status_dot.setStyleSheet(f"color: {colors['text_tertiary']}; font-size: 14px;")
         self.status_tail.setStyleSheet(f"color: {colors['text_tertiary']}; font-size: 14px;")

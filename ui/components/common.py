@@ -162,7 +162,7 @@ class LogoMark(QWidget):
         self._variant = "full" if size >= _LOGO_VARIANT_THRESHOLD_PX else "minimal"
         self._template_bytes: bytes | None = None
         self._cached_pixmap: QPixmap | None = None
-        self._cached_palette_key: tuple[bool, ...] | None = None
+        self._cached_palette_key: tuple[object, ...] | None = None
 
     def refresh_theme(self) -> None:
         self._cached_pixmap = None
@@ -184,13 +184,25 @@ class LogoMark(QWidget):
             template = template.replace(f"{{{{{key}}}}}", value)
         return QByteArray(template.encode("utf-8"))
 
+    def _render_scale(self) -> float:
+        return max(2.0, float(self.devicePixelRatioF() or 1.0))
+
+    def _build_target_pixmap(self, render_scale: float) -> QPixmap:
+        pixmap = QPixmap(
+            max(1, int(round(self.width() * render_scale))),
+            max(1, int(round(self.height() * render_scale))),
+        )
+        pixmap.setDevicePixelRatio(render_scale)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        return pixmap
+
     def _ensure_pixmap(self) -> QPixmap:
         is_dark = is_dark_palette()
-        palette_key = (is_dark,)
+        render_scale = self._render_scale()
+        palette_key = (is_dark, self.width(), self.height(), round(render_scale, 2))
         if self._cached_pixmap is not None and self._cached_palette_key == palette_key:
             return self._cached_pixmap
-        pixmap = QPixmap(self.width(), self.height())
-        pixmap.fill(Qt.GlobalColor.transparent)
+        pixmap = self._build_target_pixmap(render_scale)
         try:
             svg = self._build_svg()
         except OSError:
@@ -206,6 +218,8 @@ class LogoMark(QWidget):
             return pixmap
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         renderer.render(painter, QRectF(0, 0, self.width(), self.height()))
         painter.end()
         self._cached_pixmap = pixmap
@@ -213,10 +227,10 @@ class LogoMark(QWidget):
         return pixmap
 
     def _build_fallback_pixmap(self) -> QPixmap:
-        pixmap = QPixmap(self.width(), self.height())
-        pixmap.fill(Qt.GlobalColor.transparent)
+        pixmap = self._build_target_pixmap(self._render_scale())
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
         colors = current_colors()
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(colors["primary"]))
@@ -235,6 +249,7 @@ class LogoMark(QWidget):
             # виджет перерисуется, когда Qt отпустит устройство.
             return
         try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
             painter.drawPixmap(0, 0, self._ensure_pixmap())
         finally:
             painter.end()

@@ -29,6 +29,8 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     paper = colors.get("paper", colors["app_bg"])
     sand = colors.get("sand", colors.get("sidebar_bg", colors["card_soft"]))
     rust = colors.get("rust", colors["primary"])
+    rust_soft = colors.get("rust_soft", colors["primary_soft"])
+    ink_muted = colors.get("ink_muted", colors["text_secondary"])
     primary_pressed = QColor(colors["primary"]).darker(120 if is_dark else 114).name()
     card_pressed = QColor(colors["card_bg"]).darker(108 if is_dark else 102).name()
     secondary_hover = alpha_color(colors["primary"], 0.12 if is_dark else 0.08)
@@ -400,6 +402,28 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         color: {colors["primary"]};
         border-bottom: 2px solid {colors["primary"]};
     }}
+    QPushButton[variant="tab"][segmented="true"] {{
+        background: transparent;
+        border: none;
+        border-bottom: none;
+        border-radius: 10px;
+        padding: 8px 12px;
+        color: {ink_muted};
+        font-family: "{typography["ui_family"]}";
+        font-size: {typography["eyebrow"]}px;
+        font-weight: 700;
+    }}
+    QPushButton[variant="tab"][segmented="true"]:hover {{
+        background: {rust_soft};
+        color: {rust};
+        border-bottom: none;
+    }}
+    QPushButton[variant="tab"][segmented="true"]:pressed,
+    QPushButton[variant="tab"][segmented="true"]:checked {{
+        background: {rust_soft};
+        color: {rust};
+        border-bottom: none;
+    }}
     QPushButton[variant="settings-nav"] {{
         background: transparent;
         border: none;
@@ -476,6 +500,11 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     }}
     QFrame[role="paper-card"] {{
         background: {paper};
+        border: 1px solid {colors["border"]};
+        border-radius: 6px;
+    }}
+    QFrame[role="paper-card"][surface="sand"] {{
+        background: {sand};
         border: 1px solid {colors["border"]};
         border-radius: 6px;
     }}

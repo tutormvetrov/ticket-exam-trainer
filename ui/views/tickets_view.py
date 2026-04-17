@@ -5,12 +5,15 @@ import json
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QBoxLayout,
+    QButtonGroup,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLayout,
     QLineEdit,
     QProgressBar,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -27,7 +30,7 @@ from ui.theme import current_colors
 class TicketListItem(ClickableFrame):
     clicked_ticket = Signal(str)
 
-    def __init__(self, ticket: TicketKnowledgeMap) -> None:
+    def __init__(self, ticket: TicketKnowledgeMap, ticket_number: int) -> None:
         super().__init__(role="document-item", shadow=False)
         self.ticket = ticket
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -35,17 +38,23 @@ class TicketListItem(ClickableFrame):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(8)
+        layout.setSpacing(10)
+
+        eyebrow = QLabel(f"Билет №{ticket_number}")
+        eyebrow.setProperty("role", "eyebrow")
+        layout.addWidget(eyebrow)
+
+        title = QLabel(ticket.title)
+        title.setProperty("role", "card-title")
+        title.setWordWrap(True)
+        layout.addWidget(title)
 
         top = QHBoxLayout()
         top.setContentsMargins(0, 0, 0, 0)
         top.setSpacing(10)
         badge_bg, badge_fg = file_badge_colors("DOCX")
         top.addWidget(IconBadge(str(len(ticket.atoms)), badge_bg, badge_fg, size=34, radius=11, font_size=11))
-        title = QLabel(ticket.title)
-        title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {current_colors()['text']};")
-        title.setWordWrap(True)
-        top.addWidget(title, 1)
+        top.addStretch(1)
         layout.addLayout(top)
 
         meta = QLabel(
@@ -80,6 +89,9 @@ class TicketsView(QWidget):
         self.weak_areas: list[dict[str, str]] = []
         self.current_ticket_id = ""
         self.list_items: dict[str, TicketListItem] = {}
+        self._search_query = ""
+        self._active_filter = "all"
+        self._list_columns = 1
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 28)
@@ -102,6 +114,32 @@ class TicketsView(QWidget):
         header.addWidget(self.search_input)
         layout.addLayout(header)
 
+        self.filter_shell = QFrame()
+        self.filter_shell.setProperty("role", "paper-card")
+        self.filter_shell.setProperty("surface", "sand")
+        filter_layout = QHBoxLayout(self.filter_shell)
+        filter_layout.setContentsMargins(4, 4, 4, 4)
+        filter_layout.setSpacing(6)
+        self.filter_group = QButtonGroup(self)
+        self.filter_group.setExclusive(True)
+        self.filter_buttons: dict[str, QPushButton] = {}
+        for key, label_text in (
+            ("all", "ВСЕ"),
+            ("weak", "СЛАБЫЕ"),
+            ("complex", "СЛОЖНЫЕ"),
+        ):
+            button = QPushButton(label_text)
+            button.setCheckable(True)
+            button.setProperty("variant", "tab")
+            button.setProperty("segmented", "true")
+            button.clicked.connect(lambda checked=False, value=key: self._set_filter(value))
+            self.filter_group.addButton(button)
+            self.filter_buttons[key] = button
+            filter_layout.addWidget(button)
+        filter_layout.addStretch(1)
+        self.filter_buttons["all"].setChecked(True)
+        layout.addWidget(self.filter_shell)
+
         self.body_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.body_layout.setContentsMargins(0, 0, 0, 0)
         self.body_layout.setSpacing(16)
@@ -118,10 +156,12 @@ class TicketsView(QWidget):
         self.counter_label.setProperty("role", "card-title")
         left_layout.addWidget(self.counter_label)
 
-        self.ticket_list = QVBoxLayout()
+        self.ticket_list_host = QWidget()
+        self.ticket_list = QGridLayout(self.ticket_list_host)
         self.ticket_list.setContentsMargins(0, 0, 0, 0)
-        self.ticket_list.setSpacing(10)
-        left_layout.addLayout(self.ticket_list)
+        self.ticket_list.setHorizontalSpacing(12)
+        self.ticket_list.setVerticalSpacing(12)
+        left_layout.addWidget(self.ticket_list_host)
         left_layout.addStretch(1)
         self.body_layout.addWidget(self.left_card)
 
@@ -146,6 +186,7 @@ class TicketsView(QWidget):
         super().resizeEvent(event)
 
     def _apply_responsive_layout(self) -> None:
+        previous_columns = self._ticket_list_columns()
         width = self.window().width() if self.window() is not None else self.width()
         narrow = width < 1060
         target_direction = (
@@ -159,6 +200,8 @@ class TicketsView(QWidget):
         else:
             self.left_card.setMinimumWidth(320)
             self.left_card.setMaximumWidth(396)
+        if self.tickets and previous_columns != self._ticket_list_columns():
+            self._rebuild_list()
 
     def set_data(
         self,
@@ -167,15 +210,9 @@ class TicketsView(QWidget):
         weak_areas: list,
     ) -> None:
         self.tickets = tickets[:]
-        self.filtered = tickets[:]
         self.mastery = mastery
         self.weak_areas = [dict(row) for row in weak_areas]
-        self._rebuild_list()
-        if self.filtered:
-            selected = self.current_ticket_id if self.current_ticket_id in {ticket.ticket_id for ticket in self.filtered} else self.filtered[0].ticket_id
-            self._select_ticket(selected)
-        else:
-            self._render_placeholder()
+        self._apply_filters()
 
     def _rebuild_list(self) -> None:
         self.counter_label.setText(f"Карта билетов ({len(self.filtered)})")
@@ -185,6 +222,8 @@ class TicketsView(QWidget):
             if widget is not None:
                 widget.deleteLater()
         self.list_items.clear()
+        columns = self._ticket_list_columns()
+        self._list_columns = columns
 
         if not self.filtered:
             has_tickets = bool(self.tickets)
@@ -201,15 +240,21 @@ class TicketsView(QWidget):
                     secondary_action=None
                     if has_tickets
                     else ("Открыть библиотеку", self.open_library_requested.emit, "secondary", "library"),
-                )
+                ),
+                0,
+                0,
+                1,
+                columns,
             )
             return
 
-        for ticket in self.filtered:
-            item = TicketListItem(ticket)
+        for index, ticket in enumerate(self.filtered):
+            item = TicketListItem(ticket, self._ticket_number(ticket))
             item.clicked_ticket.connect(self._select_ticket)
-            self.ticket_list.addWidget(item)
+            self.ticket_list.addWidget(item, index // columns, index % columns)
             self.list_items[ticket.ticket_id] = item
+        for column in range(2):
+            self.ticket_list.setColumnStretch(column, 1 if column < columns else 0)
 
     def _select_ticket(self, ticket_id: str) -> None:
         self.current_ticket_id = ticket_id
@@ -269,14 +314,17 @@ class TicketsView(QWidget):
         self.detail_scroll.verticalScrollBar().setValue(0)
 
     def _hero_card(self, ticket: TicketKnowledgeMap) -> QWidget:
-        colors = current_colors()
-        card = CardFrame(role="card", shadow_color=self.shadow_color)
+        card = CardFrame(role="folio", accent_strip="rust")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setContentsMargins(30, 36, 30, 26)
         layout.setSpacing(12)
 
+        eyebrow = QLabel(f"Билет №{self._ticket_number(ticket)}")
+        eyebrow.setProperty("role", "eyebrow")
+        layout.addWidget(eyebrow)
+
         title = QLabel(ticket.title)
-        title.setStyleSheet(f"font-size: 22px; font-weight: 800; color: {colors['text']};")
+        title.setProperty("role", "page-title-serif")
         title.setWordWrap(True)
         layout.addWidget(title)
 
@@ -511,6 +559,34 @@ class TicketsView(QWidget):
         return card
 
     def refresh_theme(self) -> None:
+        self._apply_filters()
+
+    def set_search_text(self, text: str) -> None:
+        self._search_query = text.strip().lower()
+        self._apply_filters()
+
+    @staticmethod
+    def _json_list(raw_value: str | None) -> list[str]:
+        if not raw_value:
+            return []
+        return list(json.loads(raw_value))
+
+    def _set_filter(self, filter_key: str) -> None:
+        self._active_filter = filter_key
+        self._apply_filters()
+
+    def _apply_filters(self) -> None:
+        query = self._search_query
+        self.filtered = [
+            ticket
+            for ticket in self.tickets
+            if self._matches_active_filter(ticket)
+            and (
+                not query
+                or query in ticket.title.lower()
+                or query in (ticket.canonical_answer_summary or "").lower()
+            )
+        ]
         self._rebuild_list()
         if self.filtered:
             selected = self.current_ticket_id if self.current_ticket_id in {ticket.ticket_id for ticket in self.filtered} else self.filtered[0].ticket_id
@@ -518,24 +594,21 @@ class TicketsView(QWidget):
         else:
             self._render_placeholder()
 
-    def set_search_text(self, text: str) -> None:
-        query = text.strip().lower()
-        if not query:
-            self.filtered = self.tickets[:]
-        else:
-            self.filtered = [
-                ticket
-                for ticket in self.tickets
-                if query in ticket.title.lower() or query in ticket.canonical_answer_summary.lower()
-            ]
-        self._rebuild_list()
-        if self.filtered:
-            self._select_ticket(self.filtered[0].ticket_id)
-        else:
-            self._render_placeholder()
+    def _matches_active_filter(self, ticket: TicketKnowledgeMap) -> bool:
+        if self._active_filter == "all":
+            return True
+        if self._active_filter == "weak":
+            breakdown = self.mastery.get(ticket.ticket_id)
+            return breakdown is not None and breakdown.confidence_score < 0.7
+        if self._active_filter == "complex":
+            return ticket.difficulty >= 4
+        return True
 
-    @staticmethod
-    def _json_list(raw_value: str | None) -> list[str]:
-        if not raw_value:
-            return []
-        return list(json.loads(raw_value))
+    def _ticket_number(self, ticket: TicketKnowledgeMap) -> int:
+        try:
+            return self.tickets.index(ticket) + 1
+        except ValueError:
+            return self.filtered.index(ticket) + 1 if ticket in self.filtered else 0
+
+    def _ticket_list_columns(self) -> int:
+        return 1 if self.body_layout.direction() == QBoxLayout.Direction.TopToBottom else 2

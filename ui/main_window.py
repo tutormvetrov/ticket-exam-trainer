@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QFrame,
     QFileDialog,
-    QGraphicsOpacityEffect,
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
@@ -81,7 +80,6 @@ class MainWindow(QMainWindow):
         self._update_prompted = False
         self._manual_update_check = False
         self._pending_training_mode: str | None = None
-        self._transitions_enabled = not suppress_startup_background_tasks
 
         self.setWindowTitle(APP_WINDOW_TITLE)
         self.setMinimumSize(1280, 720)
@@ -126,12 +124,11 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self.separator)
 
         self.stack = QStackedWidget()
-        self._stack_opacity = QGraphicsOpacityEffect(self.stack)
-        self._stack_opacity.setOpacity(1.0)
-        self.stack.setGraphicsEffect(self._stack_opacity)
-        self._stack_transition = QPropertyAnimation(self._stack_opacity, b"opacity", self)
-        self._stack_transition.setDuration(200)
-        self._stack_transition.setEasingCurve(QEasingCurve.Type.OutCubic)
+        # Важно: никакого QGraphicsEffect на stack. Внутри stack живут
+        # CardFrame/MetricTile с QGraphicsDropShadowEffect; вложенные
+        # QGraphicsEffect'ы в Qt не поддерживаются корректно и приводят
+        # к каскаду «QPainter::begin: A paint device can only be painted
+        # by one painter at a time» на каждом кадре перехода.
         content_layout.addWidget(self.stack, 1)
         self.stack_pages: dict[str, QWidget] = {}
         self.current_key = "library"
@@ -260,15 +257,6 @@ class MainWindow(QMainWindow):
 
     def _show_stack_page(self, page: QWidget) -> None:
         self.stack.setCurrentWidget(page)
-        if not self._transitions_enabled or not self.isVisible():
-            self._stack_transition.stop()
-            self._stack_opacity.setOpacity(1.0)
-            return
-        self._stack_transition.stop()
-        self._stack_opacity.setOpacity(0.0)
-        self._stack_transition.setStartValue(0.0)
-        self._stack_transition.setEndValue(1.0)
-        self._stack_transition.start()
 
     def open_import_dialog(self) -> None:
         if self._import_thread is not None and self._import_thread.isRunning():

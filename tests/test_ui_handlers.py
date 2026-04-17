@@ -104,7 +104,6 @@ def test_suppress_startup_background_tasks_skips_auto_threads(tmp_path: Path) ->
 
     assert window._diagnostics_thread is None
     assert window._update_thread is None
-    assert window._transitions_enabled is False
     assert window.views["settings"].status_pill.text() == "Автопроверка отключена"
     window.close()
     window.facade.connection.close()
@@ -505,23 +504,28 @@ def test_empty_states_show_primary_cta_on_empty_workspace(tmp_path: Path) -> Non
         window.facade.connection.close()
 
 
-def test_switch_view_uses_transition_layer_and_settles_on_latest_target(tmp_path: Path) -> None:
+def test_switch_view_settles_on_latest_target_without_graphics_effect(tmp_path: Path) -> None:
+    """Regression for QPainter warning storm (nested QGraphicsEffect).
+
+    stack больше НЕ должен иметь своего QGraphicsEffect — иначе при
+    fade-переходе effect-source конфликтует с drop-shadow'ами карточек
+    внутри, и Qt спамит QPainter::begin warnings на каждый кадр.
+    """
     window, _ = _build_window(tmp_path)
 
     try:
         window.show()
         _qapp().processEvents()
 
-        assert window._transitions_enabled is True
-        assert window.stack.graphicsEffect() is not None
+        # Защита корневой причины: никакого QGraphicsEffect на stack.
+        assert window.stack.graphicsEffect() is None
 
         window.switch_view("subjects")
         window.switch_view("training")
 
         assert _wait_for(
             lambda: window.current_key == "training"
-            and window.stack.currentWidget() == window.stack_pages["training"]
-            and window._stack_opacity.opacity() >= 0.99,
+            and window.stack.currentWidget() == window.stack_pages["training"],
             timeout=2.5,
         )
     finally:

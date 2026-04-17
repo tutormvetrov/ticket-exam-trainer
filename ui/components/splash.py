@@ -4,7 +4,7 @@ from app.build_info import RuntimeBuildInfo
 from ui.components.common import CardFrame, LogoMark
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
 
 
 class BrandedSplash(QWidget):
@@ -20,7 +20,7 @@ class BrandedSplash(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
 
-        shell = CardFrame(role="card", shadow_color=None, shadow=False)
+        shell = CardFrame(role="paper", shadow_color=None, shadow=False)
         shell.setObjectName("tezis-splash-shell")
         shell_layout = QHBoxLayout(shell)
         shell_layout.setContentsMargins(28, 28, 28, 28)
@@ -54,6 +54,14 @@ class BrandedSplash(QWidget):
         text_col.addWidget(built_label)
 
         text_col.addStretch(1)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setProperty("role", "warm-progress")
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setRange(0, 0)
+        self.progress_bar.setFixedHeight(4)
+        text_col.addWidget(self.progress_bar)
+
         shell_layout.addLayout(text_col, 1)
         root.addWidget(shell)
 

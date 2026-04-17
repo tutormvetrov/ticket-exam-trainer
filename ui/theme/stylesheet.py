@@ -26,6 +26,9 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     family = typography["family"]
     is_dark = colors["app_bg"] == DARK["app_bg"]
     page_title_size = typography.get("page_title", typography.get("hero", typography["section_title"]))
+    paper = colors.get("paper", colors["app_bg"])
+    sand = colors.get("sand", colors.get("sidebar_bg", colors["card_soft"]))
+    rust = colors.get("rust", colors["primary"])
     primary_pressed = QColor(colors["primary"]).darker(120 if is_dark else 114).name()
     card_pressed = QColor(colors["card_bg"]).darker(108 if is_dark else 102).name()
     secondary_hover = alpha_color(colors["primary"], 0.12 if is_dark else 0.08)
@@ -233,6 +236,16 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         selection-background-color: {colors["primary_soft"]};
         selection-color: {colors["text"]};
         padding: 6px;
+    }}
+    QProgressBar[role="warm-progress"] {{
+        background: {sand};
+        border: none;
+        border-radius: 2px;
+        max-height: 4px;
+    }}
+    QProgressBar[role="warm-progress"]::chunk {{
+        background: {rust};
+        border-radius: 2px;
     }}
     QPushButton {{
         border-radius: 14px;
@@ -458,7 +471,7 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         border-radius: 12px;
     }}
     QFrame[role="paper-card"] {{
-        background: {colors["paper"]};
+        background: {paper};
         border: 1px solid {colors["border"]};
         border-radius: 6px;
     }}

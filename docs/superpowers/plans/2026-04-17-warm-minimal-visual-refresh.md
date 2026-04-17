@@ -1,5 +1,13 @@
 # Warm Minimal — визуальный рефреш UI (этап 1) — Implementation Plan
 
+> Status on 2026-04-17: implemented on `main`.
+>
+> Closed in code and QA:
+> - Tasks 1-18 completed
+> - `python -m pytest -q` -> `186 passed, 5 skipped`
+> - visual gate screenshots saved in `docs/superpowers/screenshots/2026-04-17-warm-minimal/`
+> - historical mentions of `165` tests below are part of the original plan text and no longer reflect the current repository count
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Перевести UI приложения в «Warm Minimal» эстетику (sand+rust+moss в light, cognac leather в dark; serif+sans hybrid; three-tier materiality), поменяв дизайн-систему, shell и три видимые вьюхи (library, tickets, training), не ломая 165 существующих тестов.

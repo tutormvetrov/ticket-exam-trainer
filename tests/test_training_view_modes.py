@@ -134,3 +134,22 @@ def test_state_exam_mode_opens_separate_workspace() -> None:
     assert workspace.findChild(QPushButton, "training-state-exam-submit") is not None
     assert len(workspace.findChildren(QTextEdit)) >= 6
     assert "Госэкзамен" in view.session_meta.text()
+
+
+def test_review_mode_opens_separate_workspace() -> None:
+    _qapp()
+    view = TrainingView("#000000")
+    ticket = _build_ticket("ticket-review", "Как устроено управление государственным имуществом?")
+    snapshot = TrainingSnapshot(
+        queue_items=[TrainingQueueItem(ticket.ticket_id, ticket.title, "ticket", ticket.ticket_id, 0.9, "сегодня")],
+        tickets=[ticket],
+    )
+    view.set_snapshot(snapshot)
+
+    view.select_mode("review")
+    workspace = view.workspace_stack.currentWidget()
+
+    assert workspace.objectName() == "training-workspace-review"
+    assert workspace.findChild(QTextEdit, "training-review-input") is not None
+    assert workspace.findChild(QPushButton, "training-review-submit") is not None
+    assert "реценз" in view.workspace_title.text().lower()

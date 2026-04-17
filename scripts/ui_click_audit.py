@@ -318,30 +318,20 @@ class UiClickAudit:
         else:
             self._record("FAIL", "topbar", "settings button", "Не открыл экран настроек")
 
-        self._click_button(self.window.topbar.ollama_button, "topbar", "ollama button")
-        settings_view = self.window.views["settings"]
-        if self.window.current_key == "settings" and settings_view.settings_stack.currentIndex() == 3:
-            self._record("PASS", "topbar", "ollama button", "Открывает раздел Ollama")
-        else:
-            self._record("FAIL", "topbar", "ollama button", "Не открыл раздел Ollama")
-
-        initial_theme = self.window.palette_name
-        self._click_button(self.window.topbar.theme_button, "topbar", "theme button")
-        if self.window.palette_name != initial_theme:
-            self._record("PASS", "topbar", "theme button", "Переключает тему")
-        else:
-            self._record("FAIL", "topbar", "theme button", "Не переключил тему")
-        self._click_button(self.window.topbar.theme_button, "topbar", "theme button restore")
-
         self.window.switch_view("library")
-        self.window.topbar.search_input.setText("право")
         self._pump()
-        matches = self.window.views["library"].document_list.filtered
-        if matches and all("право" in item.title.lower() or "право" in item.subject.lower() for item in matches):
-            self._record("PASS", "topbar", "search", "Фильтрация работает на библиотеке")
+
+        if self.window.topbar.page_title.text() == "Библиотека" and self.window.topbar.page_subtitle.isVisible():
+            self._record("PASS", "topbar", "page meta library", "Показывает актуальные title и subtitle текущего раздела")
         else:
-            self._record("FAIL", "topbar", "search", "Поиск не отфильтровал библиотеку")
-        self.window.topbar.search_input.clear()
+            self._record("FAIL", "topbar", "page meta library", "Не показал корректные метаданные раздела")
+
+        self.window.switch_view("training")
+        self._pump()
+        if self.window.topbar.page_title.text() == "Тренировка" and self.window.topbar.page_subtitle.isVisible():
+            self._record("PASS", "topbar", "page meta training", "Обновляет title и subtitle при смене раздела")
+        else:
+            self._record("FAIL", "topbar", "page meta training", "Не обновил метаданные при смене раздела")
         self._pump()
 
     def _audit_sidebar_navigation(self) -> None:
@@ -516,8 +506,9 @@ class UiClickAudit:
             "plan": "training-plan-submit",
             "mini-exam": "training-mini-exam-submit",
             "state-exam-full": "training-state-exam-submit",
+            "review": "training-review-submit",
         }
-        for mode_key in ["reading", "active-recall", "cloze", "matching", "plan", "mini-exam", "state-exam-full"]:
+        for mode_key in ["reading", "active-recall", "cloze", "matching", "plan", "mini-exam", "state-exam-full", "review"]:
             card = mode_map.get(mode_key)
             self._click_widget(card, "training", f"mode {mode_key}")
             current = view.workspace_stack.currentWidget()
@@ -536,13 +527,14 @@ class UiClickAudit:
             self._run_training_mode_scenario(view, mode_map, "plan", self._execute_plan_mode),
             self._run_training_mode_scenario(view, mode_map, "mini-exam", self._execute_mini_exam_mode),
             self._run_training_mode_scenario(view, mode_map, "state-exam-full", self._execute_state_exam_full_mode),
+            self._run_training_mode_scenario(view, mode_map, "review", self._execute_review_mode),
         ]
 
         after_attempts = self._attempt_count()
         if all(scenario_results) and after_attempts > before_attempts:
-            self._record("PASS", "training", "mode-specific scenarios", "Все 7 режимов дают отдельный сценарий и реальный результат")
+            self._record("PASS", "training", "mode-specific scenarios", "Все 8 режимов дают отдельный сценарий и реальный результат")
         else:
-            self._record("FAIL", "training", "mode-specific scenarios", "Не все 7 режимов завершили mode-specific сценарий или статистика не обновилась")
+            self._record("FAIL", "training", "mode-specific scenarios", "Не все 8 режимов завершили mode-specific сценарий или статистика не обновилась")
 
     def _run_training_mode_scenario(self, view, mode_map: dict[str, TrainingModeCard], mode_key: str, runner) -> bool:
         card = mode_map.get(mode_key)
@@ -618,6 +610,15 @@ class UiClickAudit:
             field.setPlainText(f"Тестовый блок ответа {index} для smoke-аудита.")
         self._click_button(workspace.findChild(QPushButton, "training-state-exam-submit"), "training", "state exam submit")
 
+    def _execute_review_mode(self, workspace) -> None:
+        answer_input = workspace.findChild(QTextEdit, "training-review-input")
+        if answer_input is not None:
+            answer_input.setPlainText(
+                "Государственное имущество это публичный ресурс с правовым режимом, "
+                "контролем использования и управленческим циклом."
+            )
+        self._click_button(workspace.findChild(QPushButton, "training-review-submit"), "training", "review submit")
+
     def _audit_statistics(self) -> None:
         self.window.switch_view("statistics")
         self._pump()
@@ -637,7 +638,8 @@ class UiClickAudit:
         else:
             self._record("FAIL", "defense", "paywall", "Экран DLC не показывает честный paywall")
 
-        activation_code = self.facade.issue_local_defense_activation_code()
+        install_id = self.facade.defense.license_service.ensure_install_id()
+        activation_code = self.facade.defense.license_service.issue_legacy_code(install_id)
         view.activation_input.setText(activation_code)
         self._click_button(view.activate_button, "defense", "activate")
         if view.workspace.isVisible() and not view.paywall_card.isVisible():

@@ -37,10 +37,12 @@ class TopBar(QWidget):
 
         self.page_title = QLabel()
         self.page_title.setProperty("role", "page-title-serif")
+        self.page_title.setProperty("skipTextAdmin", True)
         title_box.addWidget(self.page_title)
 
         self.page_subtitle = QLabel()
         self.page_subtitle.setProperty("role", "subtitle-italic")
+        self.page_subtitle.setProperty("skipTextAdmin", True)
         title_box.addWidget(self.page_subtitle)
 
         self.layout_root.addLayout(title_box)

@@ -1,101 +1,64 @@
-# Как продолжить разработку на другой машине (Windows 11)
+# Как продолжить разработку на другой машине
 
-Короткая шпаргалка, чтобы взять проект с нуля.
+Короткий handoff по текущему состоянию `main`.
 
-## 1. Клонировать и настроить окружение
+## 1. Быстрый старт
 
 ```powershell
 git clone https://github.com/tutormvetrov/ticket-exam-trainer.git
 cd ticket-exam-trainer
-
-# Python 3.12+ обязателен
-python --version
-
 python -m pip install -r requirements.txt
-```
-
-Из зависимостей ключевые: `PySide6`, `cryptography` (для DLC-подписи), `pytest`,
-`pyinstaller`, `python-docx`, `pypdf`, `reportlab`, `requests`.
-
-## 2. Проверить, что всё собирается
-
-```powershell
 python -m pytest -q
+python main.py
 ```
 
-Ожидание: **165 passed, 5 skipped** на `main`. На `feature/logo-refresh` —
-то же число.
+Ориентир по тестам на 2026-04-17:
 
-## 3. Запустить приложение
+- `186 passed, 5 skipped`
+
+## 2. Что сейчас важно знать
+
+- Основная ветка: `main`
+- Warm-minimal visual refresh этапа 1 уже влит.
+- `TopBar`, `Sidebar`, `Library`, `Tickets`, `Training` и `LogoMark` уже на новом дизайне.
+- В `Тренировке` уже 8 режимов, включая `review`.
+- Click audit обновлён для light и dark.
+
+## 3. Полезные команды
 
 ```powershell
-python main.py
-# или сразу на конкретный экран
-python main.py --view library --theme light
-python main.py --view library --theme dark
+python main.py --view library
+python main.py --view training --theme dark
+python main.py --view dialogue
+python scripts/ui_click_audit.py --theme light --report audit/ui_click_audit.md
+python scripts/ui_click_audit.py --theme dark --report audit/ui_click_audit_dark.md
 ```
 
-LLM-функции (диалоги, рецензии, структурирование) работают только при
-живом локальном `Ollama` на `http://localhost:11434` с загруженной
-моделью `qwen3:8b` или совместимой. Без Ollama UI запустится, но LLM-
-режимы будут недоступны.
+Если нужен локальный Ollama:
 
-Чтобы поднять Ollama локально:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup_ollama_windows.ps1
 powershell -ExecutionPolicy Bypass -File scripts\check_ollama.ps1
 ```
 
-## 4. Ветки и состояние
+## 4. Где смотреть актуальные документы
 
-| Ветка | Что в ней |
-|-------|-----------|
-| `main` | Базовое приложение + три очереди хардинга (security / reliability / visual) + спек и план логотипа. Тесты: 165 passed. |
-| `feature/logo-refresh` | Рефреш логотипа (академический медальон, SVG-шаблоны, адаптивные варианты) + русификация оставшихся английских строк UI. Не смёржен, ждёт визуального одобрения. |
+- корневой обзор: `README.md`
+- пользовательские документы: `docs/`
+- активный визуальный spec: `docs/superpowers/specs/2026-04-17-warm-minimal-visual-refresh-design.md`
+- активный visual plan: `docs/superpowers/plans/2026-04-17-warm-minimal-visual-refresh.md`
+- visual gate screenshots: `docs/superpowers/screenshots/2026-04-17-warm-minimal/`
+- audit: `audit/`
 
-Переключиться на работу с логотипом:
-```powershell
-git fetch origin
-git checkout feature/logo-refresh
-git pull
-```
+## 5. Текущий остаток
 
-После визуального одобрения смёржить в main:
-```powershell
-git checkout main
-git merge --no-ff feature/logo-refresh
-git push origin main
-```
+- главный открытый продуктовый QA-хвост: реальный macOS smoke-run;
+- `import preview` ещё не реализован;
+- вторичные экраны не проходили персональный warm-minimal redesign, только theme inheritance.
 
-## 5. Что ещё в работе / план на будущее
+## 6. Repo truth
 
-- **Премиальный визуальный пасс** — типографика (Inter/Manrope), воздух,
-  слои поверхностей, тонкие hairline-границы, микро-анимации на hover,
-  изумрудно-золотые акценты вместо плоского синего. План согласован,
-  будет в отдельной ветке `feature/premium-visual-pass`. Объём — как все
-  три очереди хардинга вместе.
-- **DLC Ed25519 rotation** — до релиза надо сгенерировать свою пару ключей
-  через `python local_tools/dlc_issuer.py generate --out <path>` и
-  подставить публичный ключ в `application/dlc_license.py` →
-  `DEFAULT_DLC_PUBLIC_KEY_PEM`. Приватный — **только вне репо**.
-- **macOS smoke** (пункт `MAC-REAL` в `audit/open_issues.md`) — не прогонялся
-  руками на реальном Mac, по-прежнему open.
-
-## 6. Документация
-
-- Спеки и планы: `docs/superpowers/specs/`, `docs/superpowers/plans/`
-- Последний спек: `2026-04-16-logo-refresh-design.md`
-- Последний план: `2026-04-16-logo-refresh.md`
-- Audit с честным списком известных проблем: `audit/open_issues.md`
-
-## 7. Worktrees
-
-В этом проекте используются git worktrees через `.worktrees/<branch>`
-(игнорируется). Если хочешь работать над двумя ветками параллельно:
-
-```powershell
-git worktree add .worktrees/premium-visual -b feature/premium-visual-pass
-cd .worktrees/premium-visual
-```
-
-Список активных worktree: `git worktree list`.
+- редактируемые исходники: корень репозитория, `docs`, `audit`, `scripts`, код, тесты;
+- `build` это временные build-артефакты;
+- `dist` это generated output;
+- packaged docs внутри релиза не редактируются вручную.

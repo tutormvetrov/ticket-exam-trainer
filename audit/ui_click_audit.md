@@ -1,20 +1,22 @@
 # UI Click Audit
 
-- workspace: `C:\Windows\Temp\tezis-ui-audit-672_j9tf`
+- workspace: `C:\Users\tutor\AppData\Local\Temp\tezis-ui-audit-gymqathh`
+- theme: `light`
 
 ## Results
 
 - `PASS` [topbar] settings button: Открывает экран настроек
-- `PASS` [topbar] ollama button: Открывает раздел Ollama
-- `PASS` [topbar] theme button: Переключает тему
-- `PASS` [topbar] search: Фильтрация работает на библиотеке
+- `PASS` [topbar] page meta library: Показывает актуальные title и subtitle текущего раздела
+- `PASS` [topbar] page meta training: Обновляет title и subtitle при смене раздела
 - `PASS` [sidebar] library: Пункт меню открывает свой экран
 - `PASS` [sidebar] subjects: Пункт меню открывает свой экран
 - `PASS` [sidebar] sections: Пункт меню открывает свой экран
 - `PASS` [sidebar] tickets: Пункт меню открывает свой экран
 - `PASS` [sidebar] import: Пункт меню открывает свой экран
 - `PASS` [sidebar] training: Пункт меню открывает свой экран
+- `PASS` [sidebar] dialogue: Пункт меню открывает свой экран
 - `PASS` [sidebar] statistics: Пункт меню открывает свой экран
+- `PASS` [sidebar] knowledge-map: Пункт меню открывает свой экран
 - `PASS` [sidebar] defense: Пункт меню открывает свой экран
 - `PASS` [sidebar] settings: Пункт меню открывает свой экран
 - `PASS` [library] document selection: Выбор документа обновляет центральную панель
@@ -22,9 +24,6 @@
 - `PASS` [library] detail tab 1: Переключает вкладку документа
 - `PASS` [library] detail tab 2: Переключает вкладку документа
 - `PASS` [library] refresh: Кнопка обновления не роняет экран
-- `PASS` [library] startup primary: Переводит в настройки Ollama
-- `PASS` [library] startup secondary: Повторная проверка обновляет статус Ollama
-- `PASS` [library] startup tertiary: Открывает README
 - `PASS` [library] training mode card: Карточка режима ведёт в тренировку
 - `PASS` [library] dlc teaser: Карточка DLC ведёт в отдельный paywalled workspace
 - `PASS` [library] import: Импорт из библиотеки завершился и попал в базу
@@ -42,6 +41,7 @@
 - `PASS` [training] mode plan: Режим открывает свой workspace с mode-specific CTA
 - `PASS` [training] mode mini-exam: Режим открывает свой workspace с mode-specific CTA
 - `PASS` [training] mode state-exam-full: Режим открывает свой workspace с mode-specific CTA
+- `PASS` [training] mode review: Режим открывает свой workspace с mode-specific CTA
 - `PASS` [training] reading scenario: Mode-specific сценарий завершился реальным результатом
 - `PASS` [training] active-recall scenario: Mode-specific сценарий завершился реальным результатом
 - `PASS` [training] cloze scenario: Mode-specific сценарий завершился реальным результатом
@@ -49,7 +49,8 @@
 - `PASS` [training] plan scenario: Mode-specific сценарий завершился реальным результатом
 - `PASS` [training] mini-exam scenario: Mode-specific сценарий завершился реальным результатом
 - `PASS` [training] state-exam-full scenario: Mode-specific сценарий завершился реальным результатом
-- `PASS` [training] mode-specific scenarios: Все 7 режимов дают отдельный сценарий и реальный результат
+- `PASS` [training] review scenario: Mode-specific сценарий завершился реальным результатом
+- `PASS` [training] mode-specific scenarios: Все 8 режимов дают отдельный сценарий и реальный результат
 - `PASS` [statistics] snapshot: Экран статистики показывает реальные попытки
 - `PASS` [defense] paywall: DLC честно закрыт paywall до активации
 - `PASS` [defense] activate: Ключ активации открывает DLC-workspace
@@ -90,21 +91,19 @@
 
 ## Observed External Events
 
-- `open-url` file:///D:/Coding projects/ticket-exam-trainer/README.md
-- `open-url` file:///D:/OllamaModels
-- `launch-script` D:\Coding projects\ticket-exam-trainer\scripts\setup_ollama_windows.ps1
+- `open-url` file:///C:/Users/tutor/.ollama/models
+- `launch-script` D:\ticket-exam-trainer\scripts\setup_ollama_windows.ps1
 - `message` Ollama: Запущен скрипт автоподготовки Ollama. Он открыт в PowerShell. После завершения вернитесь сюда и нажмите «Проверить соединение».
-- `open-url` file:///D:/OllamaModels
-- `open-url` file:///D:/Coding projects/ticket-exam-trainer/README.md
-- `open-url` file:///D:/Coding projects/ticket-exam-trainer/README.md
-- `open-url` file:///D:/Coding projects/ticket-exam-trainer
-- `open-url` file:///C:/Windows/Temp/tezis-ui-audit-672_j9tf
+- `open-url` file:///C:/Users/tutor/.ollama/models
+- `open-url` file:///D:/ticket-exam-trainer/README.md
+- `open-url` file:///D:/ticket-exam-trainer/README.md
+- `open-url` file:///D:/ticket-exam-trainer
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-gymqathh
 - `message` Резервная копия: Резервная копия создана:
-- `open-url` file:///C:/Windows/Temp/tezis-ui-audit-672_j9tf/backups
-- `open-url` file:///D:/Coding projects/ticket-exam-trainer/audit
-- `open-url` file:///D:/Coding projects/ticket-exam-trainer/docs
-- `launch-script` D:\Coding projects\ticket-exam-trainer\scripts\check_ollama.ps1
+- `open-url` file:///C:/Users/tutor/AppData/Local/Temp/tezis-ui-audit-gymqathh/backups
+- `open-url` file:///D:/ticket-exam-trainer/audit
+- `open-url` file:///D:/ticket-exam-trainer/docs
+- `launch-script` D:\ticket-exam-trainer\scripts\check_ollama.ps1
 - `message` Ollama: Запущен диагностический скрипт check_ollama.ps1 в PowerShell.
-- `open-url` file:///D:/Coding projects/ticket-exam-trainer/README.md
+- `open-url` file:///D:/ticket-exam-trainer/README.md
 - `message` Настройки: Параметры сохранены и применены.
-- `message` Обновления: GitHub временно ограничил проверку обновлений (HTTP 403). Это не ломает приложение: повторите позже или откройте страницу релизов вручную.

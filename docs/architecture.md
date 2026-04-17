@@ -1,94 +1,121 @@
 # Architecture
 
-## Layers
+## Слои
 
-- `app`
-  composition root, запуск приложения и platform-aware entrypoint
-- `application`
-  use cases: import, scoring, adaptive review, concept linking, settings, defense flow
-- `domain`
-  сущности и инварианты модели знаний и defense-модуля
-- `infrastructure`
-  SQLite, файловые importers, локальный Ollama API, runtime bridge
-- `ui`
-  PySide6 views, widgets и mode-specific workspace
+- `app`: bootstrap, пути, build info, platform-aware entrypoints.
+- `application`: use cases, import, scoring, adaptive review, dialogue, defense flow, settings.
+- `domain`: сущности билетов, карты знаний, mastery, answer profiles, defense-модель.
+- `infrastructure`: SQLite, importers, local Ollama API, repository, update bridge.
+- `ui`: PySide6 shell, views, widgets, theme package и runtime wiring.
 
-## End-to-End Chains
+## UI shell
 
-### Exam Import Chain
+Текущий shell состоит из:
 
-`UI import action -> application.import_service / application.facade -> infrastructure.importers -> domain ticket model -> infrastructure.db.repository -> UI refresh`
+- `ui/components/sidebar.py`
+- `ui/components/topbar.py`
+- `ui/main_window.py`
 
-Что важно сейчас:
+`MainWindow` держит `Sidebar`, `TopBar` и `QStackedWidget` с основными экранами. Навигационные ключи совпадают с view ids:
 
-- основной import path относится к `DOCX` и `PDF`
-- import идёт в фоне и обновляет progress по этапам
-- частичный результат может быть сохранён и потом локально добит через resume flow
-- отдельного `import preview` перед стартом импорта пока нет
+- `library`
+- `subjects`
+- `sections`
+- `tickets`
+- `import`
+- `training`
+- `dialogue`
+- `statistics`
+- `knowledge-map`
+- `defense`
+- `settings`
 
-### Training Chain
+## Theme system
 
-`UI training workspace -> application.facade.evaluate_answer -> application.scoring -> domain mastery / weak areas -> infrastructure.db.repository -> adaptive queue + statistics -> UI refresh`
+Тема уже разделена на пакет `ui/theme/`:
 
-Что важно сейчас:
+- `palette.py`
+- `typography.py`
+- `spacing.py`
+- `materiality.py`
+- `stylesheet.py`
 
-- training UI разделён на 7 реальных workspace
-- внутренняя taxonomy упражнений шире, чем текущий UI mode set
-- `Госэкзамен` использует отдельный answer profile и block-level scoring
+Пакет сохраняет backward compatibility через `ui/theme/__init__.py`. Сейчас в продукте используется warm-minimal palette:
 
-### Adaptive Review Chain
+- light: sand / parchment / rust / moss
+- dark: cognac / brass / warm ink
 
-`attempt history + mastery profile + weak areas + ticket difficulty -> application.adaptive_review -> spaced_review_queue -> UI schedule`
+## Основные цепочки
 
-### Ollama Chain
+### Exam import
 
-`UI settings / import / training / defense action -> infrastructure.ollama.service -> infrastructure.ollama.client -> local Ollama API -> parsed response -> application/domain usage -> UI diagnostics or result`
+`ImportView -> MainWindow.open_import_dialog -> AppFacade.import_document_with_progress -> import_service -> repository -> refresh views`
 
-Что важно сейчас:
+Сейчас подтверждены:
 
-- Ollama вызывается только локально
-- `qwen3:8b` теперь является preferred default
-- при diagnostic smoke допускается fallback на совместимую локальную `Qwen`-модель того же семейства
-- rule-based fallback обязателен там, где LLM недоступен или вернул пустой результат
+- `DOCX` и `PDF`;
+- stage-based progress;
+- summary и handoff;
+- сохранение результатов в SQLite.
 
-### DLC Defense Chain
+### Training
 
-`UI defense workspace -> application.defense_service -> defense importers / Ollama / SQLite -> dossier + outlines + slides + questions + mock evaluation -> UI refresh`
+`TrainingView -> AppFacade.evaluate_answer -> scoring -> mastery/weak areas -> repository -> adaptive queue/statistics -> UI refresh`
 
-Сейчас defense-flow уже покрывает:
+Сейчас в UI доступны 8 отдельных режимов, включая `state-exam-full` и `review`.
 
-- paywall и локальную активацию
-- проекты защиты
-- импорт `DOCX/PDF/PPTX/TXT/MD`
-- dossier
-- outline
-- storyboard
-- вопросы комиссии
-- mock defense
+### Dialogue
+
+`DialogueView -> AppFacade.start_dialogue_session / submit_dialogue_turn -> Ollama dialogue service -> repository -> transcript/result`
+
+Dialogue использует ticket-grounded prompts и хранит сессии в локальной БД.
+
+### Defense DLC
+
+`DefenseView -> MainWindow -> AppFacade.defense_* -> defense_service -> repository/Ollama -> workspace snapshot`
+
+Этот поток включает:
+
+- локальную активацию;
+- проекты;
+- импорт материалов;
+- dossier, outline, storyboard;
+- logical gaps;
+- mock defense и repair queue.
 
 ## Persistence
 
 SQLite хранит:
 
-- import results
-- structured tickets
-- atoms
-- skills
-- exercise templates
-- attempts
-- weak areas
-- mastery profiles
-- adaptive review queue
-- cross-ticket concepts
-- answer blocks и block mastery для `Госэкзамен`
-- defense projects, sources, claims, outlines, slides, questions, scores
+- source documents;
+- tickets;
+- sections;
+- atoms;
+- skills;
+- exercise templates;
+- attempts;
+- mastery profiles;
+- weak areas;
+- review queue;
+- dialogue sessions and turns;
+- defense projects, claims, slides, questions, scores и license state.
 
-## Current Product Boundaries
+## QA hooks
 
-1. Основной подтверждённый release path сейчас относится к Windows desktop.
-2. macOS code-path подготовлен, но runtime smoke на реальном Mac остаётся внешним QA-пунктом.
-3. DLC уже является рабочей вертикалью, но не полностью завершённым коммерческим модулем.
-4. Root `README.md`, `docs`, `scripts`, код и тесты являются source-of-truth; packaged-копии в `dist` считаются generated output.
-5. Документация должна различать:
-   - что доступно пользователю как отдельный UI workflow
-   - что существует только как внутренняя доменная или exercise taxonomy
+Ключевые проверочные точки:
+
+- `python -m pytest -q`
+- `tests/test_painter_warnings.py`
+- `scripts/ui_click_audit.py`
+- `docs/superpowers/screenshots/2026-04-17-warm-minimal/`
+
+На 2026-04-17 базовый ориентир репозитория:
+
+- `186 passed, 5 skipped`
+
+## Границы продукта
+
+1. Основной подтверждённый release path относится к Windows desktop.
+2. macOS code-path подготовлен, но реальный smoke на Mac остаётся открытым.
+3. Никаких облачных LLM.
+4. `dist/` считается generated output.

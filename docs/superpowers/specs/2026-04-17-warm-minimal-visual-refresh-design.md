@@ -1,5 +1,13 @@
 # Warm Minimal — визуальный рефреш UI (этап 1)
 
+> Status on 2026-04-17: implemented on `main`.
+>
+> Reference artifacts:
+> - visual gate screenshots: `docs/superpowers/screenshots/2026-04-17-warm-minimal/`
+> - light click audit: `audit/ui_click_audit.md`
+> - dark click audit: `audit/ui_click_audit_dark.md`
+> - current base test contour: `186 passed, 5 skipped`
+
 **Дата:** 2026-04-17
 **Автор:** совместно с Claude (superpowers:brainstorming)
 **Цель:** поднять визуальный тон приложения с нейтрально-системного до выразительного «warm editorial» — ощутимая роскошь, вкус, цельность. На этом этапе закладываем дизайн-систему и применяем её к shell'у + трём самым видимым вьюхам.

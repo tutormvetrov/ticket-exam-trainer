@@ -1,24 +1,24 @@
 # Screen by Screen Checklist
 
-Проверенные desktop-размеры: `1280x720`, `1366x768`, `1536x864`, `1600x960`, `1920x1080`, `2560x1440`
-Статусы: `PASS`, `PARTIAL`, `FAIL`, `OPEN`
+Статусы: `PASS`, `PARTIAL`, `OPEN`
 
 | Экран | Что проверено | Статус | Доказательство | Комментарий |
 | --- | --- | --- | --- | --- |
-| Sidebar и навигация | Активный раздел, переключение stacked views, понятный Ollama status | PASS | `audit/screens/closeout-library.png`, `audit/screens/closeout-settings.png` | Навигация не декоративная |
-| Библиотека | Список документов, detail panel, правая статистика, режимы тренировки | PASS | `audit/screens/closeout-library.png` | Правая колонка больше не ломается |
-| Предметы | Читаемость summary и карточек | PASS | `audit/screens/subjects.png` | Пустой wide-layout убран |
-| Разделы | Список без пустого фасада, фильтрация | PASS | `audit/screens/sections.png` | Огромная пустая карта устранена |
-| Билеты | Карта билета, микронавыки, weak areas | PASS | `audit/screens/tickets.png` | Экран рабочий и читаемый |
-| Импорт документов | Выбор файла, summary, handoff в следующие разделы | PASS | `audit/screens/gift-import.png`, `tests/test_ui_handlers.py` | Сценарий не обрывается |
-| Тренировка | Карточная adaptive queue, editor, проверка ответа | PASS | `audit/screens/closeout-training.png` | Очередь стала нормально читаемой |
-| Статистика | Общая статистика, recent sessions, weak areas | PASS | `audit/screens/closeout-statistics.png` | Критичных visual-дефектов не осталось |
-| Настройки / Ollama | Верхняя форма, нижняя диагностика, action panel, honest status | PASS | `audit/screens/closeout-settings.png`, `audit/screens/closeout-settings-bottom.png` | Экран собран и читаем |
-| Настройки / Общие | Тема, стартовый экран, автопроверка, DLC teaser | PASS | `ui/views/settings_view.py`, `tests/test_ui_handlers.py::test_settings_sections_persist_real_values` | Реальные persisted controls |
-| Настройки / Документы | Папка импорта, формат, LLM assist | PASS | `ui/views/settings_view.py`, `tests/test_ui_handlers.py::test_settings_sections_persist_real_values` | Реальные persisted controls |
-| Настройки / Тренировка | Режим по умолчанию, review mode, размер очереди | PASS | `ui/views/settings_view.py`, `tests/test_ui_handlers.py::test_settings_sections_persist_real_values` | Реальные persisted controls |
-| Настройки / Данные | Пути к базе, backup, открытие каталогов | PASS | `ui/views/settings_view.py`, `backups/exam_trainer-20260410-052755.db` | Backup реально создаётся |
-| Настройки / Продвинутые | Доступ к docs/audit и запуск `check_ollama.ps1` | PASS | `ui/views/settings_view.py` | Реальные сервисные действия |
+| Sidebar | Все пункты навигации, активный раздел, warm accent-state | PASS | `audit/ui_click_audit.md`, `audit/ui_click_audit_dark.md` | Навигация и визуальная индикация совпадают |
+| TopBar | Кнопка настроек, page title и subtitle по текущему разделу | PASS | `audit/ui_click_audit.md` | Runtime drift заголовка закрыт |
+| Библиотека | Список документов, detail tabs, training CTA, DLC teaser, импорт из библиотеки | PASS | `audit/ui_click_audit.md`, `docs/superpowers/screenshots/2026-04-17-warm-minimal/library-light.png` | Ключевой экран visual refresh |
+| Предметы | Рендер summary и поиск по списку | PASS | `audit/ui_click_audit.md` | Theme inheritance достаточна |
+| Разделы | Фильтр и базовый render | PASS | `audit/ui_click_audit.md` | Theme inheritance достаточна |
+| Билеты | Выбор билета, ticket map, warm-minimal folio cards | PASS | `audit/ui_click_audit.md`, `docs/superpowers/screenshots/2026-04-17-warm-minimal/tickets-light.png` | Ключевой экран visual refresh |
+| Импорт | Запуск, summary, handoff в библиотеку, тренировку и статистику | PASS | `audit/ui_click_audit.md`, `tests/test_ui_handlers.py` | Основной import flow подтверждён |
+| Тренировка | Adaptive queue, 8 mode-specific workspaces, реальные результаты | PASS | `audit/ui_click_audit.md`, `audit/ui_click_audit_dark.md`, `tests/test_training_view_modes.py` | `review` теперь тоже покрыт |
+| Диалог | Gate до готовности Ollama, открытие ticket-bound session | PASS | `tests/test_dialogue_flow.py` | Screen flow проверен тестами и navigation audit |
+| Статистика | Snapshot и реальные попытки после training | PASS | `audit/ui_click_audit.md` | Блок статистики не fake |
+| Карта знаний | Базовый render и загрузка данных | PARTIAL | `tests/test_responsive_layouts.py`, `tests/test_ui_handlers.py` | Нужен отдельный ручной user-flow pass |
+| Подготовка к защите | paywall, активация, проект, импорт, gap analysis, mock defense | PASS | `audit/ui_click_audit.md`, `tests/test_defense_service.py`, `tests/test_defense_view.py` | DLC flow живой |
+| Настройки | Навигация секций, Ollama diagnostics, save/reset, backup и сервисные действия | PASS | `audit/ui_click_audit.md`, `audit/ui_click_audit_dark.md`, `tests/test_ui_handlers.py` | Экран не фасад |
 
 Неблокирующий остаток:
-- отсутствует
+
+- `Карта знаний` требует отдельного ручного сценарного аудита beyond render/responsive checks;
+- вторичные экраны ещё не проходили персональный warm-minimal redesign.

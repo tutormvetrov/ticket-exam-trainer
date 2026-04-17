@@ -33,6 +33,7 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     toolbar_pressed = alpha_color(colors["primary"], 0.18 if is_dark else 0.12)
     nav_pressed = alpha_color(colors["primary"], 0.22 if is_dark else 0.12)
     muted_hover = alpha_color(colors["primary"], 0.1 if is_dark else 0.05)
+    brass = colors.get("brass", colors.get("border_strong", colors["primary"]))
     return f"""
     QWidget {{
         color: {colors["text"]};
@@ -125,6 +126,10 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         font-size: {typography["nav_caption"]}px;
         font-weight: 700;
         letter-spacing: 1px;
+    }}
+    QLabel[role="brass-dot"] {{
+        color: {brass};
+        font-size: 16px;
     }}
     QLabel[role="hero"] {{
         font-size: {typography["hero"]}px;
@@ -323,6 +328,7 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         color: {colors["text_secondary"]};
         text-align: left;
         padding: 12px 16px;
+        font-family: "{typography["ui_family"]}";
         font-size: {typography["button"]}px;
         font-weight: 600;
     }}
@@ -511,6 +517,14 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         font-family: "{family}";
         font-size: {typography["nav_caption"]}px;
         font-weight: 600;
+        padding-left: 13px;
+    }}
+    QPushButton[variant="nav"][active-warm="true"]:hover,
+    QPushButton[variant="nav"][active-warm="true"]:pressed {{
+        background: transparent;
+        border: none;
+        border-left: 3px solid {colors["rust"]};
+        color: {colors["ink"]};
         padding-left: 13px;
     }}
     """

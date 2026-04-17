@@ -84,20 +84,36 @@ class Sidebar(QWidget):
         self.button_group = QButtonGroup(self)
         self.button_group.setExclusive(True)
         self.buttons: dict[str, QPushButton] = {}
-
+        self._nav_dots: dict[str, QLabel] = {}
+        self._current_key = "library"
         self._button_icons: dict[str, str] = {}
         for key, label, icon_name in NAV_ITEMS:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(8)
+
             button = QPushButton(label)
             button.setObjectName(f"sidebar-{key}")
-            button.setCheckable(True)
+            button.setCheckable(False)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setMinimumHeight(42)
             button.setProperty("variant", "nav")
+            button.setProperty("active-warm", "false")
             button.clicked.connect(lambda checked=False, value=key: self.section_selected.emit(value))
             self.button_group.addButton(button)
+
+            dot = QLabel("•")
+            dot.setProperty("role", "brass-dot")
+            dot.setVisible(False)
+
             self.buttons[key] = button
+            self._nav_dots[key] = dot
             self._button_icons[key] = icon_name
-            layout.addWidget(button)
+
+            row_layout.addWidget(button, 1)
+            row_layout.addWidget(dot, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            layout.addWidget(row)
 
         layout.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
@@ -146,9 +162,19 @@ class Sidebar(QWidget):
         self.refresh_theme()
 
     def set_current(self, key: str) -> None:
-        button = self.buttons.get(key)
-        if button:
-            button.setChecked(True)
+        self._current_key = key
+        for nav_key, button in self.buttons.items():
+            is_active = nav_key == key
+            button.setProperty("active-warm", "true" if is_active else "false")
+            button.style().unpolish(button)
+            button.style().polish(button)
+            self._nav_dots[nav_key].setVisible(is_active)
+            apply_button_icon(
+                button,
+                self._button_icons[nav_key],
+                size=18,
+                tone="rust" if is_active else "text_secondary",
+            )
 
     def set_ollama_status(self, available: bool, label_text: str, model_text: str, url_text: str, tone: str = "auto") -> None:
         if tone == "auto":
@@ -177,11 +203,10 @@ class Sidebar(QWidget):
             f"background: {colors['card_bg']}; border: 1px solid {colors['border_strong']}; border-radius: 18px;"
         )
         self.divider.setStyleSheet(f"background: {colors['border']};")
-        for key, button in self.buttons.items():
-            apply_button_icon(button, self._button_icons[key], size=18)
         self.status_dot.setStyleSheet(f"color: {colors['text_tertiary']}; font-size: 14px;")
         self.status_tail.setStyleSheet(f"color: {colors['text_tertiary']}; font-size: 14px;")
         self.status_label.setStyleSheet(f"color: {colors['text_secondary']}; font-size: 14px; font-weight: 700;")
+        self.set_current(self._current_key)
         self.set_ollama_status(
             available=self._current_status_tone == "success",
             label_text=self.status_label.text(),

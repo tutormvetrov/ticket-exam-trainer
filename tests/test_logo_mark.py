@@ -17,10 +17,10 @@ def test_logo_palette_light_values() -> None:
     from ui.theme import logo_palette
     palette = logo_palette(is_dark=False)
     assert palette == {
-        "emerald_stop_0": "#134734",
-        "emerald_stop_1": "#228F64",
-        "gold_stop_0": "#B9893D",
-        "gold_stop_1": "#E6C478",
+        "emerald_stop_0": "#2F463A",
+        "emerald_stop_1": "#6E8554",
+        "gold_stop_0": "#9C7A1E",
+        "gold_stop_1": "#D0A444",
     }
 
 
@@ -28,10 +28,10 @@ def test_logo_palette_dark_values() -> None:
     from ui.theme import logo_palette
     palette = logo_palette(is_dark=True)
     assert palette == {
-        "emerald_stop_0": "#165A42",
-        "emerald_stop_1": "#2AA076",
-        "gold_stop_0": "#D8A74E",
-        "gold_stop_1": "#F4DB94",
+        "emerald_stop_0": "#6E8554",
+        "emerald_stop_1": "#A8BE8A",
+        "gold_stop_0": "#C9A66B",
+        "gold_stop_1": "#E6CE8F",
     }
 
 
@@ -90,12 +90,12 @@ def test_logo_mark_theme_refresh_rebuilds_svg(qt_app) -> None:
         set_app_theme(qt_app, "light", "inter-style", 14)
         widget = LogoMark(size=52)
         svg_light = bytes(widget._build_svg())
-        assert b"#228F64" in svg_light  # изумруд light
+        assert b"#6E8554" in svg_light  # moss light
 
         set_app_theme(qt_app, "dark", "inter-style", 14)
         widget.refresh_theme()
         svg_dark = bytes(widget._build_svg())
-        assert b"#2AA076" in svg_dark  # изумруд dark
+        assert b"#A8BE8A" in svg_dark  # moss dark
         assert svg_light != svg_dark
     finally:
         # Восстановить light, чтобы не зааффектить другие тесты даже при падении.

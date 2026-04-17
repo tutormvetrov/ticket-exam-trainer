@@ -171,14 +171,14 @@ def logo_palette(is_dark: bool) -> dict[str, str]:
     """
     if is_dark:
         return {
-            "emerald_stop_0": "#165A42",
-            "emerald_stop_1": "#2AA076",
-            "gold_stop_0": "#D8A74E",
-            "gold_stop_1": "#F4DB94",
+            "emerald_stop_0": "#6E8554",
+            "emerald_stop_1": "#A8BE8A",
+            "gold_stop_0": "#C9A66B",
+            "gold_stop_1": "#E6CE8F",
         }
     return {
-        "emerald_stop_0": "#134734",
-        "emerald_stop_1": "#228F64",
-        "gold_stop_0": "#B9893D",
-        "gold_stop_1": "#E6C478",
+        "emerald_stop_0": "#2F463A",
+        "emerald_stop_1": "#6E8554",
+        "gold_stop_0": "#9C7A1E",
+        "gold_stop_1": "#D0A444",
     }

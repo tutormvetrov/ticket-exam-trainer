@@ -23,8 +23,10 @@ LIGHT = {
     "warning_soft": "#F3DDC7",    # brick_soft
     "danger": "#7A2E2E",          # claret
     "danger_soft": "#F3D9D3",     # claret_soft
-    "violet_soft": "#EAE0D4",     # нейтрализовано в warm гамму
-    "cyan_soft": "#DCE5D6",       # нейтрализовано
+    # back-compat: тоны violet/cyan нейтрализованы в warm-гамму, чтобы
+    # старые call-sites (tone='violet' / 'cyan') не «выпадали» холодным пятном.
+    "violet_soft": "#EAE0D4",
+    "cyan_soft": "#DCE5D6",
     # Текст
     "text": "#2C2520",            # ink
     "text_secondary": "#4E3E35",  # ink_muted
@@ -43,6 +45,8 @@ LIGHT = {
     "ink_faint": "#8A7064",
     "rust": "#A04A22",
     "rust_soft": "#E9D5BE",
+    # Not in spec §3 — extrapolated to match rust/rust_soft/rust_hover triplet
+    # for QSS primary:hover; remove if spec ever drops primary_hover as well.
     "rust_hover": "#8A3D1A",
     "moss": "#3D4E2A",
     "moss_soft": "#DCDDBC",
@@ -73,6 +77,8 @@ DARK = {
     "warning_soft": "#452A1A",
     "danger": "#D67580",          # claret-lit
     "danger_soft": "#46211F",
+    # back-compat: тоны violet/cyan нейтрализованы в warm-гамму, чтобы
+    # старые call-sites (tone='violet' / 'cyan') не «выпадали» холодным пятном.
     "violet_soft": "#3A2C22",
     "cyan_soft": "#2A3028",
     "text": "#F0DDB2",            # parchment text
@@ -91,6 +97,8 @@ DARK = {
     "ink_faint": "#8A7560",
     "rust": "#C97A57",
     "rust_soft": "#5C3220",
+    # Not in spec §3 — extrapolated to match rust/rust_soft/rust_hover triplet
+    # for QSS primary:hover; remove if spec ever drops primary_hover as well.
     "rust_hover": "#E08A63",
     "moss": "#8BA267",            # moss-lit (CTA)
     "moss_soft": "#2E3826",

@@ -48,8 +48,27 @@ def test_dark_is_cognac_not_cold_charcoal() -> None:
 
 
 def test_dark_accents_are_warm_lit() -> None:
-    assert DARK["primary"] == "#C97A57"
-    assert DARK["success"] == "#9EB389"
+    assert DARK["primary"] == "#C97A57"   # rust-lit
+    assert DARK["success"] == "#9EB389"   # sage-lit
+    assert DARK["warning"] == "#D07A48"   # brick-lit
+    assert DARK["danger"] == "#D67580"    # claret-lit
+    assert DARK["moss"] == "#8BA267"      # moss-lit CTA alias
+
+
+def test_dark_semantic_aliases_present() -> None:
+    for key in (
+        "paper", "parchment", "sand", "ink", "ink_muted", "ink_faint",
+        "rust", "rust_soft", "moss", "moss_soft", "brass",
+        "brick", "brick_soft", "claret", "claret_soft", "sage", "sage_soft",
+    ):
+        assert key in DARK, f"DARK не содержит semantic token {key!r}"
+
+
+def test_shadow_is_qcolor_not_hex_string() -> None:
+    """apply_shadow() requires QColor; guard against refactors that
+    normalise to hex string (would break effect pipeline)."""
+    assert isinstance(LIGHT["shadow"], QColor)
+    assert isinstance(DARK["shadow"], QColor)
 
 
 def test_semantic_aliases_identical_to_legacy_keys() -> None:

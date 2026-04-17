@@ -24,7 +24,7 @@ from ui.theme.typography import (
     app_font,
 )
 from ui.theme.spacing import SPACING, RADII, ELEVATION, shadow_color
-from ui.theme.materiality import apply_shadow
+from ui.theme.materiality import apply_shadow, paint_folio, paint_ornamental_divider
 from ui.theme.stylesheet import build_stylesheet, set_app_theme
 
 __all__ = [
@@ -46,6 +46,8 @@ __all__ = [
     "build_typography",
     "app_font",
     "apply_shadow",
+    "paint_folio",
+    "paint_ornamental_divider",
     "build_stylesheet",
     "set_app_theme",
 ]

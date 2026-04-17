@@ -56,11 +56,16 @@ def file_badge_colors(file_type: str) -> tuple[str, str]:
 
 
 class CardFrame(QFrame):
-    def __init__(self, role: str = "card", shadow_color: QColor | None = None, shadow: bool = True) -> None:
+    def __init__(self, role: str = "card", shadow_color: QColor | None = None,
+                 shadow: bool = True, shadow_level: str = "md") -> None:
         super().__init__()
         self.setProperty("role", role)
-        if shadow and shadow_color is not None:
-            apply_shadow(self, shadow_color)
+        # shadow_color параметр оставлен для обратной совместимости при
+        # поэтапной миграции call-sites на shadow_level; предпочитаемый
+        # путь — shadow_level. Если указан shadow_color — игнорируем и
+        # используем level из палитры.
+        if shadow and shadow_level:
+            apply_shadow(self, shadow_level, current_colors())
 
 
 _LOGO_VARIANT_THRESHOLD_PX = 40

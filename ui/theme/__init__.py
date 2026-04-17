@@ -23,7 +23,7 @@ from ui.theme.typography import (
     build_typography,
     app_font,
 )
-from ui.theme.spacing import SPACING, RADII
+from ui.theme.spacing import SPACING, RADII, ELEVATION, shadow_color
 from ui.theme.materiality import apply_shadow
 from ui.theme.stylesheet import build_stylesheet, set_app_theme
 
@@ -33,6 +33,8 @@ __all__ = [
     "FONT_PRESETS",
     "SPACING",
     "RADII",
+    "ELEVATION",
+    "shadow_color",
     "current_palette_name",
     "current_colors",
     "is_dark_palette",

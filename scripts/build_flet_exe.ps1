@@ -1,4 +1,4 @@
-# Build Tezis.exe from ui_flet/main.py via `flet pack`.
+﻿# Build Tezis.exe from ui_flet/main.py via `flet pack`.
 #
 # Output: dist/Tezis.exe (+ _internal/ for onedir mode)
 #
@@ -25,9 +25,9 @@ $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $ProjectRoot
 
 # ---- sanity ----
-$seedDb = Join-Path $ProjectRoot "build\demo_seed\state_exam_public_admin_demo.db"
+$seedDb = Join-Path $ProjectRoot "data\state_exam_public_admin_demo.db"
 if (-not $SkipSeedCheck -and -not (Test-Path $seedDb)) {
-  Write-Error "Seed DB missing at $seedDb — run scripts/codex/import_to_seed_db.py in the data worktree first"
+  Write-Error "Seed DB missing at $seedDb - copy from data-pipeline worktree build/demo_seed/ first"
 }
 
 $entryPoint = Join-Path $ProjectRoot "ui_flet\main.py"
@@ -47,7 +47,7 @@ if (Test-Path $fullIconPath) {
 # Format on Windows is "<src>;<dest>". Flet pack relays these to PyInstaller.
 $addData = @()
 if (Test-Path $seedDb) {
-  $addData += @("--add-data", "build\demo_seed\state_exam_public_admin_demo.db;data")
+  $addData += @("--add-data", "data\state_exam_public_admin_demo.db;data")
 }
 $fontsDir = Join-Path $ProjectRoot "ui_flet\theme\fonts"
 if ((Test-Path $fontsDir) -and (Get-ChildItem $fontsDir -Filter "*.ttf" -ErrorAction SilentlyContinue)) {

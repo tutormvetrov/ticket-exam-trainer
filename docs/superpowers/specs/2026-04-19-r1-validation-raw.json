@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "kind": "r1-review-validation-raw",
+  "started_at": "2026-04-18T23:05:09",
+  "finished_at": "2026-04-18T23:08:59",
+  "base_url": "http://localhost:11434",
+  "fixture": "D:/ticket-exam-trainer-flet/tests/fixtures/review_validation/tickets.json",
+  "timeout_seconds": 120.0,
+  "requested_models": [
+    "qwen3:0.6b"
+  ],
+  "installed_models": [
+    "qwen3:0.6b",
+    "qwen3:1.7b",
+    "qwen3:8b",
+    "mistral:instruct"
+  ],
+  "models_run": [
+    "qwen3:0.6b"
+  ],
+  "models_missing": [],
+  "per_model_metrics": {
+    "qwen3:0.6b": {
+      "calls": 4,
+      "json_valid_rate": 0.25,
+      "schema_valid_rate": 0.25,
+      "latency_p50": 73.32800000000134,
+      "latency_p95": 75.88999999999942,
+      "latency_mean": 57.464749999999185,
+      "discrimination": null,
+      "score_means": {
+        "excellent": 90.0
+      },
+      "score_by_tier_samples": {
+        "excellent": [
+          90
+        ]
+      },
+      "errors": [
+        {
+          "ticket_id": "budget-system-ru",
+          "answer_quality": "empty",
+          "error": "Expecting ',' delimiter: line 4 column 199 (char 526)"
+        },
+        {
+          "ticket_id": "contract-freedom-principle",
+          "answer_quality": "excellent",
+          "error": "Expecting ',' delimiter: line 4 column 383 (char 1021)"
+        },
+        {
+          "ticket_id": "contract-freedom-principle",
+          "answer_quality": "empty",
+          "error": "Expecting ',' delimiter: line 4 column 132 (char 607)"
+        }
+      ]
+    }
+  },
+  "calls": {
+    "qwen3:0.6b": [
+      {
+        "model": "qwen3:0.6b",
+        "ticket_id": "budget-system-ru",
+        "ticket_title": "Бюджетное устройство Российской Федерации",
+        "answer_quality": "excellent",
+        "answer_length": 607,
+        "latency_seconds": 75.88999999999942,
+        "ok": true,
+        "json_valid": true,
+        "schema_valid": true,
+        "missing_keys": [],
+        "overall_score": 90,
+        "parsed_content": {
+          "thesis_verdicts": [
+            {
+              "thesis_label": "Уровни бюджетной системы",
+              "status": "covered",
+              "comment": "Все три уровня перечислены верно.",
+              "student_excerpt": "три уровня: федеральный, региональные бюджеты (субъектов) и местные (муниципальные) бюджеты"
+            },
+            {
+              "thesis_label": "Стадии бюджетного процесса",
+              "status": "covered",
+              "comment": "Все пять стадий названы и в правильном порядке.",
+              "student_excerpt": "составление проекта, рассмотрение в парламенте, утверждение законом, исполнение (казначейское) и отчёт"
+            },
+            {
+              "thesis_label": "Нормативная база (ст. 28 БК РФ)",
+              "status": "covered",
+              "comment": "Указана статья и перечислены принципы бюджетной системы.",
+              "student_excerpt": "Согласно ст. 28 БК РФ принципы бюджетной системы включают единство, разграничение доходов и расходов между уровнями, самостоятельность бюджетов"
+            }
+          ],
+          "structure_notes": [
+            "Ответ связный, переходов между блоками достаточно."
+          ],
+          "strengths": [
+            "Полный перечень уровней",
+            "Корректная ссылка на ст. 28 БК РФ",
+            "Конкретный пример с тремя чтениями"
+          ],
+          "recommendations": [
+            "Добавить по одному примеру практической реализации каждого принципа бюджетной системы.",
+            "Назвать пять стадий бюджетного процесса по порядку.",
+            "Сослаться на ст. 28 БК РФ и перечислить хотя бы 3 принципа."
+          ],
+          "overall_score": 90,
+          "overall_comment": "Сильный ответ: все тезисы раскрыты, есть нормативная база и пример."
+        },
+        "error": ""
+      },
+      {
+        "model": "qwen3:0.6b",
+        "ticket_id": "budget-system-ru",
+        "ticket_title": "Бюджетное устройство Российской Федерации",
+        "answer_quality": "empty",
+        "answer_length": 0,
+        "latency_seconds": 40.15699999999924,
+        "ok": false,
+        "json_valid": false,
+        "schema_valid": false,
+        "missing_keys": [],
+        "overall_score": null,
+        "parsed_content": null,
+        "error": "Expecting ',' delimiter: line 4 column 199 (char 526)"
+      },
+      {
+        "model": "qwen3:0.6b",
+        "ticket_id": "contract-freedom-principle",
+        "ticket_title": "Принцип свободы договора в гражданском праве",
+        "answer_quality": "excellent",
+        "answer_length": 705,
+        "latency_seconds": 73.32800000000134,
+        "ok": false,
+        "json_valid": false,
+        "schema_valid": false,
+        "missing_keys": [],
+        "overall_score": null,
+        "parsed_content": null,
+        "error": "Expecting ',' delimiter: line 4 column 383 (char 1021)"
+      },
+      {
+        "model": "qwen3:0.6b",
+        "ticket_id": "contract-freedom-principle",
+        "ticket_title": "Принцип свободы договора в гражданском праве",
+        "answer_quality": "empty",
+        "answer_length": 0,
+        "latency_seconds": 40.48399999999674,
+        "ok": false,
+        "json_valid": false,
+        "schema_valid": false,
+        "missing_keys": [],
+        "overall_score": null,
+        "parsed_content": null,
+        "error": "Expecting ',' delimiter: line 4 column 132 (char 607)"
+      }
+    ]
+  }
+}

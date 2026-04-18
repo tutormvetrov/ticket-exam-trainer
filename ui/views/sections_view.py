@@ -17,13 +17,10 @@ class SectionsView(QWidget):
         self.filtered: list[SectionOverviewItem] = []
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 28)
-        layout.setSpacing(18)
+        layout.setContentsMargins(28, 18, 28, 28)
+        layout.setSpacing(14)
 
         header = QHBoxLayout()
-        title = QLabel("Разделы")
-        title.setProperty("role", "hero")
-        header.addWidget(title)
         header.addStretch(1)
 
         self.search_input = QLineEdit()

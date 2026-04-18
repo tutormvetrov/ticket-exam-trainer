@@ -89,6 +89,9 @@ def test_training_modes_switch_to_real_workspaces() -> None:
     reading_workspace = view.workspace_stack.currentWidget()
     assert reading_workspace.findChild(QPushButton, "training-reading-understood") is not None
     assert not reading_workspace.findChildren(QTextEdit)
+    assert reading_workspace.findChild(QLabel, "training-reading-answer").text()
+    assert reading_workspace.answer_box.isHidden() is False
+    assert "Скрыть" in reading_workspace.reveal_button.text()
 
     view.select_mode("active-recall")
     recall_workspace = view.workspace_stack.currentWidget()

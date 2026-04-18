@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from application.admin_access import AdminAccessState
+from application.model_profile_resolver import ModelProfileResolver
 from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings, validate_ollama_base_url
 from application.update_service import UpdateInfo
 from app import platform as platform_helpers
@@ -98,6 +99,8 @@ class SettingsView(QWidget):
         self._diagnostics_thread: FunctionThread | None = None
         self._refresh_models_after_check = False
         self._last_diagnostics: OllamaDiagnostics | None = None
+        self._model_profile_resolver = ModelProfileResolver()
+        self._install_recommendation = self._model_profile_resolver.recommend_install_target()
         self._dirty = False
 
         root = QVBoxLayout(self)
@@ -113,24 +116,12 @@ class SettingsView(QWidget):
         scroll.setWidget(content)
 
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(28, 22, 28, 28)
-        layout.setSpacing(18)
+        layout.setContentsMargins(28, 14, 28, 28)
+        layout.setSpacing(14)
 
         self.header_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.header_row.setContentsMargins(0, 0, 0, 0)
-        self.header_row.setSpacing(16)
-
-        titles = QVBoxLayout()
-        titles.setContentsMargins(0, 0, 0, 0)
-        titles.setSpacing(4)
-        page_title = QLabel("Настройки")
-        page_title.setProperty("role", "hero")
-        page_subtitle = QLabel("Настройте запуск, импорт, тренировку и локальный AI без ложных статусов.")
-        page_subtitle.setProperty("role", "page-subtitle")
-        page_subtitle.setWordWrap(True)
-        titles.addWidget(page_title)
-        titles.addWidget(page_subtitle)
-        self.header_row.addLayout(titles, 1)
+        self.header_row.setSpacing(10)
         self.header_row.addStretch(1)
 
         self.reset_button = QPushButton("Сбросить")
@@ -146,14 +137,9 @@ class SettingsView(QWidget):
         self.header_row.addWidget(self.save_button)
         layout.addLayout(self.header_row)
 
-        divider = QWidget()
-        divider.setFixedHeight(1)
-        divider.setStyleSheet(f"background: {current_colors()['border']};")
-        layout.addWidget(divider)
-
         self.main_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.main_row.setContentsMargins(0, 0, 0, 0)
-        self.main_row.setSpacing(16)
+        self.main_row.setSpacing(14)
 
         self.nav_panel = SettingsNavPanel(SETTINGS_SECTIONS, shadow_color)
         self.nav_panel.setMinimumWidth(254)
@@ -492,7 +478,10 @@ class SettingsView(QWidget):
         title_box.setSpacing(3)
         title = QLabel("Ollama")
         title.setStyleSheet(f"font-size: 22px; font-weight: 800; color: {current_colors()['text']};")
-        subtitle = QLabel("Реальный центр управления локальной LLM через Ollama. По умолчанию используется qwen3:8b.")
+        subtitle = QLabel(
+            "Реальный центр управления локальной LLM через Ollama. "
+            f"Комфортный старт для этого ПК: {self._install_recommendation.model_name}."
+        )
         subtitle.setProperty("role", "body")
         subtitle.setWordWrap(True)
         title_box.addWidget(title)
@@ -535,6 +524,10 @@ class SettingsView(QWidget):
         self.model_combo.setCurrentText(self.settings.model)
         self.model_combo.setMinimumHeight(46)
         model_block.layout().addWidget(self.model_combo)
+        self.model_hint_label = QLabel(self._install_recommendation.rationale)
+        self.model_hint_label.setProperty("role", "muted")
+        self.model_hint_label.setWordWrap(True)
+        model_block.layout().addWidget(self.model_hint_label)
         first_row.addWidget(model_block, 2)
         form_rows.addLayout(first_row)
 
@@ -1192,7 +1185,8 @@ class SettingsView(QWidget):
     def reset_form(self) -> None:
         self.url_input.setText(self.settings.base_url)
         self.model_combo.setCurrentText(self.settings.model)
-        self.models_path_input.setText(str(self.settings.models_path))
+        normalized_models_path = self._resolve_existing_models_path(str(self.settings.models_path))
+        self.models_path_input.setText(str(normalized_models_path or self.settings.models_path))
         self.timeout_stepper.set_value(self.settings.timeout_seconds)
         self.rewrite_card.toggle.setChecked(self.settings.rewrite_questions)
         self.followups_card.toggle.setChecked(self.settings.examiner_followups)
@@ -1227,8 +1221,35 @@ class SettingsView(QWidget):
         if path:
             self.default_import_dir_input.setText(path)
 
+    def _effective_models_path(self) -> Path:
+        configured_path_text = self.models_path_input.text().strip()
+        resolved_existing = self._resolve_existing_models_path(configured_path_text)
+        if resolved_existing is not None:
+            return resolved_existing
+        return Path(configured_path_text or str(DEFAULT_OLLAMA_SETTINGS.models_path))
+
+    def _resolve_existing_models_path(self, configured_path_text: str = "") -> Path | None:
+        candidates: list[Path] = []
+        if configured_path_text:
+            candidates.append(Path(configured_path_text))
+        if self._last_diagnostics is not None and self._last_diagnostics.resolved_models_path:
+            candidates.append(Path(self._last_diagnostics.resolved_models_path))
+        candidates.append(platform_helpers.default_models_path())
+        candidates.append(Path.home() / ".ollama" / "models")
+        candidates.append(platform_helpers.WINDOWS_LEGACY_SHARED_MODELS_PATH)
+
+        seen: set[str] = set()
+        for candidate in candidates:
+            key = str(candidate).lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            if candidate.is_dir():
+                return candidate
+        return None
+
     def open_models_folder(self) -> None:
-        path = Path(self.models_path_input.text().strip() or str(DEFAULT_OLLAMA_SETTINGS.models_path))
+        path = self._effective_models_path()
         path.mkdir(parents=True, exist_ok=True)
         self._open_path(path)
 
@@ -1275,6 +1296,12 @@ class SettingsView(QWidget):
         configured_models_path = self.models_path_input.text().strip()
         runtime_path_note = ""
         if diagnostics.resolved_models_path:
+            resolved_path = Path(diagnostics.resolved_models_path)
+            if (not configured_models_path or not Path(configured_models_path).exists()) and resolved_path.exists():
+                self.models_path_input.blockSignals(True)
+                self.models_path_input.setText(str(resolved_path))
+                self.models_path_input.blockSignals(False)
+                configured_models_path = str(resolved_path)
             runtime_path_note = f"Каталог моделей: {diagnostics.resolved_models_path}"
             if configured_models_path and Path(configured_models_path) != Path(diagnostics.resolved_models_path):
                 runtime_path_note += "\nНастроенный путь не совпадает с фактически используемым. Проверьте миграцию моделей."

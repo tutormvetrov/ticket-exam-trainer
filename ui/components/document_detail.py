@@ -1,24 +1,31 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from domain.models import DocumentData, SectionData, TicketData
-from ui.components.common import CardFrame, EmptyStatePanel, IconBadge, TwoColumnRows
+from ui.components.common import CardFrame, ClickableFrame, EmptyStatePanel, IconBadge, TwoColumnRows
+from ui.icons import apply_button_icon
 from ui.theme import current_colors
 
 
 class DocumentDetailPanel(CardFrame):
+    delete_document_requested = Signal(str)
+    ticket_reader_requested = Signal(str)
+    ticket_training_requested = Signal(str)
+
     def __init__(self, shadow_color) -> None:
         super().__init__(role="card", shadow_color=shadow_color)
         self.current_document: DocumentData | None = None
@@ -43,12 +50,24 @@ class DocumentDetailPanel(CardFrame):
         title_box.setSpacing(8)
         self.title_label = QLabel()
         self.title_label.setStyleSheet(f"font-size: 17px; font-weight: 800; color: {current_colors()['text']};")
+        self.title_label.setWordWrap(True)
+        self.title_label.setMinimumWidth(0)
         title_box.addWidget(self.title_label)
 
         self.subject_label = QLabel()
         self.subject_label.setProperty("role", "pill")
+        self.subject_label.setWordWrap(True)
         title_box.addWidget(self.subject_label, 0, Qt.AlignmentFlag.AlignLeft)
         header_row.addLayout(title_box, 1)
+
+        self.delete_button = QPushButton("Удалить")
+        self.delete_button.setObjectName("document-detail-delete")
+        self.delete_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.delete_button.setProperty("variant", "danger")
+        self.delete_button.setToolTip("Удалить документ вместе со всеми билетами, попытками и диалогами.")
+        self.delete_button.clicked.connect(self._handle_delete_clicked)
+        self.delete_button.hide()
+        header_row.addWidget(self.delete_button, 0, Qt.AlignmentFlag.AlignTop)
         layout.addLayout(header_row)
 
         self.meta_container = QWidget()
@@ -73,7 +92,7 @@ class DocumentDetailPanel(CardFrame):
 
         tabs = QHBoxLayout()
         tabs.setContentsMargins(0, 4, 0, 0)
-        tabs.setSpacing(22)
+        tabs.setSpacing(14)
         self.tab_group = QButtonGroup(self)
         self.tab_group.setExclusive(True)
         self.tab_group.buttonClicked.connect(self._switch_tab)
@@ -84,6 +103,7 @@ class DocumentDetailPanel(CardFrame):
             button.setCheckable(True)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setProperty("variant", "tab")
+            button.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
             tabs.addWidget(button)
             self.tab_group.addButton(button, index)
             self.tab_buttons.append(button)
@@ -208,11 +228,12 @@ class DocumentDetailPanel(CardFrame):
         self.info_title.setText("Информация о документе")
         self.info_text.setText(
             f"Документ относится к предмету «{document.subject}». "
-            f"Подготовлено {document.sections_count} разделов и {document.tickets_count} билетов для тренировки."
+            f"Подготовлено {document.sections_count} разделов и {document.tickets_count} билетов для чтения и тренировки."
         )
         self.info_title.show()
         self.info_text.show()
         self.info_empty_state.hide()
+        self.delete_button.show()
 
     def clear_document(self) -> None:
         self.current_document = None
@@ -243,12 +264,36 @@ class DocumentDetailPanel(CardFrame):
         self.info_title.hide()
         self.info_text.hide()
         self.info_empty_state.show()
+        self.delete_button.hide()
 
     def refresh_theme(self) -> None:
         if self.current_document is None:
             self.clear_document()
         else:
             self.set_document(self.current_document)
+
+    def _handle_delete_clicked(self) -> None:
+        document = self.current_document
+        if document is None:
+            return
+        message = (
+            f"Удалить документ «{document.title}»?\n\n"
+            f"Это действие нельзя отменить. Будут удалены:\n"
+            f"• {document.tickets_count} билет(ов) и все связанные разделы\n"
+            "• история попыток и диалогов по этим билетам\n"
+            "• отметки слабых мест, привязанные к этим билетам\n\n"
+            "Остальные документы в библиотеке не пострадают."
+        )
+        confirmation = QMessageBox.question(
+            self,
+            "Удаление документа",
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirmation != QMessageBox.StandardButton.Yes:
+            return
+        self.delete_document_requested.emit(document.id)
 
     def _ensure_ticket_rows_loaded(self) -> None:
         if self.current_document is None:
@@ -305,21 +350,30 @@ class DocumentDetailPanel(CardFrame):
             return
 
         for index, section in enumerate(sections, start=1):
-            row = QFrame()
-            row.setProperty("role", "table-row")
+            row = ClickableFrame(role="table-row", shadow=False)
+            row.setCursor(Qt.CursorShape.PointingHandCursor)
+            if section.entry_ticket_id:
+                row.clicked.connect(lambda ticket_id=section.entry_ticket_id: self._open_ticket_reader(ticket_id))
             row_layout = QHBoxLayout(row)
-            row_layout.setContentsMargins(18, 14, 18, 14)
-            row_layout.setSpacing(12)
+            row_layout.setContentsMargins(16, 12, 16, 12)
+            row_layout.setSpacing(10)
+
             title = QLabel(f"{index}. {section.title}")
             title.setStyleSheet(f"font-size: 14px; font-weight: 600; color: {current_colors()['text']};")
-            row_layout.addWidget(title)
-            row_layout.addStretch(1)
+            title.setWordWrap(True)
+            title.setMinimumWidth(0)
+            row_layout.addWidget(title, 1)
+
             count = QLabel(str(section.tickets_count))
             count.setProperty("role", "body")
-            row_layout.addWidget(count)
-            arrow = QLabel("›")
-            arrow.setStyleSheet(f"font-size: 22px; color: {current_colors()['text_tertiary']};")
-            row_layout.addWidget(arrow)
+            row_layout.addWidget(count, 0, Qt.AlignmentFlag.AlignVCenter)
+
+            action_button = self._build_action_button("К упражнениям", "training")
+            action_button.setEnabled(bool(section.entry_ticket_id))
+            action_button.clicked.connect(
+                lambda checked=False, ticket_id=section.entry_ticket_id: self._open_ticket_training(ticket_id)
+            )
+            row_layout.addWidget(action_button, 0, Qt.AlignmentFlag.AlignVCenter)
             self.sections_layout.addWidget(row)
 
     def _populate_tickets(self, tickets: list[TicketData]) -> None:
@@ -348,8 +402,10 @@ class DocumentDetailPanel(CardFrame):
             "в работе": (colors["primary_soft"], colors["primary"]),
         }
         for ticket in tickets:
-            row = QFrame()
-            row.setProperty("role", "subtle-card")
+            row = ClickableFrame(role="subtle-card", shadow=False)
+            row.setCursor(Qt.CursorShape.PointingHandCursor)
+            if ticket.ticket_id:
+                row.clicked.connect(lambda ticket_id=ticket.ticket_id: self._open_ticket_reader(ticket_id))
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(16, 14, 16, 14)
             row_layout.setSpacing(12)
@@ -360,14 +416,54 @@ class DocumentDetailPanel(CardFrame):
             text_box.setSpacing(4)
             title = QLabel(ticket.title)
             title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {colors['text']};")
+            title.setWordWrap(True)
             text_box.addWidget(title)
 
-            bg, fg = status_colors[ticket.status]
+            if ticket.summary:
+                summary = QLabel(ticket.summary)
+                summary.setWordWrap(True)
+                summary.setProperty("role", "body")
+                text_box.addWidget(summary)
+
+            bg, fg = status_colors.get(ticket.status, (colors["primary_soft"], colors["primary"]))
             status = QLabel(ticket.status.title())
             status.setStyleSheet(
                 f"background: {bg}; color: {fg}; border-radius: 11px; padding: 4px 10px; font-size: 12px; font-weight: 600;"
             )
             text_box.addWidget(status, 0, Qt.AlignmentFlag.AlignLeft)
             row_layout.addLayout(text_box, 1)
+
+            action_col = QVBoxLayout()
+            action_col.setContentsMargins(0, 0, 0, 0)
+            action_col.setSpacing(8)
+
+            read_button = self._build_action_button("Читать", "document")
+            read_button.setEnabled(bool(ticket.ticket_id))
+            read_button.clicked.connect(lambda checked=False, ticket_id=ticket.ticket_id: self._open_ticket_reader(ticket_id))
+            action_col.addWidget(read_button)
+
+            train_button = self._build_action_button("К упражнениям", "training")
+            train_button.setEnabled(bool(ticket.ticket_id))
+            train_button.clicked.connect(
+                lambda checked=False, ticket_id=ticket.ticket_id: self._open_ticket_training(ticket_id)
+            )
+            action_col.addWidget(train_button)
+            row_layout.addLayout(action_col)
             self.tickets_layout.addWidget(row)
         self.tickets_layout.addStretch(1)
+
+    def _build_action_button(self, text: str, icon_name: str) -> QPushButton:
+        button = QPushButton(text)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setProperty("variant", "secondary")
+        button.setMinimumWidth(136)
+        apply_button_icon(button, icon_name, size=16)
+        return button
+
+    def _open_ticket_reader(self, ticket_id: str) -> None:
+        if ticket_id:
+            self.ticket_reader_requested.emit(ticket_id)
+
+    def _open_ticket_training(self, ticket_id: str) -> None:
+        if ticket_id:
+            self.ticket_training_requested.emit(ticket_id)

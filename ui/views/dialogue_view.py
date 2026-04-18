@@ -266,17 +266,7 @@ class DialogueView(QWidget):
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(14)
-        titles = QVBoxLayout()
-        titles.setContentsMargins(0, 0, 0, 0)
-        titles.setSpacing(4)
-        title = QLabel("Диалог")
-        title.setProperty("role", "hero")
-        titles.addWidget(title)
-        subtitle = QLabel("Отдельный билетный режим: связный диалог по выбранному билету, контекст материалов и итоговая оценка через существующий движок скоринга.")
-        subtitle.setProperty("role", "page-subtitle")
-        subtitle.setWordWrap(True)
-        titles.addWidget(subtitle)
-        header.addLayout(titles, 1)
+        header.addStretch(1)
 
         self.status_chip = QLabel("Ollama: проверка нужна")
         self.status_chip.setProperty("role", "pill")
@@ -286,7 +276,7 @@ class DialogueView(QWidget):
         self.gate_card = EmptyStatePanel(
             "dialogue",
             "Локальная модель недоступна",
-            "Для запуска Dialogue нужен рабочий Ollama endpoint и модель. Пока проверка не пройдена, экран остаётся заблокирован.",
+            "Для запуска диалога нужен рабочий Ollama и локальная модель. Пока проверка не пройдена, экран остаётся заблокированным.",
             shadow_color=shadow_color,
             role="card",
             primary_action=("Открыть настройки", self.open_settings_requested.emit, "primary", "settings"),
@@ -349,18 +339,18 @@ class DialogueView(QWidget):
         active_layout.addWidget(self.active_meta)
         harden_plain_text(self.active_title, self.active_meta)
 
-        buttons_row = QHBoxLayout()
-        buttons_row.setContentsMargins(0, 0, 0, 0)
-        buttons_row.setSpacing(10)
+        buttons_col = QVBoxLayout()
+        buttons_col.setContentsMargins(0, 0, 0, 0)
+        buttons_col.setSpacing(8)
         self.start_button = QPushButton("Начать диалог")
         self.start_button.setProperty("variant", "primary")
         self.start_button.clicked.connect(self._handle_start)
-        buttons_row.addWidget(self.start_button)
-        self.open_active_button = QPushButton("Открыть активную")
+        buttons_col.addWidget(self.start_button)
+        self.open_active_button = QPushButton("Открыть активную сессию")
         self.open_active_button.setProperty("variant", "secondary")
         self.open_active_button.clicked.connect(self._open_active_session)
-        buttons_row.addWidget(self.open_active_button)
-        active_layout.addLayout(buttons_row)
+        buttons_col.addWidget(self.open_active_button)
+        active_layout.addLayout(buttons_col)
         layout.addWidget(self.active_card)
 
         self.recent_card = CardFrame(role="card", shadow_color=self.shadow_color)
@@ -436,6 +426,7 @@ class DialogueView(QWidget):
         self.transcript_scroll.setWidgetResizable(True)
         self.transcript_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.transcript_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.transcript_scroll.setMinimumHeight(320)
         self.transcript_body = QWidget()
         self.transcript_body_layout = QVBoxLayout(self.transcript_body)
         self.transcript_body_layout.setContentsMargins(0, 0, 0, 0)
@@ -453,7 +444,7 @@ class DialogueView(QWidget):
         result_layout.addWidget(result_title)
         self.result_head = QLabel("Сессия не начата")
         result_layout.addWidget(self.result_head)
-        self.result_body = QLabel("Выберите билет и запустите Dialogue, чтобы transcript начал заполняться.")
+        self.result_body = QLabel("Выберите билет и начните диалог, чтобы протокол начал заполняться.")
         self.result_body.setProperty("role", "body")
         self.result_body.setWordWrap(True)
         result_layout.addWidget(self.result_body)
@@ -478,7 +469,7 @@ class DialogueView(QWidget):
         self.composer_input = QTextEdit()
         self.composer_input.setProperty("role", "editor")
         self.composer_input.setPlaceholderText("Введите ответ по билету...")
-        self.composer_input.setFixedHeight(140)
+        self.composer_input.setMinimumHeight(180)
         self.composer_input.textChanged.connect(self._sync_controls)
         composer_layout.addWidget(self.composer_input)
         composer_actions = QHBoxLayout()
@@ -527,7 +518,7 @@ class DialogueView(QWidget):
         structure_title = QLabel("Структура")
         structure_title.setProperty("role", "section-title")
         structure_layout.addWidget(structure_title)
-        self.structure_body = QLabel("Здесь появятся answer blocks, atoms и examiner prompts.")
+        self.structure_body = QLabel("Здесь появятся блоки ответа, атомы и вопросы экзаменатора.")
         self.structure_body.setProperty("role", "body")
         self.structure_body.setWordWrap(True)
         structure_layout.addWidget(self.structure_body)
@@ -686,9 +677,9 @@ class DialogueView(QWidget):
                     "tickets",
                     "Билеты не найдены" if self.ticket_maps else "Билеты ещё не собраны",
                     (
-                        "Измените запрос, чтобы снова увидеть билет для dialogue-сессии."
+                        "Измените запрос, чтобы снова увидеть билет для сессии диалога."
                         if self.ticket_maps
-                        else "Сначала импортируйте материалы, чтобы здесь появились билеты для dialogue-режима."
+                        else "Сначала импортируйте материалы, чтобы здесь появились билеты для режима диалога."
                     ),
                     role="subtle-card",
                     secondary_action=None if self.ticket_maps else ("Открыть библиотеку", self.open_library_requested.emit, "secondary", "library"),
@@ -715,7 +706,7 @@ class DialogueView(QWidget):
                 EmptyStatePanel(
                     "queue",
                     "История появится после первой завершённой сессии",
-                    "Здесь будут shown recent dialogue sessions, их score и verdict.",
+                    "Здесь появятся недавние сессии диалогов, их оценки и вердикты.",
                     role="subtle-card",
                 )
             )
@@ -737,7 +728,7 @@ class DialogueView(QWidget):
             self.transcript_body_layout.addWidget(
                 EmptyStatePanel(
                     "dialogue",
-                    "Transcript пока пуст",
+                    "Протокол пока пуст",
                     "Начните сессию, чтобы здесь появились вопросы, ответы и итоговый разбор.",
                     role="subtle-card",
                 )
@@ -756,14 +747,14 @@ class DialogueView(QWidget):
         if ticket is None:
             self.summary_body.setText("Выберите билет, чтобы увидеть каноническое резюме.")
             self.summary_meta.setText("")
-            self.structure_body.setText("Здесь появятся answer blocks, atoms и examiner prompts.")
+            self.structure_body.setText("Здесь появятся блоки ответа, атомы и вопросы экзаменатора.")
             self.weak_body.setText("Слабые места выбранного билета будут показаны здесь.")
             return
 
         self.summary_body.setText(ticket.canonical_answer_summary or "Краткое каноническое резюме пока не сформировано.")
         self.summary_meta.setText(
-            f"Профиль: {answer_profile_label(ticket.answer_profile_code)} • Атомов: {len(ticket.atoms)} • "
-            f"Навыков: {len(ticket.skills)} • Examiner prompts: {len(ticket.examiner_prompts)}"
+            f"{answer_profile_label(ticket.answer_profile_code)}  •  Атомов: {len(ticket.atoms)}  •  "
+            f"Навыков: {len(ticket.skills)}  •  Вопросов экзаменатора: {len(ticket.examiner_prompts)}"
         )
 
         structure_lines: list[str] = []
@@ -796,18 +787,18 @@ class DialogueView(QWidget):
             self.active_meta.setText("Диалог стартует только после выбора билета.")
             return
         if active_summary is not None:
-            persona = "Examiner" if active_summary.persona_kind == "examiner" else "Tutor"
+            persona = "Экзаменатор" if active_summary.persona_kind == "examiner" else "Наставник"
             self.active_title.setText(ticket.title)
             self.active_meta.setText(
-                f"Активная сессия: {persona} • turn-ов: {active_summary.last_turn_index} • обновлено {active_summary.updated_label}"
+                f"Активная сессия: {persona} • ходов: {active_summary.last_turn_index} • обновлено {active_summary.updated_label}"
             )
         elif self.current_session is not None and self.current_session.ticket.ticket_id == ticket.ticket_id and self.current_session.session.status == "completed":
             self.active_title.setText(ticket.title)
-            self.active_meta.setText("Открыт replay завершённой сессии. Можно начать новую попытку.")
+            self.active_meta.setText("Открыт просмотр завершённой сессии. Можно начать новую попытку.")
         else:
             self.active_title.setText(ticket.title)
-            persona = "Examiner" if self.persona_kind == "examiner" else "Tutor"
-            self.active_meta.setText(f"Persona: {persona}. После старта первый вопрос создаст локальная LLM.")
+            persona = "Экзаменатор" if self.persona_kind == "examiner" else "Наставник"
+            self.active_meta.setText(f"Режим: {persona}. После старта первый вопрос создаст локальная модель.")
 
     def _refresh_result_card(self) -> None:
         if self._pending and self._pending_message:
@@ -819,7 +810,7 @@ class DialogueView(QWidget):
             self.result_head.setText("Сессия не начата")
             readiness = self.snapshot.readiness
             if readiness is None:
-                self.result_body.setText("Выберите билет и запустите Dialogue.")
+                self.result_body.setText("Выберите билет и начните диалог.")
             else:
                 self.result_body.setText(
                     f"Готовность: {readiness.percent}% • билетов пройдено: {readiness.tickets_practiced}/{readiness.tickets_total}."
@@ -833,15 +824,15 @@ class DialogueView(QWidget):
             self.retry_button.setVisible(bool(self._current_retry_focus()))
             return
         if self.current_session.session.status == "active":
-            persona = "Examiner" if self.current_session.session.persona_kind == "examiner" else "Tutor"
+            persona = "Экзаменатор" if self.current_session.session.persona_kind == "examiner" else "Наставник"
             self.result_head.setText(f"Активная сессия • {persona}")
             self.result_body.setText(
-                f"User turns: {self.current_session.session.user_turn_count}/5 • transcript: {len(self.current_session.turns)} сообщений."
+                f"Реплик пользователя: {self.current_session.session.user_turn_count}/5 • сообщений в протоколе: {len(self.current_session.turns)}."
             )
             self.retry_button.hide()
             return
         self.result_head.setText("Сессия загружена")
-        self.result_body.setText(self.current_session.session.summary or "Read-only transcript доступен для просмотра.")
+        self.result_body.setText(self.current_session.session.summary or "Протокол открыт только для чтения.")
         self.retry_button.setVisible(bool(self._current_retry_focus()))
 
     def _sync_controls(self) -> None:
@@ -873,9 +864,9 @@ class DialogueView(QWidget):
         self.composer_input.setEnabled(composer_enabled)
         self.submit_button.setEnabled(composer_enabled and bool(self.composer_input.toPlainText().strip()))
         if current_active:
-            self.composer_hint.setText("Промежуточные turn-и не меняют mastery. Итоговая оценка будет только при завершении сессии.")
+            self.composer_hint.setText("Промежуточные ответы не меняют итоговую оценку. Она появится только после завершения сессии.")
         elif self.current_session is not None and self.current_session.session.status == "completed":
-            self.composer_hint.setText("Открыт replay завершённой сессии. Для новой попытки используйте кнопку запуска выше.")
+            self.composer_hint.setText("Открыт просмотр завершённой сессии. Для новой попытки используйте кнопку запуска выше.")
         else:
             self.composer_hint.setText("Сначала запустите сессию по выбранному билету.")
 
@@ -935,7 +926,7 @@ class DialogueView(QWidget):
         if not self.selected_ticket_id:
             return
         self._pending = True
-        self._pending_message = "Готовим новую dialogue-сессию и первое tutor/examiner сообщение."
+        self._pending_message = "Готовим новую сессию диалога и первое сообщение наставника или экзаменатора."
         self._sync_controls()
         self._refresh_result_card()
         self.session_start_requested.emit(self.selected_ticket_id, self.persona_kind, self._retry_focus)
@@ -949,7 +940,7 @@ class DialogueView(QWidget):
             return
         self._pending_turn_text = text
         self._pending = True
-        self._pending_message = "Отправляем ответ в dialogue-оркестратор и ждём следующий turn."
+        self._pending_message = "Отправляем ответ наставнику и ждём следующий ход."
         self._sync_controls()
         self._refresh_result_card()
         self.turn_submitted.emit(
@@ -982,7 +973,7 @@ class DialogueView(QWidget):
 
     def _apply_responsive_layout(self) -> None:
         width = self.window().width() if self.window() is not None else self.width()
-        if width < 1380:
+        if width < 1840:
             if self.body_layout.direction() != QBoxLayout.Direction.TopToBottom:
                 self.body_layout.setDirection(QBoxLayout.Direction.TopToBottom)
             self.left_column.setMinimumWidth(0)
@@ -995,6 +986,6 @@ class DialogueView(QWidget):
                 self.body_layout.setDirection(QBoxLayout.Direction.LeftToRight)
             self.left_column.setMinimumWidth(320)
             self.left_column.setMaximumWidth(396)
-            self.center_column.setMinimumWidth(500)
+            self.center_column.setMinimumWidth(680)
             self.right_column.setMinimumWidth(320)
             self.right_column.setMaximumWidth(420)

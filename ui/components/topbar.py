@@ -15,12 +15,11 @@ class TopBar(QWidget):
         "subjects": ("Предметы", "Сводка по предметам и прогресс освоения."),
         "sections": ("Разделы", "Структура и состав импортированных материалов."),
         "tickets": ("Билеты", "Карты ответа, профили и слабые зоны."),
-        "import": ("Импорт", "Последний прогон, handoff и контроль статуса."),
+        "import": ("Импорт", "Последний прогон, следующие шаги и контроль статуса."),
         "training": ("Тренировка", "Очередь вопросов, режимы и оценка ответов."),
         "dialogue": ("Диалог", "Устная репетиция по билетам и активным сессиям."),
         "statistics": ("Статистика", "Результаты, динамика и зоны риска."),
-        "knowledge-map": ("Карта знаний", "Связи между билетами и пробелами."),
-        "defense": ("Подготовка к защите", "Контур доклада, слайды и mock-защита."),
+        "defense": ("Подготовка к защите", "Контур доклада, слайды и репетиция защиты."),
         "settings": ("Настройки", "Тема, Ollama, хранение и сервисные действия."),
     }
 
@@ -28,12 +27,12 @@ class TopBar(QWidget):
         super().__init__()
         self.setProperty("role", "titlebar")
         self.layout_root = QBoxLayout(QBoxLayout.Direction.LeftToRight, self)
-        self.layout_root.setContentsMargins(28, 16, 28, 16)
-        self.layout_root.setSpacing(12)
+        self.layout_root.setContentsMargins(24, 12, 24, 12)
+        self.layout_root.setSpacing(10)
 
         title_box = QVBoxLayout()
         title_box.setContentsMargins(0, 0, 0, 0)
-        title_box.setSpacing(2)
+        title_box.setSpacing(1)
 
         self.page_title = QLabel()
         self.page_title.setProperty("role", "page-title-serif")
@@ -48,6 +47,8 @@ class TopBar(QWidget):
         self.layout_root.addLayout(title_box)
 
         self.divider = OrnamentalDivider()
+        self.divider.setProperty("line-tone", "border")
+        self.divider.setProperty("dot-tone", "border_strong")
         self.layout_root.addWidget(self.divider, 1, Qt.AlignmentFlag.AlignVCenter)
 
         self.settings_button = QPushButton("Настройки")
@@ -55,7 +56,8 @@ class TopBar(QWidget):
         self.settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.settings_button.setProperty("variant", "ghost")
         self.settings_button.clicked.connect(self.settings_clicked.emit)
-        self.layout_root.addWidget(self.settings_button)
+        self.layout_root.addWidget(self.settings_button, 0, Qt.AlignmentFlag.AlignVCenter)
+
         self.set_current_section("library")
         self.refresh_theme()
 
@@ -70,3 +72,6 @@ class TopBar(QWidget):
 
     def refresh_theme(self) -> None:
         apply_button_icon(self.settings_button, "settings", tone="ink_muted")
+        self.settings_button.style().unpolish(self.settings_button)
+        self.settings_button.style().polish(self.settings_button)
+        self.divider.update()

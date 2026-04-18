@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushB
 from application.ui_data import ReadinessScore, StatisticsSnapshot
 from domain.models import DocumentData
 from infrastructure.ollama.service import OllamaDiagnostics
-from ui.components.common import CardFrame, DonutChart, EmptyStatePanel, IconBadge, OrnamentalDivider, file_badge_colors
+from ui.components.common import CardFrame, DonutChart, EmptyStatePanel, IconBadge, file_badge_colors
 from ui.components.document_detail import DocumentDetailPanel
 from ui.components.document_list import DocumentListPanel
 from ui.components.stats_panel import StatisticsPanel
@@ -25,6 +25,9 @@ class LibraryView(QWidget):
     recheck_requested = Signal()
     readme_requested = Signal()
     dlc_requested = Signal()
+    document_delete_requested = Signal(str)
+    ticket_reader_requested = Signal(str)
+    ticket_training_requested = Signal(str)
 
     def __init__(self, shadow_color) -> None:
         super().__init__()
@@ -33,25 +36,11 @@ class LibraryView(QWidget):
         self._startup_primary_action = lambda: None
         self._startup_secondary_action = lambda: None
         self._startup_tertiary_action = lambda: None
+        self._documents_collapsed = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 22, 28, 28)
         layout.setSpacing(16)
-
-        hero = QVBoxLayout()
-        hero.setContentsMargins(0, 0, 0, 0)
-        hero.setSpacing(10)
-
-        title = QLabel("Библиотека")
-        title.setProperty("role", "hero")
-        hero.addWidget(title)
-
-        subtitle = QLabel("Материалы к подготовке, отсортированные и с прогрессом.")
-        subtitle.setProperty("role", "subtitle-italic")
-        hero.addWidget(subtitle)
-
-        hero.addWidget(OrnamentalDivider())
-        layout.addLayout(hero)
 
         controls = QHBoxLayout()
         controls.setContentsMargins(0, 0, 0, 0)
@@ -64,6 +53,13 @@ class LibraryView(QWidget):
         self.search_input.setFixedHeight(36)
         self.search_input.textChanged.connect(self.set_search_text)
         controls.addWidget(self.search_input)
+
+        self.documents_toggle = QPushButton("Свернуть список")
+        self.documents_toggle.setObjectName("library-toggle-documents")
+        self.documents_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.documents_toggle.setProperty("variant", "outline")
+        self.documents_toggle.clicked.connect(self._toggle_documents_panel)
+        controls.addWidget(self.documents_toggle)
         controls.addStretch(1)
 
         self.import_button = QPushButton("Импортировать")
@@ -95,11 +91,11 @@ class LibraryView(QWidget):
         startup_text = QVBoxLayout()
         startup_text.setContentsMargins(0, 0, 0, 0)
         startup_text.setSpacing(4)
-        self.startup_title = QLabel("Состояние локального ИИ")
+        self.startup_title = QLabel("Что требует внимания")
         self.startup_title.setProperty("role", "section-title")
         startup_text.addWidget(self.startup_title)
 
-        self.startup_body = QLabel("Проверка состояния Ollama и модели.")
+        self.startup_body = QLabel("Здесь появляются только действия, которые мешают перейти к импорту и тренировке.")
         self.startup_body.setProperty("role", "body")
         self.startup_body.setWordWrap(True)
         startup_text.addWidget(self.startup_body)
@@ -136,7 +132,7 @@ class LibraryView(QWidget):
         self.library_empty_state = EmptyStatePanel(
             "library",
             "Библиотека пока пуста",
-            "Импортируйте первый DOCX или PDF, чтобы собрать билеты, карту знаний и открыть тренировочные режимы.",
+            "Импортируйте первый DOCX или PDF, чтобы собрать билеты, открыть чтение и тренировочные режимы.",
             shadow_color=shadow_color,
             role="card",
             primary_action=("Импортировать первый документ", self.import_requested.emit, "primary", "import"),
@@ -172,11 +168,11 @@ class LibraryView(QWidget):
         right_col.addWidget(self.stats_panel)
         right_col.addStretch(1)
 
-        right_col_widget = QWidget()
-        right_col_widget.setMinimumWidth(282)
-        right_col_widget.setMaximumWidth(348)
-        right_col_widget.setLayout(right_col)
-        self.content_row.addWidget(right_col_widget, 3)
+        self.stats_column = QWidget()
+        self.stats_column.setMinimumWidth(282)
+        self.stats_column.setMaximumWidth(348)
+        self.stats_column.setLayout(right_col)
+        self.content_row.addWidget(self.stats_column, 3)
         self.content_host = QWidget()
         self.content_host.setLayout(self.content_row)
         layout.addWidget(self.content_host, 1)
@@ -199,24 +195,24 @@ class LibraryView(QWidget):
         dlc_title_row.setContentsMargins(0, 0, 0, 0)
         dlc_title_row.setSpacing(10)
         dlc_title = QLabel("Платный модуль: подготовка к защите")
-        dlc_title.setProperty("role", "section-title")
+        dlc_title.setProperty("role", "promo-title")
         dlc_title_row.addWidget(dlc_title)
         dlc_badge = QLabel("Доступ по ключу")
-        dlc_badge.setProperty("role", "pill")
+        dlc_badge.setProperty("role", "promo-pill")
         dlc_title_row.addWidget(dlc_badge, 0, Qt.AlignmentFlag.AlignVCenter)
         dlc_title_row.addStretch(1)
         dlc_text.addLayout(dlc_title_row)
 
         dlc_body = QLabel(
-            "Платный локальный модуль разбирает текст магистерской, собирает defense dossier, "
-            "готовит текст защиты и проводит репетицию защиты с вопросами комиссии."
+            "Платный локальный модуль разбирает текст магистерской, собирает карту защиты, "
+            "помогает подготовить доклад и проводит репетицию с вопросами комиссии."
         )
-        dlc_body.setProperty("role", "body")
+        dlc_body.setProperty("role", "promo-body")
         dlc_body.setWordWrap(True)
         dlc_text.addWidget(dlc_body)
 
-        dlc_meta = QLabel("Доступ открывается по ключу активации. Оплата внутри приложения не встроена.")
-        dlc_meta.setProperty("role", "muted")
+        dlc_meta = QLabel("Доступ открывается по ключу активации. Покупка внутри приложения не поддерживается.")
+        dlc_meta.setProperty("role", "promo-meta")
         dlc_meta.setWordWrap(True)
         dlc_text.addWidget(dlc_meta)
         dlc_layout.addLayout(dlc_text, 1)
@@ -228,7 +224,10 @@ class LibraryView(QWidget):
         dlc_layout.addWidget(self.dlc_button, 0, Qt.AlignmentFlag.AlignBottom)
         layout.addWidget(self.dlc_card)
 
-        self.document_list.document_selected.connect(self._select_document)
+        self.document_list.document_selected.connect(self._handle_document_selected)
+        self.detail_panel.delete_document_requested.connect(self.document_delete_requested.emit)
+        self.detail_panel.ticket_reader_requested.connect(self.ticket_reader_requested.emit)
+        self.detail_panel.ticket_training_requested.connect(self.ticket_training_requested.emit)
         self.startup_card.hide()
         self.library_empty_state.hide()
         self._apply_responsive_layout()
@@ -242,14 +241,18 @@ class LibraryView(QWidget):
         has_documents = bool(documents)
         self.import_button.setText("Импортировать" if has_documents else "Импортировать билеты")
         self.refresh_button.setVisible(has_documents)
+        self.documents_toggle.setVisible(has_documents)
         self.search_input.setEnabled(has_documents)
         self.content_host.setVisible(has_documents)
         self.library_empty_state.setVisible(not has_documents)
+        if not has_documents:
+            self._documents_collapsed = False
 
         if self.document_list.filtered:
             self._select_document(self.document_list.filtered[0].id)
         else:
             self.detail_panel.clear_document()
+        self._set_documents_collapsed(self._documents_collapsed if has_documents else False)
 
     def set_startup_status(self, diagnostics: OllamaDiagnostics, has_documents: bool) -> None:
         if diagnostics.endpoint_ok and diagnostics.model_ok and has_documents:
@@ -258,9 +261,9 @@ class LibraryView(QWidget):
 
         self.startup_card.show()
         if diagnostics.endpoint_message == "Проверка...":
-            self.startup_title.setText("Проверяем локальный ИИ")
+            self.startup_title.setText("Фоновая проверка")
             self.startup_body.setText("Проверка Ollama идёт в фоне. Интерфейс уже доступен, ждать блокировки не нужно.")
-            self.startup_meta.setText(f"Модель по умолчанию: {diagnostics.model_name or 'локальная Qwen-модель'}")
+            self.startup_meta.setText("Текущий статус модели и сервера виден в левой панели.")
             self._configure_startup_actions(
                 None,
                 ("Открыть настройки Ollama", self.ollama_settings_requested.emit, "secondary"),
@@ -269,11 +272,11 @@ class LibraryView(QWidget):
             return
 
         if diagnostics.endpoint_ok and diagnostics.model_ok:
-            self.startup_title.setText("Локальный ИИ готов")
+            self.startup_title.setText("Следующий шаг")
             self.startup_body.setText(
                 "Локальная модель доступна. Следующий шаг: импортируйте один большой DOCX или PDF через кнопку сверху."
             )
-            self.startup_meta.setText(f"Модель: {diagnostics.model_name or 'локальная Qwen-модель'} • Сервер: OK")
+            self.startup_meta.setText("После первого импорта откроются билетная карта, тренировка и статистика.")
             self._configure_startup_actions(
                 None,
                 ("Проверить снова", self.recheck_requested.emit, "secondary"),
@@ -281,7 +284,7 @@ class LibraryView(QWidget):
             )
             return
 
-        self.startup_title.setText("Локальный ИИ пока не готов")
+        self.startup_title.setText("Что нужно для AI-тренировки")
         self.startup_body.setText(
             "До полноценной AI-тренировки нужно привести в порядок локальную среду Ollama и совместимую локальную модель."
         )
@@ -321,6 +324,11 @@ class LibraryView(QWidget):
         button.style().polish(button)
         setattr(self, action_attr, action)
 
+    def _handle_document_selected(self, document_id: str) -> None:
+        self._select_document(document_id)
+        if self.documents:
+            self._set_documents_collapsed(True)
+
     def _select_document(self, document_id: str) -> None:
         for document in self.documents:
             if document.id == document_id:
@@ -334,6 +342,24 @@ class LibraryView(QWidget):
             self._select_document(self.document_list.filtered[0].id)
         else:
             self.detail_panel.clear_document()
+
+    def _toggle_documents_panel(self) -> None:
+        self._set_documents_collapsed(not self._documents_collapsed)
+
+    def _set_documents_collapsed(self, collapsed: bool) -> None:
+        has_documents = bool(self.documents)
+        self._documents_collapsed = bool(collapsed and has_documents)
+        show_documents = has_documents and not self._documents_collapsed
+        self.search_input.setVisible(show_documents)
+        self.document_list.setVisible(show_documents)
+        self.documents_toggle.setText("Показать документы" if self._documents_collapsed else "Свернуть список")
+        self.documents_toggle.setProperty("variant", "secondary" if self._documents_collapsed else "outline")
+        self.documents_toggle.style().unpolish(self.documents_toggle)
+        self.documents_toggle.style().polish(self.documents_toggle)
+        self.content_row.setStretchFactor(self.document_list, 0 if self._documents_collapsed else 6)
+        self.content_row.setStretchFactor(self.detail_panel, 8 if self._documents_collapsed else 5)
+        self.content_row.setStretchFactor(self.stats_column, 3)
+        self._apply_responsive_layout()
 
     def _handle_startup_primary(self) -> None:
         self._startup_primary_action()
@@ -359,16 +385,21 @@ class LibraryView(QWidget):
             self.detail_panel.setMinimumWidth(0)
             self.stats_panel.setMinimumWidth(0)
             self.stats_panel.setMaximumWidth(16777215)
+            self.stats_column.setMinimumWidth(0)
+            self.stats_column.setMaximumWidth(16777215)
         else:
             self.document_list.setMinimumWidth(560)
             self.document_list.setMaximumWidth(760)
-            self.detail_panel.setMinimumWidth(300)
+            self.detail_panel.setMinimumWidth(640 if self._documents_collapsed else 300)
             self.stats_panel.setMinimumWidth(282)
             self.stats_panel.setMaximumWidth(348)
+            self.stats_column.setMinimumWidth(282)
+            self.stats_column.setMaximumWidth(348)
 
     def refresh_theme(self) -> None:
         apply_button_icon(self.import_button, "import")
         apply_button_icon(self.refresh_button, "refresh")
+        apply_button_icon(self.documents_toggle, "library")
         apply_button_icon(self.startup_primary, "settings")
         apply_button_icon(self.startup_secondary, "refresh")
         apply_button_icon(self.startup_tertiary, "spark")

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QDesktopServices
@@ -43,7 +47,6 @@ from ui.views.settings_view import SettingsView
 from ui.views.statistics_view import StatisticsView
 from ui.views.subjects_view import SubjectsView
 from ui.views.tickets_view import TicketsView
-from ui.views.knowledge_map_view import KnowledgeMapView
 from ui.views.training_view import TrainingView
 
 
@@ -142,7 +145,6 @@ class MainWindow(QMainWindow):
             "training": TrainingView(self.palette_colors["shadow"]),
             "dialogue": DialogueView(self.palette_colors["shadow"]),
             "statistics": StatisticsView(self.palette_colors["shadow"]),
-            "knowledge-map": KnowledgeMapView(self.palette_colors["shadow"]),
             "defense": DefenseView(self.palette_colors["shadow"]),
             "settings": SettingsView(self.palette_colors["shadow"], self.facade.settings, self.facade.workspace_root),
         }
@@ -158,10 +160,14 @@ class MainWindow(QMainWindow):
         self.views["library"].recheck_requested.connect(self.refresh_sidebar_ollama_status)
         self.views["library"].readme_requested.connect(self.open_readme)
         self.views["library"].dlc_requested.connect(self.show_dlc_teaser)
+        self.views["library"].document_delete_requested.connect(self.delete_document_from_library)
+        self.views["library"].ticket_reader_requested.connect(self.open_ticket_reader)
+        self.views["library"].ticket_training_requested.connect(self._open_training_ticket)
         self.views["subjects"].open_library_requested.connect(lambda: self.switch_view("library"))
         self.views["sections"].open_library_requested.connect(lambda: self.switch_view("library"))
         self.views["tickets"].open_library_requested.connect(lambda: self.switch_view("library"))
         self.views["tickets"].dialogue_requested.connect(self.open_dialogue_ticket)
+        self.views["tickets"].training_requested.connect(self._open_training_ticket)
         self.views["training"].open_library_requested.connect(lambda: self.switch_view("library"))
         self.views["training"].import_requested.connect(self.open_import_dialog)
         self.views["statistics"].open_library_requested.connect(lambda: self.switch_view("library"))
@@ -185,8 +191,6 @@ class MainWindow(QMainWindow):
         self.views["import"].open_training_requested.connect(lambda: self.switch_view("training"))
         self.views["import"].open_statistics_requested.connect(lambda: self.switch_view("statistics"))
 
-        self.views["knowledge-map"].train_requested.connect(self._train_from_map)
-        self.views["knowledge-map"].dialogue_requested.connect(self.open_dialogue_ticket)
         self.views["training"].evaluate_requested.connect(self.handle_training_evaluation)
         self.views["settings"].diagnostics_changed.connect(self.apply_ollama_diagnostics)
         self.views["settings"].settings_saved.connect(self.persist_settings)
@@ -259,6 +263,102 @@ class MainWindow(QMainWindow):
     def _show_stack_page(self, page: QWidget) -> None:
         self.stack.setCurrentWidget(page)
 
+    def _import_worker_command(
+        self,
+        *,
+        document_path: Path | None = None,
+        answer_profile_code: str = "standard_ticket",
+        document_id: str = "",
+        max_resume_passes: int = 8,
+    ) -> list[str]:
+        repo_root = Path(__file__).resolve().parents[1]
+        if getattr(sys, "frozen", False):
+            command = [sys.executable, "--import-worker"]
+        else:
+            command = [sys.executable, str(repo_root / "main.py"), "--import-worker"]
+        command.extend(
+            [
+                "--workspace-root",
+                str(self.facade.workspace_root),
+                "--max-resume-passes",
+                str(max(1, max_resume_passes)),
+            ]
+        )
+        if document_path is not None:
+            command.extend(
+                [
+                    "--document-path",
+                    str(document_path),
+                    "--answer-profile-code",
+                    answer_profile_code or "standard_ticket",
+                ]
+            )
+        if document_id:
+            command.extend(["--resume-document-id", document_id])
+        return command
+
+    def _run_import_worker_subprocess(self, command: list[str], progress_callback) -> ImportExecutionResult:
+        repo_root = Path(__file__).resolve().parents[1]
+        env = os.environ.copy()
+        env.setdefault("PYTHONUTF8", "1")
+        process = subprocess.Popen(
+            command,
+            cwd=repo_root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+            env=env,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+
+        result_payload: dict[str, object] | None = None
+        worker_errors: list[str] = []
+        stdout_noise: list[str] = []
+        assert process.stdout is not None
+        for raw_line in process.stdout:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                stdout_noise.append(line)
+                continue
+            event_name = str(event.get("event") or "")
+            if event_name == "progress":
+                progress_callback(
+                    int(event.get("percent", 0) or 0),
+                    str(event.get("stage") or ""),
+                    str(event.get("detail") or ""),
+                )
+            elif event_name == "result":
+                payload = event.get("payload")
+                if isinstance(payload, dict):
+                    result_payload = payload
+            elif event_name == "error":
+                message = str(event.get("message") or "").strip()
+                if message:
+                    worker_errors.append(message)
+
+        stderr_text = process.stderr.read().strip() if process.stderr is not None else ""
+        exit_code = process.wait()
+
+        if result_payload is not None:
+            return ImportExecutionResult(**result_payload)
+
+        error_parts = worker_errors[:]
+        if stderr_text:
+            error_parts.append(stderr_text)
+        if stdout_noise and not error_parts:
+            error_parts.extend(stdout_noise[-3:])
+        if not error_parts:
+            error_parts.append(f"Import worker exited with code {exit_code}.")
+        raise RuntimeError(error_parts[-1])
+
     def open_import_dialog(self) -> None:
         if self._import_thread is not None and self._import_thread.isRunning():
             self.switch_view("import")
@@ -295,18 +395,8 @@ class MainWindow(QMainWindow):
         self._import_thread.start()
 
     def _import_in_background(self, document_path: Path, answer_profile_code: str, progress_callback):
-        database_path = get_database_path(self.facade.workspace_root)
-        connection = connect_initialized(database_path)
-        settings_store = SettingsStore(self.facade.workspace_root / "app_data" / "settings.json")
-        worker_facade = AppFacade(self.facade.workspace_root, connection, settings_store)
-        try:
-            return worker_facade.import_document_with_progress(
-                document_path,
-                answer_profile_code=answer_profile_code,
-                progress_callback=progress_callback,
-            )
-        finally:
-            connection.close()
+        command = self._import_worker_command(document_path=document_path, answer_profile_code=answer_profile_code)
+        return self._run_import_worker_subprocess(command, progress_callback)
 
     def resume_partial_import(self, document_id: str) -> None:
         if not document_id:
@@ -328,14 +418,8 @@ class MainWindow(QMainWindow):
         self._import_thread.start()
 
     def _resume_in_background(self, document_id: str, progress_callback):
-        database_path = get_database_path(self.facade.workspace_root)
-        connection = connect_initialized(database_path)
-        settings_store = SettingsStore(self.facade.workspace_root / "app_data" / "settings.json")
-        worker_facade = AppFacade(self.facade.workspace_root, connection, settings_store)
-        try:
-            return worker_facade.resume_document_import_with_progress(document_id, progress_callback=progress_callback)
-        finally:
-            connection.close()
+        command = self._import_worker_command(document_id=document_id)
+        return self._run_import_worker_subprocess(command, progress_callback)
 
     def refresh_defense_view(self, project_id: str | None = None) -> None:
         self.views["defense"].set_snapshot(self.facade.load_defense_workspace_snapshot(project_id))
@@ -587,6 +671,18 @@ class MainWindow(QMainWindow):
         if settings.auto_check_updates_on_start:
             self.check_for_updates()
 
+    def delete_document_from_library(self, document_id: str) -> None:
+        if not document_id:
+            return
+        try:
+            deleted = self.facade.delete_document(document_id)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Удаление документа", f"Не удалось удалить документ: {exc}")
+            return
+        if not deleted:
+            QMessageBox.warning(self, "Удаление документа", "Документ уже отсутствует в базе.")
+        self.refresh_all_views()
+
     def refresh_all_views(self) -> None:
         self._refresh_lightweight_views(include_heavy=self.current_key in {"tickets", "training"})
 
@@ -621,7 +717,6 @@ class MainWindow(QMainWindow):
         self.views["statistics"].set_data(statistics, mastery, weak_areas, state_exam_statistics)
         km_tickets = self.facade.load_ticket_maps()
         readiness = self.facade.load_readiness_score(tickets=km_tickets, mastery=mastery)
-        self.views["knowledge-map"].set_data(km_tickets, mastery, readiness)
         self.sidebar.set_readiness(readiness.percent)
         self.views["library"].set_readiness(readiness)
         self.views["dialogue"].set_snapshot(
@@ -653,9 +748,15 @@ class MainWindow(QMainWindow):
         self.views["training"].select_mode(target_mode)
         self._pending_training_mode = None
 
-    def _train_from_map(self, ticket_id: str) -> None:
+    def _open_training_ticket(self, ticket_id: str) -> None:
         self.switch_view("training")
         self.views["training"].select_ticket(ticket_id)
+
+    def open_ticket_reader(self, ticket_id: str) -> None:
+        if not ticket_id:
+            return
+        self.switch_view("tickets")
+        self.views["tickets"].focus_ticket(ticket_id)
 
     def open_training_mode(self, mode_key: str) -> None:
         self._pending_training_mode = mode_key

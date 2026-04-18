@@ -59,7 +59,7 @@ class TrainingModeCard(ClickableFrame):
 class TrainingModesPanel(CardFrame):
     mode_selected = Signal(str)
 
-    def __init__(self, modes: list[TrainingModeData], shadow_color) -> None:
+    def __init__(self, modes: list[TrainingModeData], shadow_color, *, show_header: bool = True) -> None:
         super().__init__(role="card", shadow_color=shadow_color)
         self.modes = modes[:]
         self.shadow_color = shadow_color
@@ -68,12 +68,13 @@ class TrainingModesPanel(CardFrame):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(12)
 
-        title = QLabel("Режим тренировки")
-        title.setProperty("role", "section-title")
-        subtitle = QLabel("Выберите способ изучения материала")
-        subtitle.setProperty("role", "body")
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
+        if show_header:
+            title = QLabel("Режим тренировки")
+            title.setProperty("role", "section-title")
+            subtitle = QLabel("Выберите способ изучения материала")
+            subtitle.setProperty("role", "body")
+            layout.addWidget(title)
+            layout.addWidget(subtitle)
 
         self.grid = QGridLayout()
         self.grid.setContentsMargins(0, 0, 0, 0)

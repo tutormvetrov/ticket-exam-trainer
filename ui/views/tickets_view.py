@@ -22,9 +22,25 @@ from PySide6.QtWidgets import (
 
 from application.ui_data import TicketMasteryBreakdown
 from application.answer_profile_registry import answer_profile_label
+from domain.answer_profile import AnswerProfileCode
 from domain.knowledge import TicketKnowledgeMap
 from ui.components.common import CardFrame, ClickableFrame, EmptyStatePanel, IconBadge, file_badge_colors, tone_pair
 from ui.theme import current_colors
+
+
+def _reference_answer(ticket: TicketKnowledgeMap) -> str:
+    if ticket.answer_profile_code == AnswerProfileCode.STATE_EXAM_PUBLIC_ADMIN and ticket.answer_blocks:
+        blocks = [
+            f"{block.title}\n{block.expected_content}".strip()
+            for block in ticket.answer_blocks
+            if block.expected_content.strip()
+        ]
+        if blocks:
+            return "\n\n".join(blocks)
+    if ticket.canonical_answer_summary.strip():
+        return ticket.canonical_answer_summary.strip()
+    atoms = [atom.text.strip() for atom in ticket.atoms if atom.text.strip()]
+    return "\n\n".join(atoms)
 
 
 class TicketListItem(ClickableFrame):
@@ -79,6 +95,7 @@ class TicketListItem(ClickableFrame):
 class TicketsView(QWidget):
     open_library_requested = Signal()
     dialogue_requested = Signal(str)
+    training_requested = Signal(str)
 
     def __init__(self, shadow_color) -> None:
         super().__init__()
@@ -100,9 +117,6 @@ class TicketsView(QWidget):
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(14)
-        title = QLabel("Билеты")
-        title.setProperty("role", "hero")
-        header.addWidget(title)
         header.addStretch(1)
 
         self.search_input = QLineEdit()
@@ -177,6 +191,8 @@ class TicketsView(QWidget):
         self.detail_scroll.setWidget(self.detail_widget)
         self.body_layout.addWidget(self.detail_scroll, 1)
         layout.addLayout(self.body_layout, 1)
+        self.current_training_button: QPushButton | None = None
+        self.current_dialogue_button: QPushButton | None = None
 
         self._render_placeholder()
         self._apply_responsive_layout()
@@ -304,6 +320,7 @@ class TicketsView(QWidget):
                 widget.deleteLater()
 
         self.detail_layout.addWidget(self._hero_card(ticket))
+        self.detail_layout.addWidget(self._reading_card(ticket))
         self.detail_layout.addWidget(self._answer_blocks_card(ticket))
         self.detail_layout.addWidget(self._mastery_card(ticket))
         self.detail_layout.addWidget(self._atoms_card(ticket))
@@ -318,6 +335,8 @@ class TicketsView(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(30, 36, 30, 26)
         layout.setSpacing(12)
+        self.current_training_button = None
+        self.current_dialogue_button = None
 
         eyebrow = QLabel(f"Билет №{self._ticket_number(ticket)}")
         eyebrow.setProperty("role", "eyebrow")
@@ -339,17 +358,48 @@ class TicketsView(QWidget):
         action_row = QHBoxLayout()
         action_row.setContentsMargins(0, 0, 0, 0)
         action_row.setSpacing(10)
+        training_button = QPushButton("К упражнениям")
+        training_button.setObjectName("tickets-hero-training")
+        training_button.setProperty("variant", "primary")
+        training_button.clicked.connect(lambda: self.training_requested.emit(ticket.ticket_id))
+        action_row.addWidget(training_button, 0, Qt.AlignmentFlag.AlignLeft)
         dialogue_button = QPushButton("Открыть в диалоге")
+        dialogue_button.setObjectName("tickets-hero-dialogue")
         dialogue_button.setProperty("variant", "secondary")
         dialogue_button.clicked.connect(lambda: self.dialogue_requested.emit(ticket.ticket_id))
         action_row.addWidget(dialogue_button, 0, Qt.AlignmentFlag.AlignLeft)
         action_row.addStretch(1)
         layout.addLayout(action_row)
+        self.current_training_button = training_button
+        self.current_dialogue_button = dialogue_button
 
         summary = QLabel(ticket.canonical_answer_summary or "Краткое каноническое резюме пока не сформировано.")
         summary.setWordWrap(True)
         summary.setProperty("role", "body")
         layout.addWidget(summary)
+        return card
+
+    def _reading_card(self, ticket: TicketKnowledgeMap) -> QWidget:
+        card = CardFrame(role="card", shadow_color=self.shadow_color)
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setSpacing(10)
+
+        title = QLabel("Чтение билета")
+        title.setProperty("role", "section-title")
+        layout.addWidget(title)
+
+        intro = QLabel("Полный опорный текст для чтения перед упражнениями и диалогом.")
+        intro.setProperty("role", "body")
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        body = QLabel(_reference_answer(ticket) or "Для этого билета пока не удалось собрать опорный текст.")
+        body.setObjectName("tickets-reading-body")
+        body.setProperty("role", "body")
+        body.setWordWrap(True)
+        body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(body)
         return card
 
     def _answer_blocks_card(self, ticket: TicketKnowledgeMap) -> QWidget:
@@ -564,6 +614,20 @@ class TicketsView(QWidget):
     def set_search_text(self, text: str) -> None:
         self._search_query = text.strip().lower()
         self._apply_filters()
+
+    def focus_ticket(self, ticket_id: str) -> None:
+        if not ticket_id:
+            return
+        self.current_ticket_id = ticket_id
+        self._active_filter = "all"
+        self.filter_buttons["all"].setChecked(True)
+        self._search_query = ""
+        self.search_input.blockSignals(True)
+        self.search_input.clear()
+        self.search_input.blockSignals(False)
+        self._apply_filters()
+        if ticket_id in self.list_items:
+            self._select_ticket(ticket_id)
 
     @staticmethod
     def _json_list(raw_value: str | None) -> list[str]:

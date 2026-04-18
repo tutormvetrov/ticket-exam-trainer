@@ -24,8 +24,11 @@ def set_app_theme(
 
 def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     family = typography["family"]
+    ui_family = typography["ui_family"]
     is_dark = colors["app_bg"] == DARK["app_bg"]
     page_title_size = typography.get("page_title", typography.get("hero", typography["section_title"]))
+    chrome_title_size = max(int(typography["section_title"]), int(page_title_size) - 2)
+    chrome_subtitle_size = max(int(typography["muted"]), int(typography["subtitle"]) - 1)
     paper = colors.get("paper", colors["app_bg"])
     sand = colors.get("sand", colors.get("sidebar_bg", colors["card_soft"]))
     rust = colors.get("rust", colors["primary"])
@@ -45,6 +48,15 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     toolbar_pressed = alpha_color(colors["primary"], 0.18 if is_dark else 0.12)
     nav_pressed = alpha_color(colors["primary"], 0.22 if is_dark else 0.12)
     muted_hover = alpha_color(colors["primary"], 0.1 if is_dark else 0.05)
+    chrome_titlebar_bg = alpha_color(colors["card_bg"], 0.72 if is_dark else 0.9)
+    chrome_titlebar_border = alpha_color(colors["border"], 0.86 if is_dark else 1.0)
+    chrome_card_bg = alpha_color(colors["card_bg"], 0.4 if is_dark else 0.56)
+    chrome_card_border = alpha_color(colors["border"], 0.9 if is_dark else 0.8)
+    chrome_card_hover = alpha_color(colors["card_bg"], 0.5 if is_dark else 0.7)
+    nav_hover = alpha_color(colors["card_bg"], 0.5 if is_dark else 0.76)
+    nav_active = alpha_color(colors["primary"], 0.18 if is_dark else 0.08)
+    nav_active_hover = alpha_color(colors["primary"], 0.24 if is_dark else 0.11)
+    nav_active_border = alpha_color(colors["primary"], 0.35 if is_dark else 0.22)
     brass = colors.get("brass", colors.get("border_strong", colors["primary"]))
     return f"""
     QWidget {{
@@ -66,13 +78,23 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     QMessageBox QPushButton {{
         min-width: 92px;
     }}
+    QWidget[role="titlebar"],
     QFrame[role="titlebar"] {{
-        background: {colors["card_bg"]};
-        border-bottom: 1px solid {colors["border"]};
+        background: {chrome_titlebar_bg};
+        border-bottom: 1px solid {chrome_titlebar_border};
     }}
+    QWidget[role="sidebar"],
     QFrame[role="sidebar"] {{
         background: {colors["sidebar_bg"]};
         border-right: 1px solid {colors["border"]};
+    }}
+    QFrame[role="sidebar-brand"] {{
+        background: transparent;
+        border: none;
+    }}
+    QFrame[role="chrome-divider"] {{
+        background: {alpha_color(colors["border"], 0.58 if is_dark else 0.92)};
+        border: none;
     }}
     QFrame[role="search-shell"] {{
         background: {colors["input_bg"]};
@@ -96,6 +118,14 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         background: {colors["card_soft"]};
         border: 1px solid {colors["border"]};
         border-radius: 16px;
+    }}
+    QFrame[role="chrome-card"] {{
+        background: {chrome_card_bg};
+        border: 1px solid {chrome_card_border};
+        border-radius: 14px;
+    }}
+    QFrame[role="chrome-card"]:hover {{
+        background: {chrome_card_hover};
     }}
     QFrame[role="empty-icon-shell"] {{
         background: {colors["primary_soft"]};
@@ -135,9 +165,10 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     }}
     QLabel[role="nav-caption"] {{
         color: {colors["text_tertiary"]};
+        font-family: "{ui_family}";
         font-size: {typography["nav_caption"]}px;
         font-weight: 700;
-        letter-spacing: 1px;
+        letter-spacing: 2px;
     }}
     QLabel[role="brass-dot"] {{
         color: {brass};
@@ -175,6 +206,51 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         color: {colors["text_tertiary"]};
         font-size: {typography["muted"]}px;
     }}
+    QLabel[role="chrome-status-dot"] {{
+        color: {colors["text_tertiary"]};
+        font-size: 12px;
+    }}
+    QLabel[role="chrome-status-dot"][tone="success"] {{
+        color: {colors["success"]};
+    }}
+    QLabel[role="chrome-status-dot"][tone="warning"] {{
+        color: {colors["warning"]};
+    }}
+    QLabel[role="chrome-status-dot"][tone="danger"] {{
+        color: {colors["danger"]};
+    }}
+    QLabel[role="chrome-status"] {{
+        color: {colors["text_secondary"]};
+        font-family: "{ui_family}";
+        font-size: {typography["body"]}px;
+        font-weight: 700;
+    }}
+    QLabel[role="chrome-status"][tone="success"] {{
+        color: {colors["success"]};
+    }}
+    QLabel[role="chrome-status"][tone="warning"] {{
+        color: {colors["warning"]};
+    }}
+    QLabel[role="chrome-status"][tone="danger"] {{
+        color: {colors["danger"]};
+    }}
+    QLabel[role="chrome-readiness"] {{
+        color: {colors["text_tertiary"]};
+        font-family: "{ui_family}";
+        font-size: {typography["muted"]}px;
+        font-weight: 600;
+    }}
+    QLabel[role="chrome-meta"] {{
+        color: {colors["text_secondary"]};
+        font-family: "{ui_family}";
+        font-size: {typography["muted"]}px;
+    }}
+    QLabel[role="chrome-version"] {{
+        color: {colors["text_tertiary"]};
+        font-family: "{ui_family}";
+        font-size: {typography["muted"]}px;
+        letter-spacing: 0.4px;
+    }}
     QLabel[role="pill"] {{
         background: {colors["card_soft"]};
         color: {colors["text_secondary"]};
@@ -182,6 +258,33 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         padding: 4px 10px;
         font-size: {typography["pill"]}px;
         font-weight: 600;
+    }}
+    QLabel[role="promo-title"] {{
+        color: {colors["text"]};
+        font-family: "{ui_family}";
+        font-size: {typography["card_title"]}px;
+        font-weight: 700;
+    }}
+    QLabel[role="promo-body"] {{
+        color: {colors["text_secondary"]};
+        font-family: "{ui_family}";
+        font-size: {typography["body"]}px;
+        font-weight: 500;
+    }}
+    QLabel[role="promo-meta"] {{
+        color: {colors["text_secondary"]};
+        font-family: "{ui_family}";
+        font-size: {typography["muted"]}px;
+        font-weight: 500;
+    }}
+    QLabel[role="promo-pill"] {{
+        background: {colors["card_soft"]};
+        color: {colors["text_secondary"]};
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-family: "{ui_family}";
+        font-size: {typography["pill"]}px;
+        font-weight: 700;
     }}
     QLabel[role="status-ok"] {{
         color: {colors["success"]};
@@ -353,33 +456,37 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
     QPushButton[variant="nav"] {{
         background: transparent;
         border: 1px solid transparent;
+        border-left: 3px solid transparent;
+        border-radius: 12px;
         color: {colors["text_secondary"]};
         text-align: left;
-        padding: 12px 16px;
-        font-family: "{typography["ui_family"]}";
-        font-size: {typography["button"]}px;
+        padding: 10px 12px;
+        font-family: "{ui_family}";
+        font-size: {typography["body"]}px;
         font-weight: 600;
     }}
     QPushButton[variant="nav"]:hover {{
-        background: {colors["card_muted"]};
-        border-color: {colors["border"]};
+        background: {nav_hover};
+        border-color: {chrome_card_border};
         color: {colors["text"]};
     }}
     QPushButton[variant="nav"]:pressed {{
         background: {nav_pressed};
-        border-color: {colors["primary"]};
+        border-color: {nav_active_border};
         color: {colors["text"]};
     }}
     QPushButton[variant="nav"]:checked {{
-        background: {colors["primary"]};
-        color: {colors["parchment"]};
-        border-color: {colors["primary"]};
+        background: {nav_active};
+        border-color: {nav_active_border};
+        border-left: 3px solid {rust};
+        color: {rust};
     }}
     QPushButton[variant="nav"]:checked:hover,
     QPushButton[variant="nav"]:checked:pressed {{
-        background: {primary_pressed};
-        border-color: {primary_pressed};
-        color: {colors["parchment"]};
+        background: {nav_active_hover};
+        border-color: {nav_active_border};
+        border-left: 3px solid {rust};
+        color: {rust};
     }}
     QPushButton[variant="nav"]:disabled {{
         background: transparent;
@@ -531,7 +638,7 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         border-radius: 6px;
     }}
     QLabel[role="eyebrow"] {{
-        font-family: "{typography["ui_family"]}";
+        font-family: "{ui_family}";
         font-size: {typography["eyebrow"]}px;
         color: {colors["rust"]};
         font-weight: 600;
@@ -539,13 +646,13 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         text-transform: uppercase;
     }}
     QLabel[role="metric-value"] {{
-        font-family: "{typography["ui_family"]}";
+        font-family: "{ui_family}";
         font-size: {typography["metric_value"]}px;
         color: {colors["moss"]};
         font-weight: 700;
     }}
     QLabel[role="metric-label"] {{
-        font-family: "{typography["ui_family"]}";
+        font-family: "{ui_family}";
         font-size: {typography["metric_label"]}px;
         color: {colors["ink_muted"]};
         font-weight: 600;
@@ -558,19 +665,31 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         font-style: italic;
         color: {colors["ink_muted"]};
     }}
+    QWidget[role="titlebar"] QLabel[role="page-title-serif"],
+    QFrame[role="titlebar"] QLabel[role="page-title-serif"] {{
+        font-size: {chrome_title_size}px;
+        color: {colors["text"]};
+    }}
+    QWidget[role="titlebar"] QLabel[role="subtitle-italic"],
+    QFrame[role="titlebar"] QLabel[role="subtitle-italic"] {{
+        font-size: {chrome_subtitle_size}px;
+        color: {colors["text_secondary"]};
+    }}
     QPushButton[variant="ghost"] {{
         background: transparent;
         border: 1px solid transparent;
         color: {colors["ink_muted"]};
-        padding: 9px 16px;
-        font-family: "{typography["ui_family"]}";
+        padding: 7px 12px;
+        font-family: "{ui_family}";
+        border-radius: 12px;
     }}
     QPushButton[variant="ghost"]:hover {{
         color: {colors["rust"]};
-        background: {colors["rust_soft"]};
+        background: {alpha_color(colors["primary"], 0.1 if is_dark else 0.06)};
+        border-color: {alpha_color(colors["border"], 0.65 if is_dark else 0.4)};
     }}
     QPushButton[variant="ghost"]:pressed {{
-        background: {colors["rust_soft"]};
+        background: {alpha_color(colors["primary"], 0.16 if is_dark else 0.1)};
         color: {colors["rust_hover"]};
     }}
     QPushButton[variant="danger"] {{
@@ -578,28 +697,33 @@ def build_stylesheet(colors: dict, typography: dict[str, int | str]) -> str:
         border: 1px solid {colors["claret"]};
         color: {colors["parchment"]};
         padding: 9px 16px;
-        font-family: "{typography["ui_family"]}";
+        font-family: "{ui_family}";
         font-weight: 600;
     }}
     QPushButton[variant="danger"]:hover {{
         background: {QColor(colors["claret"]).darker(110).name()};
     }}
     QPushButton[variant="nav"][active-warm="true"] {{
-        background: transparent;
-        border: none;
-        border-left: 3px solid {colors["rust"]};
-        color: {colors["ink"]};
-        font-family: "{family}";
-        font-size: {typography["nav_caption"]}px;
+        background: {nav_active};
+        border: 1px solid {nav_active_border};
+        border-left: 3px solid {rust};
+        color: {rust};
+        font-family: "{ui_family}";
+        font-size: {typography["body"]}px;
         font-weight: 600;
-        padding-left: 13px;
+        padding-left: 10px;
     }}
     QPushButton[variant="nav"][active-warm="true"]:hover,
     QPushButton[variant="nav"][active-warm="true"]:pressed {{
-        background: transparent;
-        border: none;
-        border-left: 3px solid {colors["rust"]};
-        color: {colors["ink"]};
-        padding-left: 13px;
+        background: {nav_active_hover};
+        border: 1px solid {nav_active_border};
+        border-left: 3px solid {rust};
+        color: {rust};
+        padding-left: 10px;
+    }}
+    QPushButton#topbar-settings {{
+        color: {colors["text_secondary"]};
+        font-size: {typography["muted"]}px;
+        font-weight: 600;
     }}
     """

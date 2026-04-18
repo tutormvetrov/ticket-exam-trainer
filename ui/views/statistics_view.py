@@ -35,12 +35,8 @@ class StatisticsView(QWidget):
         self._state_exam_data = StateExamStatisticsSnapshot()
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 28)
-        layout.setSpacing(18)
-
-        title = QLabel("Статистика")
-        title.setProperty("role", "hero")
-        layout.addWidget(title)
+        layout.setContentsMargins(28, 18, 28, 28)
+        layout.setSpacing(14)
 
         self.empty_state = EmptyStatePanel(
             "statistics",

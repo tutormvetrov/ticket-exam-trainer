@@ -13,8 +13,10 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from application.facade import AppFacade
 from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
 from application.settings_store import SettingsStore
-from application.ui_data import ImportExecutionResult
+from application.ui_data import ImportExecutionResult, StatisticsSnapshot
+from domain.models import DocumentData, SectionData, TicketData
 from infrastructure.db import connect_initialized, get_database_path
+from infrastructure.ollama.service import OllamaDiagnostics
 from ui.admin_password_dialog import AdminPasswordDialog
 from ui.components.sidebar import NAV_ITEMS
 from ui.icons import icon_names
@@ -129,8 +131,64 @@ def test_library_refresh_skips_heavy_ticket_loading(tmp_path: Path, monkeypatch)
     window.refresh_all_views()
     _qapp().processEvents()
 
-    assert calls["ticket_maps"] == 1  # knowledge-map view needs ticket data
+    assert calls["ticket_maps"] == 1  # данные по билетам всё ещё нужны для dialogue и readiness
     assert calls["training_snapshot"] == 0
+    window.close()
+    window.facade.connection.close()
+
+
+def test_navigation_no_longer_lists_knowledge_map() -> None:
+    assert "knowledge-map" not in {key for key, _label, _icon in NAV_ITEMS}
+
+
+def test_library_routes_ticket_actions_and_collapses_document_list(tmp_path: Path, monkeypatch) -> None:
+    window, _ = _build_window(tmp_path)
+    library = window.views["library"]
+    library.set_data(
+        [
+            DocumentData(
+                id="doc-1",
+                title="Госэкзамен ГМУ",
+                file_type="PDF",
+                subject="ГМУ",
+                imported_at="18.04.2026 15:30",
+                size="7.0 МБ",
+                status="Готов к тренировке",
+                sections=[SectionData("Основной раздел", 8, section_id="section-1", entry_ticket_id="ticket-1")],
+                tickets=[
+                    TicketData(
+                        1,
+                        "Управление публичными ресурсами",
+                        "готов",
+                        ticket_id="ticket-1",
+                        section_id="section-1",
+                        summary="Опорный текст для чтения.",
+                    )
+                ],
+                display_tickets_count=1,
+            )
+        ],
+        StatisticsSnapshot(average_score=0, processed_tickets=1, weak_areas=0, sessions_week=0),
+    )
+
+    captured: dict[str, str] = {}
+    monkeypatch.setattr(window.views["tickets"], "focus_ticket", lambda ticket_id: captured.setdefault("read", ticket_id))
+    monkeypatch.setattr(window.views["training"], "select_ticket", lambda ticket_id: captured.setdefault("train", ticket_id))
+
+    library.document_list.select_document("doc-1")
+    _qapp().processEvents()
+    assert library.document_list.isVisible() is False
+
+    library.detail_panel.ticket_reader_requested.emit("ticket-1")
+    _qapp().processEvents()
+    assert window.current_key == "tickets"
+    assert captured["read"] == "ticket-1"
+
+    library.detail_panel.ticket_training_requested.emit("ticket-1")
+    _qapp().processEvents()
+    assert window.current_key == "training"
+    assert captured["train"] == "ticket-1"
+
     window.close()
     window.facade.connection.close()
 
@@ -212,6 +270,35 @@ def test_save_settings_with_invalid_ollama_url_keeps_honest_status(tmp_path: Pat
     assert "Недоступно" in settings_view.status_pill.text()
     assert settings_view.error_label.text().startswith("Ошибка:")
     assert "http://localhost:65500" in saved
+    window.close()
+    window.facade.connection.close()
+
+
+def test_settings_open_models_folder_prefers_runtime_path_after_migration(tmp_path: Path, monkeypatch) -> None:
+    window, _ = _build_window(tmp_path, suppress_startup_background_tasks=True)
+    settings_view = window.views["settings"]
+    captured: dict[str, Path] = {}
+    runtime_models_path = tmp_path / "runtime-models"
+    runtime_models_path.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(settings_view, "_open_path", lambda path: captured.setdefault("path", path))
+
+    settings_view.models_path_input.setText(str(tmp_path / "stale-models"))
+    settings_view.set_diagnostics(
+        OllamaDiagnostics(
+            endpoint_ok=True,
+            model_ok=True,
+            endpoint_message="Endpoint: OK",
+            model_message="fallback",
+            model_name="qwen3:4b",
+            resolved_models_path=str(runtime_models_path),
+        )
+    )
+
+    settings_view.open_models_folder()
+
+    assert settings_view.models_path_input.text() == str(runtime_models_path)
+    assert captured["path"] == runtime_models_path
     window.close()
     window.facade.connection.close()
 

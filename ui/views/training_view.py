@@ -77,11 +77,7 @@ class TrainingView(QWidget):
         layout.setContentsMargins(28, 24, 28, 28)
         layout.setSpacing(18)
 
-        title = QLabel("Тренировка")
-        title.setProperty("role", "hero")
-        layout.addWidget(title)
-
-        self.modes_panel = TrainingModesPanel(DEFAULT_TRAINING_MODES, shadow_color)
+        self.modes_panel = TrainingModesPanel(DEFAULT_TRAINING_MODES, shadow_color, show_header=False)
         self.modes_panel.mode_selected.connect(self.select_mode)
         layout.addWidget(self.modes_panel)
 
@@ -118,10 +114,10 @@ class TrainingView(QWidget):
         session_layout.setSpacing(14)
 
         self.question_card = CardFrame(role="folio", accent_strip="rust")
-        self.question_card.setMaximumWidth(720)
+        self.question_card.setMaximumWidth(820)
         question_layout = QVBoxLayout(self.question_card)
-        question_layout.setContentsMargins(36, 40, 36, 32)
-        question_layout.setSpacing(14)
+        question_layout.setContentsMargins(28, 32, 28, 28)
+        question_layout.setSpacing(12)
         self.question_eyebrow = QLabel("Вопрос")
         self.question_eyebrow.setProperty("role", "eyebrow")
         question_layout.addWidget(self.question_eyebrow)
@@ -129,13 +125,16 @@ class TrainingView(QWidget):
         self.session_title = QLabel("Выберите билет")
         self.session_title.setProperty("role", "page-title-serif")
         self.session_title.setWordWrap(True)
+        self.session_title.setMinimumWidth(0)
         question_layout.addWidget(self.session_title)
 
         self.session_meta = QLabel("Сначала выберите билет из очереди или вручную.")
         self.session_meta.setProperty("role", "page-subtitle")
         self.session_meta.setWordWrap(True)
+        self.session_meta.setMinimumWidth(0)
+        self.session_meta.setTextFormat(Qt.TextFormat.PlainText)
         question_layout.addWidget(self.session_meta)
-        session_layout.addWidget(self.question_card, 0, Qt.AlignmentFlag.AlignHCenter)
+        session_layout.addWidget(self.question_card)
 
         self.session_divider = OrnamentalDivider()
         session_layout.addWidget(self.session_divider)
@@ -247,8 +246,8 @@ class TrainingView(QWidget):
 
         self.session_title.setText(ticket.title)
         self.session_meta.setText(
-            f"Профиль: {answer_profile_label(ticket.answer_profile_code)} • Атомов: {len(ticket.atoms)} • Навыков: {len(ticket.skills)} • "
-            f"Ориентир устного ответа: {ticket.estimated_oral_time_sec} сек."
+            f"{answer_profile_label(ticket.answer_profile_code)}  •  Атомов: {len(ticket.atoms)}  •  "
+            f"Навыков: {len(ticket.skills)}  •  Устно ~{ticket.estimated_oral_time_sec} сек."
         )
         self._select_ticket_in_combo(ticket_id)
         self._update_workspace()

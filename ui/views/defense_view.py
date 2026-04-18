@@ -116,35 +116,13 @@ class DefenseView(QWidget):
         self._timer_remaining_sec = 0
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 28)
-        layout.setSpacing(16)
-
-        self.header_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
-        self.header_row.setContentsMargins(0, 0, 0, 0)
-        self.header_row.setSpacing(14)
-
-        header_box = QVBoxLayout()
-        header_box.setContentsMargins(0, 0, 0, 0)
-        header_box.setSpacing(4)
-        title = QLabel("Подготовка к защите")
-        title.setProperty("role", "hero")
-        header_box.addWidget(title)
-
-        subtitle = QLabel("Платный локальный модуль подготовки к защите магистерской")
-        subtitle.setProperty("role", "body")
-        subtitle.setWordWrap(True)
-        header_box.addWidget(subtitle)
-        self.header_row.addLayout(header_box, 1)
-
-        self.license_pill = QLabel("Не активировано")
-        self.license_pill.setProperty("role", "pill")
-        self.header_row.addWidget(self.license_pill, 0, Qt.AlignmentFlag.AlignTop)
-        layout.addLayout(self.header_row)
+        layout.setContentsMargins(28, 18, 28, 28)
+        layout.setSpacing(14)
 
         self.status_card = CardFrame(role="subtle-card", shadow_color=shadow_color, shadow=False)
         status_layout = QHBoxLayout(self.status_card)
-        status_layout.setContentsMargins(18, 16, 18, 16)
-        status_layout.setSpacing(14)
+        status_layout.setContentsMargins(16, 14, 16, 14)
+        status_layout.setSpacing(12)
         pm_bg, pm_fg = file_badge_colors("PM")
         status_layout.addWidget(IconBadge("PM", pm_bg, pm_fg, size=42, radius=13, font_size=11), 0, Qt.AlignmentFlag.AlignTop)
 
@@ -165,12 +143,16 @@ class DefenseView(QWidget):
         self.install_label.setWordWrap(True)
         status_text.addWidget(self.install_label)
         status_layout.addLayout(status_text, 1)
+
+        self.license_pill = QLabel("Не активировано")
+        self.license_pill.setProperty("role", "pill")
+        status_layout.addWidget(self.license_pill, 0, Qt.AlignmentFlag.AlignTop)
         layout.addWidget(self.status_card)
 
         self.paywall_card = CardFrame(role="card", shadow_color=shadow_color)
         paywall_layout = QVBoxLayout(self.paywall_card)
-        paywall_layout.setContentsMargins(22, 22, 22, 22)
-        paywall_layout.setSpacing(12)
+        paywall_layout.setContentsMargins(20, 20, 20, 20)
+        paywall_layout.setSpacing(10)
 
         paywall_title = QLabel("Доступ к модулю")
         paywall_title.setProperty("role", "section-title")
@@ -1080,7 +1062,6 @@ class DefenseView(QWidget):
     def _apply_responsive_layout(self) -> None:
         compact = self.width() < 1080
         narrow = self.width() < 1240
-        self.header_row.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
         self.activation_row.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
         self.top_row.setDirection(QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight)
         self.outline_row.setDirection(QBoxLayout.Direction.TopToBottom if narrow else QBoxLayout.Direction.LeftToRight)

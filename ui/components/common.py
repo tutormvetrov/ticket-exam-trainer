@@ -396,22 +396,33 @@ class ScoreBadge(QLabel):
             bg, fg = colors["claret_soft"], colors["claret"]
         self.setStyleSheet(
             f"background: {bg}; color: {fg}; border-radius: 12px; padding: 7px 10px; "
-            f"font-size: 13px; font-weight: 700; font-family: \"{ui_family}\"; font-feature-settings: 'tnum';"
+            f"font-size: 13px; font-weight: 700; font-family: \"{ui_family}\";"
         )
 
 
 class DonutChart(QWidget):
-    def __init__(self, percent: int, accent: str | None = None, track: str | None = None, diameter: int = 96) -> None:
+    def __init__(
+        self,
+        percent: int,
+        accent: str | None = None,
+        track: str | None = None,
+        diameter: int = 96,
+        *,
+        show_caption: bool = True,
+    ) -> None:
         super().__init__()
         colors = current_colors()
         self.percent = percent
         self.accent = QColor(accent or colors["moss"])
         self.track = QColor(track or colors["sand"])
         self.diameter = diameter
-        self.setMinimumSize(diameter + 36, diameter + 54)
+        self.show_caption = show_caption
+        self._caption_height = 34 if show_caption else 0
+        self._bottom_padding = 20 if show_caption else 12
+        self.setMinimumSize(diameter + 36, diameter + self._caption_height + self._bottom_padding)
 
     def sizeHint(self) -> QSize:  # noqa: N802
-        return QSize(self.diameter + 44, self.diameter + 56)
+        return QSize(self.diameter + 44, self.diameter + self._caption_height + self._bottom_padding + 2)
 
     def set_percent(self, percent: int) -> None:
         self.percent = max(0, min(100, int(percent)))
@@ -446,7 +457,8 @@ class DonutChart(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         colors = current_colors()
 
-        diameter = min(self.diameter, max(64, min(self.width() - 28, self.height() - 54)))
+        reserved_height = self._caption_height + self._bottom_padding
+        diameter = min(self.diameter, max(64, min(self.width() - 28, self.height() - reserved_height)))
         left = (self.width() - diameter) / 2
         top = 8
         rect = QRectF(left, top, diameter, diameter)
@@ -474,13 +486,14 @@ class DonutChart(QWidget):
             f"{self.percent}%",
         )
 
-        painter.setPen(QColor(colors["text_secondary"]))
-        painter.setFont(QFont(QApplication.font().family(), max(9, int(round(diameter * 0.11))), 600))
-        painter.drawText(
-            QRectF(0, top + diameter + 6, self.width(), 28),
-            Qt.AlignmentFlag.AlignCenter,
-            "Средний результат",
-        )
+        if self.show_caption:
+            painter.setPen(QColor(colors["text_secondary"]))
+            painter.setFont(QFont(QApplication.font().family(), max(9, int(round(diameter * 0.11))), 600))
+            painter.drawText(
+                QRectF(0, top + diameter + 6, self.width(), 28),
+                Qt.AlignmentFlag.AlignCenter,
+                "Средний результат",
+            )
 
 
 class ClickableFrame(CardFrame):
@@ -644,12 +657,17 @@ class OrnamentalDivider(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802
         from ui.theme.materiality import paint_ornamental_divider
         from ui.theme.palette import current_colors
+
+        line_tone = str(self.property("line-tone") or "border")
+        dot_tone = str(self.property("dot-tone") or "brass")
         painter = QPainter(self)
         try:
             paint_ornamental_divider(
                 painter,
                 QRectF(0, 0, self.width(), self.height()),
                 current_colors(),
+                dot_color=dot_tone,
+                line_color=line_tone,
             )
         finally:
             painter.end()

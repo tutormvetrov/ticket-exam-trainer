@@ -24,9 +24,6 @@ class SubjectsView(QWidget):
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(14)
-        title = QLabel("Предметы")
-        title.setProperty("role", "hero")
-        header.addWidget(title)
         header.addStretch(1)
 
         self.search_input = QLineEdit()

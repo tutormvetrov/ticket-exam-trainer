@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QElapsedTimer, Property, QPropertyAnimation, QTimer, Qt, Signal
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QGridLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
 from application.ui_data import ImportExecutionResult
 from domain.models import DocumentData
@@ -35,10 +35,6 @@ class ImportView(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 28)
         layout.setSpacing(18)
-
-        title = QLabel("Импорт документов")
-        title.setProperty("role", "hero")
-        layout.addWidget(title)
 
         top_row = QHBoxLayout()
         top_row.setContentsMargins(0, 0, 0, 0)
@@ -101,7 +97,7 @@ class ImportView(QWidget):
         summary_layout.setContentsMargins(22, 22, 22, 22)
         summary_layout.setSpacing(10)
 
-        summary_title = QLabel("Состояние импорта")
+        summary_title = QLabel("Импорт и следующий шаг")
         summary_title.setProperty("role", "section-title")
         summary_layout.addWidget(summary_title)
 
@@ -156,59 +152,51 @@ class ImportView(QWidget):
         self.progress_meta_label.hide()
         summary_layout.addWidget(self.progress_meta_label)
 
-        summary_layout.addStretch(1)
-        top_row.addWidget(summary_card, 2)
-        layout.addLayout(top_row)
-
-        handoff_card = CardFrame(role="subtle-card", shadow_color=shadow_color, shadow=False)
-        handoff_layout = QVBoxLayout(handoff_card)
-        handoff_layout.setContentsMargins(18, 16, 18, 16)
-        handoff_layout.setSpacing(12)
-
-        handoff_title = QLabel("Что делать дальше")
-        handoff_title.setProperty("role", "section-title")
-        handoff_layout.addWidget(handoff_title)
-
-        self.handoff_body = QLabel(
+        self.summary_guidance = QLabel(
             "После импорта откройте библиотеку, проверьте документ и переходите к тренировке или статистике."
         )
-        self.handoff_body.setProperty("skipTextAdmin", True)
-        self.handoff_body.setProperty("role", "body")
-        self.handoff_body.setWordWrap(True)
-        handoff_layout.addWidget(self.handoff_body)
+        self.summary_guidance.setProperty("skipTextAdmin", True)
+        self.summary_guidance.setProperty("role", "body")
+        self.summary_guidance.setWordWrap(True)
+        summary_layout.addWidget(self.summary_guidance)
+        self.handoff_body = self.summary_guidance
 
-        handoff_actions = QHBoxLayout()
-        handoff_actions.setContentsMargins(0, 0, 0, 0)
-        handoff_actions.setSpacing(10)
+        summary_actions = QGridLayout()
+        summary_actions.setContentsMargins(0, 0, 0, 0)
+        summary_actions.setHorizontalSpacing(10)
+        summary_actions.setVerticalSpacing(8)
 
-        self.library_button = QPushButton("Открыть библиотеку")
+        self.library_button = QPushButton("Библиотека")
         self.library_button.setObjectName("import-open-library")
         self.library_button.setProperty("variant", "primary")
         self.library_button.clicked.connect(self.open_library_requested.emit)
-        handoff_actions.addWidget(self.library_button)
+        summary_actions.addWidget(self.library_button, 0, 0)
 
-        self.training_button = QPushButton("Перейти к тренировке")
+        self.training_button = QPushButton("Тренировка")
         self.training_button.setObjectName("import-open-training")
         self.training_button.setProperty("variant", "secondary")
         self.training_button.clicked.connect(self.open_training_requested.emit)
-        handoff_actions.addWidget(self.training_button)
+        summary_actions.addWidget(self.training_button, 0, 1)
 
-        self.statistics_button = QPushButton("Посмотреть статистику")
+        self.statistics_button = QPushButton("Статистика")
         self.statistics_button.setObjectName("import-open-statistics")
         self.statistics_button.setProperty("variant", "outline")
         self.statistics_button.clicked.connect(self.open_statistics_requested.emit)
-        handoff_actions.addWidget(self.statistics_button)
+        summary_actions.addWidget(self.statistics_button, 1, 0)
 
-        self.resume_button = QPushButton("Доделать локально")
+        self.resume_button = QPushButton("Доделать LLM-хвост")
         self.resume_button.setObjectName("import-resume")
         self.resume_button.setProperty("variant", "secondary")
         self.resume_button.clicked.connect(self._emit_resume_requested)
         self.resume_button.hide()
-        handoff_actions.addWidget(self.resume_button)
+        summary_actions.addWidget(self.resume_button, 1, 1)
 
-        handoff_actions.addStretch(1)
-        handoff_layout.addLayout(handoff_actions)
-        layout.addWidget(handoff_card)
+        summary_actions.setColumnStretch(0, 1)
+        summary_actions.setColumnStretch(1, 1)
+        summary_layout.addLayout(summary_actions)
+        summary_layout.addStretch(1)
+        top_row.addWidget(summary_card, 2)
+        layout.addLayout(top_row)
 
         recent_card = CardFrame(role="card", shadow_color=shadow_color)
         recent_layout = QVBoxLayout(recent_card)
@@ -373,7 +361,7 @@ class ImportView(QWidget):
             )
             self.summary_meta.setText(warnings_text or "Все этапы импорта и LLM-структурирования завершены.")
             self.summary_chip.setText(llm_meta if result.used_llm_assist else "LLM-помощь: не использовалась")
-            self.handoff_body.setText(
+            self.summary_guidance.setText(
                 "Импорт завершён. Откройте библиотеку, проверьте документ и переходите к тренировке или статистике."
             )
         elif result.status == "partial_llm":
@@ -388,7 +376,7 @@ class ImportView(QWidget):
                 or "Часть билетов сохранена через fallback или осталась без локальной LLM-доработки."
             )
             self.summary_chip.setText(llm_meta)
-            self.handoff_body.setText(
+            self.summary_guidance.setText(
                 "Базовый импорт уже в SQLite. Можно открыть библиотеку и одновременно локально доделать только хвост."
             )
         elif result.status == "importing":
@@ -401,13 +389,13 @@ class ImportView(QWidget):
                 warnings_text or "Результат в SQLite уже есть. Можно продолжить локальную доработку с места остановки."
             )
             self.summary_chip.setText(llm_meta)
-            self.handoff_body.setText("Нажмите «Доделать локально», чтобы продолжить только недообработанный хвост.")
+            self.summary_guidance.setText("Нажмите «Доделать локально», чтобы продолжить только недообработанный хвост.")
         else:
             self.summary_status.setText("Импорт завершился с ошибкой")
             self.summary_body.setText(result.error or "Во время импорта произошла ошибка.")
             self.summary_meta.setText(warnings_text or "Уже сохранённый результат в SQLite не удалён.")
             self.summary_chip.setText(llm_meta)
-            self.handoff_body.setText(
+            self.summary_guidance.setText(
                 "Если часть билетов уже сохранена, можно попробовать локально доделать только хвост."
             )
 
@@ -442,7 +430,7 @@ class ImportView(QWidget):
             self.progress_bar.show()
             self.progress_meta_label.show()
             self.resume_button.hide()
-            self.handoff_body.setText(
+            self.summary_guidance.setText(
                 "Дождитесь завершения текущего шага. Уже обработанные билеты сохраняются в SQLite по ходу работы."
             )
         elif self.last_result.ok:
@@ -456,7 +444,7 @@ class ImportView(QWidget):
             self.progress_bar.hide()
             self.progress_meta_label.hide()
             self.resume_button.hide()
-            self.handoff_body.setText("Сначала добейтесь успешного импорта, затем переходите в библиотеку и тренировку.")
+            self.summary_guidance.setText("Сначала добейтесь успешного импорта, затем переходите в библиотеку и тренировку.")
         elif latest_document is not None:
             self.summary_status.setText("В базе уже есть импортированные документы")
             self.summary_body.setText(
@@ -474,7 +462,7 @@ class ImportView(QWidget):
             self.progress_bar.hide()
             self.progress_meta_label.hide()
             self.resume_button.hide()
-            self.handoff_body.setText(
+            self.summary_guidance.setText(
                 "База уже заполнена. Откройте библиотеку для просмотра или переходите сразу в тренировку."
             )
         else:
@@ -488,7 +476,7 @@ class ImportView(QWidget):
             self.progress_bar.hide()
             self.progress_meta_label.hide()
             self.resume_button.hide()
-            self.handoff_body.setText(
+            self.summary_guidance.setText(
                 "Сначала выберите большой DOCX или PDF. После успешного импорта станут доступны библиотека, тренировка и статистика."
             )
 
@@ -522,7 +510,8 @@ class ImportView(QWidget):
             row_layout.addLayout(text_box, 1)
 
             status = QLabel(document.status)
-            status_bg, status_fg = tone_pair("success" if document.status in {"structured", "ready", "done"} else "warning")
+            ready_labels = {"Готов к тренировке", "structured", "ready", "done"}
+            status_bg, status_fg = tone_pair("success" if document.status in ready_labels else "warning")
             status.setStyleSheet(
                 f"background: {status_bg}; color: {status_fg}; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700;"
             )

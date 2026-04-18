@@ -250,6 +250,7 @@ class ReadingWorkspace(TrainingWorkspaceBase):
         answer_title = QLabel("Эталон ответа")
         answer_title.setProperty("role", "section-title")
         self.answer_body = QLabel()
+        self.answer_body.setObjectName("training-reading-answer")
         self.answer_body.setWordWrap(True)
         self.answer_body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         answer_layout.addWidget(answer_title)
@@ -312,8 +313,8 @@ class ReadingWorkspace(TrainingWorkspaceBase):
                 else "Ключевые блоки пока не выделены."
             )
         self.answer_body.setText(_reference_answer(ticket) or "Эталонный ответ пока пуст.")
-        self.answer_box.hide()
-        self.reveal_button.setText("Раскрыть эталонный ответ")
+        self.answer_box.show()
+        self.reveal_button.setText("Скрыть эталонный ответ")
 
     def refresh_theme(self) -> None:
         super().refresh_theme()

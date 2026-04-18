@@ -4,10 +4,20 @@ Holds the AppFacade instance, current page, responsive breakpoint, dark-mode
 flag, and currently selected ticket_id. Views subscribe to on_breakpoint_change
 and on_theme_change; we keep it simple (no reactive framework) — views call
 refresh() when they need to rebuild.
+
+Ollama reachability is tracked as a ternary:
+
+* ``None`` — probe not yet run. Treated as "offline" by ``is_ollama_available``
+  so the UI never accidentally kicks off a 60s LLM call during the brief
+  window between ``main()`` and the probe completing.
+* ``True`` / ``False`` — last probe result. Listeners registered with
+  ``on_ollama_change`` fire on transitions (including the first ``None →
+  False/True`` flip) so badges and workspaces can rebuild.
 """
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -39,8 +49,10 @@ class AppState:
     breakpoint: str = "standard"
     selected_ticket_id: str | None = None
     selected_mode: str = "reading"          # active workspace for training view
+    ollama_online: bool | None = None       # None = not probed yet (treated as offline)
     theme_listeners: list[Callable[[], None]] = field(default_factory=list)
     breakpoint_listeners: list[Callable[[str], None]] = field(default_factory=list)
+    ollama_listeners: list[Callable[[bool | None], None]] = field(default_factory=list)
 
     # ---- theme ----
     def toggle_dark(self) -> None:
@@ -69,6 +81,46 @@ class AppState:
 
     def on_breakpoint_change(self, callback: Callable[[str], None]) -> None:
         self.breakpoint_listeners.append(callback)
+
+    # ---- ollama probe ----
+    def on_ollama_change(self, callback: Callable[[bool | None], None]) -> None:
+        self.ollama_listeners.append(callback)
+
+    def is_ollama_available(self) -> bool:
+        """Safe predicate — returns False when the probe hasn't run yet."""
+        return self.ollama_online is True
+
+    def _notify_ollama_listeners(self) -> None:
+        for cb in list(self.ollama_listeners):
+            try:
+                cb(self.ollama_online)
+            except Exception:
+                pass
+
+    def probe_ollama(self, timeout: float = 1.5) -> None:
+        """Kick off a background probe of the Ollama endpoint.
+
+        Never blocks — a daemon thread runs the probe and writes the result
+        back to ``ollama_online``, then fires ``ollama_listeners``. The URL
+        is taken from the facade's persisted settings so the Qt and Flet
+        apps agree on which endpoint to check.
+        """
+        from ui_flet.ollama_probe import probe_ollama_now
+
+        settings = getattr(self.facade, "settings", None)
+        base_url = getattr(settings, "base_url", "http://127.0.0.1:11434") or "http://127.0.0.1:11434"
+
+        def _worker() -> None:
+            try:
+                ok = probe_ollama_now(base_url, timeout=timeout)
+            except Exception:
+                ok = False
+            previous = self.ollama_online
+            self.ollama_online = bool(ok)
+            if previous != self.ollama_online:
+                self._notify_ollama_listeners()
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     # ---- navigation helpers ----
     def go(self, route: str) -> None:

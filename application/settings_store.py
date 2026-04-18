@@ -34,6 +34,9 @@ class SettingsStore:
             font_preset=payload.get("font_preset", DEFAULT_OLLAMA_SETTINGS.font_preset),
             font_size=int(payload.get("font_size", DEFAULT_OLLAMA_SETTINGS.font_size)),
             auto_check_updates_on_start=bool(payload.get("auto_check_updates_on_start", DEFAULT_OLLAMA_SETTINGS.auto_check_updates_on_start)),
+            window_mode=str(payload.get("window_mode", DEFAULT_OLLAMA_SETTINGS.window_mode) or DEFAULT_OLLAMA_SETTINGS.window_mode),
+            window_width=int(payload.get("window_width", DEFAULT_OLLAMA_SETTINGS.window_width) or DEFAULT_OLLAMA_SETTINGS.window_width),
+            window_height=int(payload.get("window_height", DEFAULT_OLLAMA_SETTINGS.window_height) or DEFAULT_OLLAMA_SETTINGS.window_height),
         )
 
     def save(self, settings: OllamaSettings) -> None:

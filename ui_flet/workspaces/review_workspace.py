@@ -32,8 +32,14 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
 
     def _on_check(_evt) -> None:
         text = (answer_field.value or "").strip()
+        skip_llm = not state.is_ollama_available()
         try:
-            result = state.facade.evaluate_answer(ticket.ticket_id, "review", text)
+            result = state.facade.evaluate_answer(
+                ticket.ticket_id,
+                "review",
+                text,
+                skip_llm=skip_llm,
+            )
         except Exception as exc:  # noqa: BLE001
             result_box.controls = [ft.Text(str(exc), color=p["danger"])]
             result_box.visible = True
@@ -73,6 +79,27 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                 )
             )
         else:
+            if skip_llm:
+                controls.append(
+                    ft.Container(
+                        padding=ft.padding.symmetric(vertical=SPACE["xs"], horizontal=SPACE["sm"]),
+                        bgcolor=p["bg_elevated"],
+                        border_radius=RADIUS["pill"],
+                        border=ft.border.all(1, p["border_soft"]),
+                        content=ft.Row(
+                            spacing=SPACE["xs"],
+                            tight=True,
+                            controls=[
+                                ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=p["text_muted"]),
+                                ft.Text(
+                                    TEXT["result.review_fallback_short"],
+                                    size=12,
+                                    color=p["text_secondary"],
+                                ),
+                            ],
+                        ),
+                    )
+                )
             controls.append(build_review_verdict(state, review_verdict))
 
         result_box.controls = controls

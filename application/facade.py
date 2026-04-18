@@ -1152,6 +1152,7 @@ class AppFacade:
         *,
         model: str | None = None,
         include_followups: bool = True,
+        skip_llm: bool = False,
     ) -> TrainingEvaluationResult:
         answer = answer_text.strip()
         if not answer:
@@ -1164,6 +1165,17 @@ class AppFacade:
         block_profile = self._load_block_profile(ticket_id)
         outcome = self.scoring.evaluate(ticket, exercise, answer, profile=profile, block_profile=block_profile)
         outcome.profile.next_review_at = datetime.now()
+        # ``scoring._update_profile`` пробрасывает fsrs_state_json /
+        # attempts_count из исходного ``profile``, но само расписание не
+        # двигает. Делает это ``AdaptiveReviewService.record_attempt``: для
+        # активных режимов он прогоняет FSRS / шаг cold-start лестницы и
+        # возвращает новый ``TicketMasteryProfile`` с актуальным
+        # ``next_review_at`` и ``attempts_count``.
+        outcome.profile = self.adaptive.record_attempt(
+            outcome.profile,
+            mode_key,
+            int(round(outcome.attempt.score * 100)),
+        )
         self.repository.save_exercise_instances([exercise])
         self.repository.save_attempt(outcome.attempt)
         if outcome.attempt_block_scores:
@@ -1175,7 +1187,10 @@ class AppFacade:
         self._refresh_review_queue()
 
         followups: list[str] = []
-        if include_followups and self._settings.examiner_followups:
+        # ``skip_llm`` lets callers (e.g. the Flet UI with a confirmed-offline
+        # Ollama probe) avoid the ~25s ``ensure_server_ready`` wait followed by
+        # a downstream retry. All LLM side-effects are gated on this flag.
+        if not skip_llm and include_followups and self._settings.examiner_followups:
             weak_titles = [area.title for area in outcome.weak_areas[:2]]
             if weak_titles:
                 llm_result = self.build_ollama_service().generate_followup_questions(
@@ -1192,8 +1207,8 @@ class AppFacade:
         if mode_key in {"active-recall", "mini-exam", "state-exam-full", "review"}:
             review_verdict = self.scoring.build_review_verdict(
                 ticket, mode_key, answer,
-                ollama_service=self.build_ollama_service(),
-                model=resolved_model,
+                ollama_service=None if skip_llm else self.build_ollama_service(),
+                model="" if skip_llm else resolved_model,
             )
 
         return TrainingEvaluationResult(
@@ -1238,6 +1253,9 @@ class AppFacade:
         ).fetchone()
         if row is None:
             return None
+        row_keys = set(row.keys()) if hasattr(row, "keys") else set()
+        fsrs_state = row["fsrs_state_json"] if "fsrs_state_json" in row_keys else ""
+        attempts_count = row["attempts_count"] if "attempts_count" in row_keys else 0
         return TicketMasteryProfile(
             user_id=row["user_id"],
             ticket_id=row["ticket_id"],
@@ -1252,6 +1270,8 @@ class AppFacade:
             confidence_score=float(row["confidence_score"]),
             last_reviewed_at=datetime.fromisoformat(row["last_reviewed_at"]) if row["last_reviewed_at"] else None,
             next_review_at=datetime.fromisoformat(row["next_review_at"]) if row["next_review_at"] else None,
+            fsrs_state_json=str(fsrs_state or ""),
+            attempts_count=int(attempts_count or 0),
         )
 
     def _load_block_profile(self, ticket_id: str) -> TicketBlockMasteryProfile | None:

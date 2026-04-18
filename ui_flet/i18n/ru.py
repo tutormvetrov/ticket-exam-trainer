@@ -43,6 +43,9 @@ TEXT = {
     "tickets.progress.queue":     "Очередь повторений",
     "tickets.progress.ready":     "Готовность билета",
     "tickets.progress.empty":     "Нет запланированных повторений",
+    "tickets.progress.today":      "Сегодня к повторению",
+    "tickets.progress.today.hint": "Билеты, у которых подошло время по FSRS",
+    "tickets.progress.today.clear":"На сегодня всё — возвращайтесь завтра",
     "tickets.pick_mode":          "Режим тренировки",
 
     # Training view
@@ -89,6 +92,7 @@ TEXT = {
     "result.partial":             "частично",
     "result.missing":             "не раскрыто",
     "result.review_fallback":     "Рецензия в упрощённом режиме (Ollama не запущена)",
+    "result.review_fallback_short": "Упрощённая рецензия",
     "result.by_block":            "Оценка по блокам",
     "result.by_criterion":        "Оценка по критериям",
     "result.positions_correct":   "Правильных позиций",
@@ -146,6 +150,12 @@ TEXT = {
     "settings.about":                "О приложении",
     "settings.version":              "Версия",
     "settings.seed":                 "База билетов",
+
+    # Window mode
+    "settings.window":               "Окно",
+    "settings.window.fullscreen":    "Полноэкранный",
+    "settings.window.windowed":      "Оконный",
+    "settings.window.hint":          "Esc выходит в оконный режим. Размеры окна сохраняются.",
 
     # Ollama badge
     "ollama.ok":                     "Ollama OK",

@@ -234,9 +234,26 @@ class OllamaService:
         reference_theses: list[dict[str, str]],
         student_answer: str,
         model: str,
+        *,
+        use_json_format: bool = False,
     ) -> OllamaScenarioResult:
+        """Сгенерировать рецензию ответа студента.
+
+        ``use_json_format=False`` по умолчанию, потому что новый промпт делает
+        single-pass chain-of-thought: модель сначала пишет
+        ``<reasoning>…</reasoning>``, потом уже JSON. ``format=json`` в Ollama
+        вырезает всё, что не JSON, — значит срежет и reasoning, и сам JSON
+        может оказаться обрезанным. Экстрактор ниже умеет вытаскивать JSON из
+        mixed-плейнтекст-ответа.
+        """
         system, prompt = review_prompt(ticket_title, reference_theses, student_answer)
-        response = self.request_generation(model, prompt, system=system, format_name="json", temperature=0.2)
+        response = self.request_generation(
+            model,
+            prompt,
+            system=system,
+            format_name="json" if use_json_format else None,
+            temperature=0.2,
+        )
         if not response.ok:
             return OllamaScenarioResult(False, "", False, response.latency_ms, response.error)
         try:

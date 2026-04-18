@@ -446,9 +446,10 @@ class KnowledgeRepository:
             INSERT INTO ticket_mastery_profiles (
                 user_id, ticket_id, definition_mastery, structure_mastery, examples_mastery,
                 feature_mastery, process_mastery, oral_short_mastery, oral_full_mastery,
-                followup_mastery, confidence_score, last_reviewed_at, next_review_at
+                followup_mastery, confidence_score, last_reviewed_at, next_review_at,
+                fsrs_state_json, attempts_count
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id, ticket_id) DO UPDATE SET
                 definition_mastery = excluded.definition_mastery,
                 structure_mastery = excluded.structure_mastery,
@@ -460,7 +461,9 @@ class KnowledgeRepository:
                 followup_mastery = excluded.followup_mastery,
                 confidence_score = excluded.confidence_score,
                 last_reviewed_at = excluded.last_reviewed_at,
-                next_review_at = excluded.next_review_at
+                next_review_at = excluded.next_review_at,
+                fsrs_state_json = excluded.fsrs_state_json,
+                attempts_count = excluded.attempts_count
             """,
             (
                 profile.user_id,
@@ -476,6 +479,8 @@ class KnowledgeRepository:
                 profile.confidence_score,
                 profile.last_reviewed_at.isoformat() if profile.last_reviewed_at else None,
                 profile.next_review_at.isoformat() if profile.next_review_at else None,
+                profile.fsrs_state_json or "",
+                int(profile.attempts_count or 0),
             ),
         )
         self.connection.commit()

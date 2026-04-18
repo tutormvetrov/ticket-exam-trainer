@@ -426,6 +426,44 @@ def build_tickets_view(state: AppState) -> ft.Control:
             style=text_style("h2", color=pp["text_primary"]),
         )
 
+        # ---- Today dashboard (FSRS retention + due count) ----
+        # Counts queue items whose due_at is today or overdue. `due_at` is a
+        # `datetime` on the domain SpacedReviewItem — items list stays small
+        # (<=12 used in the pane below) but we count the full snapshot here.
+        from datetime import datetime, timedelta
+        today_cutoff = datetime.now() + timedelta(hours=18)
+        due_today = 0
+        for it in queue_items:
+            due = getattr(it, "due_at", None)
+            if due is not None and due <= today_cutoff:
+                due_today += 1
+
+        today_block = ft.Container(
+            padding=SPACE["lg"],
+            bgcolor=pp["accent_soft"] if due_today else pp["bg_surface"],
+            border=ft.border.all(1, pp["accent"] if due_today else pp["border_soft"]),
+            border_radius=RADIUS["md"],
+            content=ft.Column(
+                [
+                    ft.Text(
+                        TEXT["tickets.progress.today"],
+                        style=text_style("caption", color=pp["text_muted"]),
+                    ),
+                    ft.Text(
+                        f"{due_today}",
+                        style=text_style("display", color=pp["accent"] if due_today else pp["text_muted"]),
+                    ),
+                    ft.Text(
+                        TEXT["tickets.progress.today.hint"] if due_today
+                        else TEXT["tickets.progress.today.clear"],
+                        style=text_style("caption", color=pp["text_secondary"]),
+                    ),
+                ],
+                spacing=SPACE["xs"],
+                tight=True,
+            ),
+        )
+
         # Selected ticket readiness (if any)
         readiness_block: ft.Control
         if selected_id["value"]:
@@ -500,7 +538,12 @@ def build_tickets_view(state: AppState) -> ft.Control:
             )
 
         progress_container.content = ft.Column(
-            [header, readiness_block, ft.Column(queue_children, spacing=SPACE["xs"])],
+            [
+                header,
+                today_block,
+                readiness_block,
+                ft.Column(queue_children, spacing=SPACE["xs"]),
+            ],
             spacing=SPACE["lg"],
             scroll=ft.ScrollMode.AUTO,
         )
@@ -647,17 +690,22 @@ def build_tickets_view(state: AppState) -> ft.Control:
             expand=True,
             vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         )
-    # Ultrawide: 3 columns
+    # Wide / ultrawide: 3 columns — detail + progress pane (FSRS queue)
+    # Per 2026-04-19 spec update (Part 3.3), the progress pane moves down
+    # from ultrawide-only to laptop_hd+, which in our current breakpoint map
+    # corresponds to the `wide` bucket (≥1920). On `ultrawide` (≥2560) we
+    # simply grow the pane proportionally.
     else:
         progress_column = ft.Container(
             expand=True,
             content=progress_container,
         )
+        progress_expand = 3 if bp == "ultrawide" else 2
         body = ft.Row(
             [
                 ft.Container(content=left_column, expand=3),
                 ft.Container(content=detail_column, expand=4),
-                ft.Container(content=progress_column, expand=2),
+                ft.Container(content=progress_column, expand=progress_expand),
             ],
             spacing=0,
             expand=True,

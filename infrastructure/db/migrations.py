@@ -17,7 +17,7 @@ import sqlite3
 from collections.abc import Callable
 
 
-SCHEMA_BASELINE_VERSION = 6
+SCHEMA_BASELINE_VERSION = 7
 
 
 class SchemaDowngradeError(RuntimeError):

@@ -55,8 +55,13 @@ def build_settings_view(state: AppState) -> ft.Control:
     badge = OllamaStatusBadge(state, poll_interval_sec=15.0)
     badge_control = badge.build()
 
+    # Mirror state-level probe completions into the badge so the two agree on
+    # connectivity without waiting for the badge's own 15s poll interval.
+    state.on_ollama_change(lambda _online: badge.probe_now())
+
     # ---- section builders ----
     theme_section = _build_theme_section(state, p)
+    window_section = _build_window_section(state, p)
     font_section = _build_font_section(state, p)
     ollama_section = _build_ollama_section(state, p, badge, badge_control)
     about_section = _build_about_section(state, p)
@@ -82,6 +87,7 @@ def build_settings_view(state: AppState) -> ft.Control:
                 ft.Row([back_link]),
                 header,
                 theme_section,
+                window_section,
                 font_section,
                 ollama_section,
                 about_section,
@@ -126,6 +132,66 @@ def _build_theme_section(state: AppState, p: dict[str, str]) -> ft.Control:
         p,
         title=TEXT["settings.theme"],
         children=[segmented],
+    )
+
+
+# ============================================================================
+# Section: Window
+# ============================================================================
+
+def _build_window_section(state: AppState, p: dict[str, str]) -> ft.Control:
+    """Fullscreen ↔ windowed toggle. Mirrors the state that ``main.py`` reads
+    at launch, and applies the change live to the current page so the user
+    sees the result without restarting.
+    """
+    settings = _current_settings(state)
+    current_mode = (settings.window_mode or "fullscreen").lower()
+    if current_mode not in ("fullscreen", "windowed"):
+        current_mode = "fullscreen"
+
+    def _handle_change(event: ft.ControlEvent) -> None:
+        selected = event.control.selected or set()
+        new_mode = next(iter(selected)) if selected else current_mode
+        if new_mode not in ("fullscreen", "windowed"):
+            return
+
+        # Persist first so a crash after ``page.update`` still survives a
+        # restart.
+        _save_settings_patch(state, window_mode=new_mode)
+
+        live_settings = _current_settings(state)
+        width = int(getattr(live_settings, "window_width", 1440) or 1440)
+        height = int(getattr(live_settings, "window_height", 900) or 900)
+
+        if new_mode == "fullscreen":
+            state.page.window.full_screen = True
+        else:
+            state.page.window.full_screen = False
+            state.page.window.width = float(width)
+            state.page.window.height = float(height)
+        try:
+            state.page.update()
+        except Exception:
+            pass
+
+    segmented = ft.SegmentedButton(
+        segments=[
+            ft.Segment(value="fullscreen", label=ft.Text(TEXT["settings.window.fullscreen"])),
+            ft.Segment(value="windowed", label=ft.Text(TEXT["settings.window.windowed"])),
+        ],
+        selected={current_mode},
+        allow_multiple_selection=False,
+        allow_empty_selection=False,
+        on_change=_handle_change,
+    )
+    hint = ft.Text(
+        TEXT["settings.window.hint"],
+        style=text_style("caption", color=p["text_muted"]),
+    )
+    return _section_card(
+        p,
+        title=TEXT["settings.window"],
+        children=[segmented, hint],
     )
 
 

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from application.adaptive_review import AdaptiveReviewService
+from application.adaptive_review import (
+    COLD_START_INTERVALS_DAYS,
+    AdaptiveReviewService,
+)
 from application.import_service import DocumentImportService, TicketCandidate
 from domain.knowledge import ReviewMode, TicketMasteryProfile, WeakArea, WeakAreaKind
 
@@ -38,7 +41,7 @@ def test_weak_ticket_gets_higher_priority_than_strong() -> None:
     assert queue[0].ticket_id == weak.ticket_id
 
 
-def test_exam_crunch_mode_shortens_due_and_boosts_priority() -> None:
+def test_exam_crunch_mode_boosts_priority() -> None:
     ticket = _ticket()
     profile = TicketMasteryProfile(user_id="u", ticket_id=ticket.ticket_id, confidence_score=0.4,
                                    definition_mastery=0.4, oral_short_mastery=0.4, oral_full_mastery=0.4,
@@ -48,7 +51,30 @@ def test_exam_crunch_mode_shortens_due_and_boosts_priority() -> None:
 
     # Приоритет crunch всегда ≥ standard (bonus 0.15).
     assert crunch[0].priority > standard[0].priority
-    # Due sooner in crunch mode.
+
+
+def test_exam_crunch_shortens_due_for_post_coldstart_ticket() -> None:
+    """Для билетов, прошедших cold-start, EXAM_CRUNCH обязан ужимать due.
+
+    Для совсем новой карточки (attempts_count=0) обе ветки дают
+    `now + 1 day` — ступенька cold-start одинакова для любого режима.
+    Поэтому прогрев вручную: карточка уже прошла 3 попытки.
+    """
+    service = AdaptiveReviewService()
+    ticket = _ticket()
+    profile = TicketMasteryProfile(user_id="u", ticket_id=ticket.ticket_id, confidence_score=0.4)
+
+    # Три прогона active-recall, чтобы выйти из cold-start.
+    review_time = NOW
+    for _ in range(3):
+        profile = service.record_attempt(profile, "active-recall", 80, now=review_time)
+        review_time = (profile.next_review_at or review_time) + timedelta(minutes=1)
+
+    # Спрашиваем очередь сразу после последнего review (т.е. до наступления
+    # нового due), чтобы EXAM_CRUNCH имел что ужимать.
+    query_time = profile.last_reviewed_at or review_time
+    standard = service.build_queue("u", [ticket], [profile], [], mode=ReviewMode.STANDARD_ADAPTIVE, now=query_time)
+    crunch = service.build_queue("u", [ticket], [profile], [], mode=ReviewMode.EXAM_CRUNCH, now=query_time)
     assert crunch[0].due_at < standard[0].due_at
 
 
@@ -124,3 +150,23 @@ def test_priority_is_bounded() -> None:
     queue = AdaptiveReviewService().build_queue("u", [ticket], [profile], weak, mode=ReviewMode.EXAM_CRUNCH, now=NOW)
     for item in queue:
         assert 0.1 <= item.priority <= 1.5
+
+
+def test_new_ticket_gets_cold_start_ladder_first_step() -> None:
+    ticket = _ticket()
+    queue = AdaptiveReviewService().build_queue("u", [ticket], [], [], now=NOW)
+    expected = NOW + timedelta(days=COLD_START_INTERVALS_DAYS[0])
+    assert queue[0].due_at == expected
+
+
+def test_partially_trained_ticket_uses_next_ladder_step() -> None:
+    """Профиль с attempts_count=1 → следующий шаг лестницы (3 дня)."""
+    ticket = _ticket()
+    profile = TicketMasteryProfile(
+        user_id="u",
+        ticket_id=ticket.ticket_id,
+        attempts_count=1,
+    )
+    queue = AdaptiveReviewService().build_queue("u", [ticket], [profile], [], now=NOW)
+    expected = NOW + timedelta(days=COLD_START_INTERVALS_DAYS[1])
+    assert queue[0].due_at == expected

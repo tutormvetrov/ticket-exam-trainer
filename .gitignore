@@ -25,3 +25,7 @@ logomark-*.png
 mainwin-*.png
 app-light.png
 app-dark.png
+
+# Source PDFs for seed building — not tracked in repo
+МДЭ_ГА_2024_Кол_Конспект_ГМУ_ГАРФ_18_02_2025_в_2.pdf
+*.source.pdf

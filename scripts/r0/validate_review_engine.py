@@ -58,7 +58,7 @@ def run_one(svc: OllamaService, model: str, ticket: dict, answer: str) -> dict:
             "ok": result.ok,
             "duration_ms": duration_ms,
             "latency_ms": result.latency_ms,
-            "text": result.text or "",
+            "text": result.content or "",
             "error": result.error or "",
         }
     except Exception as e:

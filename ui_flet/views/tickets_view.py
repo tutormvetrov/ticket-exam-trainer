@@ -147,10 +147,13 @@ def build_tickets_view(state: AppState) -> ft.Control:
     selected_id: dict[str, str | None] = {"value": state.selected_ticket_id}
 
     # ---- building blocks ----
-    list_container = ft.Column(
+    # ListView instead of Column(scroll=AUTO) — Column with scroll requires a
+    # bounded parent height, and Flet 0.27 renders it as a grey placeholder
+    # (no children visible) when wrapped in expand-chain containers.
+    list_container = ft.ListView(
         spacing=SPACE["sm"],
-        scroll=ft.ScrollMode.AUTO,
         expand=True,
+        padding=ft.padding.all(0),
     )
     detail_container = ft.Container(expand=True, padding=SPACE["lg"])
     progress_container = ft.Container(expand=True, padding=SPACE["lg"])
@@ -662,7 +665,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
                 ),
                 filters_row,
                 counter_label,
-                ft.Container(content=list_container, expand=True),
+                ft.Container(content=list_container, expand=True, bgcolor=p["bg_base"]),
             ],
             spacing=SPACE["md"],
             expand=True,

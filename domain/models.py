@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 class SectionData:
     title: str
     tickets_count: int
+    section_id: str = ""
+    entry_ticket_id: str = ""
 
 
 @dataclass(slots=True)
@@ -14,6 +16,9 @@ class TicketData:
     number: int
     title: str
     status: str
+    ticket_id: str = ""
+    section_id: str = ""
+    summary: str = ""
 
 
 @dataclass(slots=True)

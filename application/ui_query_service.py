@@ -51,24 +51,51 @@ class UiQueryService:
         documents: list[DocumentData] = []
         for row in rows:
             sections = [
-                SectionData(self._display_section_title(section_row["title"]), int(section_row["tickets_count"]))
+                SectionData(
+                    title=self._display_section_title(section_row["title"]),
+                    tickets_count=int(section_row["tickets_count"]),
+                    section_id=section_row["section_id"],
+                    entry_ticket_id=section_row["entry_ticket_id"] or "",
+                )
                 for section_row in self.connection.execute(
                     """
-                    SELECT sections.title AS title, COUNT(tickets.ticket_id) AS tickets_count
+                    SELECT sections.section_id AS section_id,
+                           sections.title AS title,
+                           COUNT(tickets.ticket_id) AS tickets_count,
+                           (
+                               SELECT nested.ticket_id
+                               FROM tickets AS nested
+                               WHERE nested.section_id = sections.section_id
+                                 AND nested.source_document_id = ?
+                               ORDER BY nested.created_at, nested.ticket_id
+                               LIMIT 1
+                           ) AS entry_ticket_id
                     FROM tickets
                     JOIN sections ON sections.section_id = tickets.section_id
                     WHERE tickets.source_document_id = ?
                     GROUP BY sections.section_id, sections.title
                     ORDER BY sections.order_index
                     """,
-                    (row["document_id"],),
+                    (row["document_id"], row["document_id"]),
                 ).fetchall()
             ]
             tickets = [
-                TicketData(index + 1, self._display_ticket_title(ticket_row["title"]), "готов")
+                TicketData(
+                    number=index + 1,
+                    title=self._display_ticket_title(ticket_row["title"]),
+                    status="готов",
+                    ticket_id=ticket_row["ticket_id"],
+                    section_id=ticket_row["section_id"] or "",
+                    summary=(ticket_row["canonical_answer_summary"] or "").strip(),
+                )
                 for index, ticket_row in enumerate(
                     self.connection.execute(
-                        "SELECT title FROM tickets WHERE source_document_id = ? ORDER BY created_at, ticket_id",
+                        """
+                        SELECT ticket_id, section_id, title, canonical_answer_summary
+                        FROM tickets
+                        WHERE source_document_id = ?
+                        ORDER BY created_at, ticket_id
+                        """,
                         (row["document_id"],),
                     ).fetchall()
                 )
@@ -767,11 +794,11 @@ class UiQueryService:
     @staticmethod
     def _display_status(status: str | None) -> str:
         mapping = {
-            "structured": "Обработан",
-            "imported": "Импортирован",
-            "importing": "Импорт идёт",
-            "partial_llm": "Частично доработан",
-            "failed": "Импорт с ошибкой",
+            "structured": "Готов к тренировке",
+            "imported": "Готов к тренировке",
+            "importing": "Идёт импорт",
+            "partial_llm": "Готов к тренировке",
+            "failed": "Ошибка импорта",
         }
         return mapping.get(status, status or "Неизвестно")
 

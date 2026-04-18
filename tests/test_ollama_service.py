@@ -10,7 +10,7 @@ def test_inspect_uses_installed_qwen_fallback_when_preferred_missing(monkeypatch
     monkeypatch.setattr(
         service.runtime,
         "ensure_server_ready",
-        lambda wait_timeout_seconds=0: OllamaRuntimeStatus(endpoint_ready=True, models_path="D:/OllamaModels"),
+        lambda wait_timeout_seconds=0: OllamaRuntimeStatus(endpoint_ready=True, models_path="D:/Ollama/models"),
     )
     monkeypatch.setattr(
         service.client,

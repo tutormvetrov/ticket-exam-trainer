@@ -335,6 +335,69 @@ def test_legacy_document_without_queue_is_marked_resumable(tmp_path: Path) -> No
     facade.connection.close()
 
 
+def test_extract_ticket_candidates_uses_parenthesized_toc_entries() -> None:
+    service = DocumentImportService()
+    normalized = service.normalize_text(
+        """ОГЛАВЛЕНИЕ
+(1) 1. Государственное устройство Российской Федерации и других государств. ................................ 9
+(2) 2. Выборы в федеральные органы законодательной власти. ................................ 9
+
+9
+1.1. Теоретический блок
+1. Государственное устройство Российской Федерации и других государств. Государственное устройство раскрывает федеративные связи, полномочия органов и принципы публичной власти.
+
+10
+2. Выборы в федеральные органы законодательной власти. Выборы описывают порядок формирования представительных органов, стадии кампании и гарантии волеизъявления.
+"""
+    )
+
+    candidates = service.extract_ticket_candidates(normalized)
+
+    assert len(candidates) == 2
+    assert candidates[0].title == "Государственное устройство Российской Федерации и других государств"
+    assert "федеративные связи" in candidates[0].body
+    assert candidates[1].title == "Выборы в федеральные органы законодательной власти"
+
+
+def test_extract_ticket_candidates_coalesces_wrapped_toc_lines() -> None:
+    service = DocumentImportService()
+    normalized = service.normalize_text(
+        """ОГЛАВЛЕНИЕ
+(1) 1. Системный анализ ................................................................ 27
+(2) 2 Основы моделирования социальных и экономических процессов. Управление
+рисками ................................................................ 27
+(3) 3. Контрактная система в сфере закупок товаров, работ
+и услуг для государственных нужд ........................................ 52
+
+27
+1. Системный анализ. Системный анализ раскрывает структуру объекта управления, связи элементов и критерии оценки решений.
+
+28
+2. Основы моделирования социальных и экономических процессов. Управление рисками. Моделирование помогает оценивать сценарии, ограничения и последствия управленческих решений.
+
+52
+3. Контрактная система в сфере закупок товаров, работ и услуг для государственных нужд. Контрактная система описывает планирование, размещение заказа и контроль исполнения.
+"""
+    )
+
+    candidates = service.extract_ticket_candidates(normalized)
+
+    assert len(candidates) == 3
+    assert candidates[1].title == "Основы моделирования социальных и экономических процессов. Управление рисками"
+    assert "оценивать сценарии" in candidates[1].body
+    assert candidates[2].title == "Контрактная система в сфере закупок товаров, работ и услуг для государственных нужд"
+
+
+def test_recommended_import_part_count_scales_for_large_sets(tmp_path: Path) -> None:
+    facade = _build_facade(tmp_path)
+
+    assert facade._recommended_import_part_count(40) == 1
+    assert facade._recommended_import_part_count(120) == 4
+    assert facade._recommended_import_part_count(160) == 5
+    assert facade._recommended_import_part_count(208) == 6
+    facade.connection.close()
+
+
 def test_import_ollama_timeout_is_unbounded_for_long_import_runs(tmp_path: Path) -> None:
     facade = _build_facade(tmp_path)
 
@@ -349,6 +412,21 @@ def test_import_ollama_timeout_is_unbounded_for_long_import_runs(tmp_path: Path)
     # чтобы зависший LLM-ответ на одном билете не тормозил весь прогон.
     # Inspect-таймаут отдельный и короткий.
     assert service.ollama_service.generation_timeout_seconds == float(facade.settings.timeout_seconds)
+    assert service.ollama_service.inspect_timeout_seconds == 3.0
+    facade.connection.close()
+
+
+def test_seed_build_can_request_unbounded_import_timeout(tmp_path: Path) -> None:
+    facade = _build_facade(tmp_path)
+
+    service = DocumentImportService(
+        ollama_service=facade.build_import_ollama_service(generation_timeout_seconds=None),
+        llm_model=facade.settings.model,
+        enable_llm_structuring=True,
+    )
+
+    assert service.ollama_service is not None
+    assert service.ollama_service.generation_timeout_seconds is None
     assert service.ollama_service.inspect_timeout_seconds == 3.0
     facade.connection.close()
 

@@ -11,7 +11,7 @@ def test_default_models_path_windows(monkeypatch) -> None:
     monkeypatch.setattr(platform_helpers.sys, "platform", "win32")
     monkeypatch.delenv("OLLAMA_MODELS", raising=False)
     monkeypatch.setattr(platform_helpers.Path, "exists", lambda self: str(self).startswith("D:"))
-    assert platform_helpers.default_models_path() == Path(r"D:\OllamaModels")
+    assert platform_helpers.default_models_path() == Path(r"D:\Ollama\models")
 
 
 def test_default_models_path_windows_falls_back_without_drive_d(monkeypatch) -> None:

@@ -131,9 +131,9 @@ class OllamaRuntimeManager:
         desired_path = self.models_path
         if self._path_has_models(desired_path):
             return desired_path
-        legacy_path = self._legacy_models_path()
-        if self._path_has_models(legacy_path):
-            return legacy_path
+        for legacy_path in self._legacy_models_paths():
+            if self._path_has_models(legacy_path):
+                return legacy_path
         if env_path:
             return Path(env_path)
         return desired_path
@@ -161,10 +161,13 @@ class OllamaRuntimeManager:
         )
 
     @staticmethod
-    def _legacy_models_path() -> Path:
+    def _legacy_models_paths() -> list[Path]:
         if is_windows():
-            return Path.home() / ".ollama" / "models"
-        return default_models_path()
+            return [
+                Path.home() / ".ollama" / "models",
+                Path(r"D:\OllamaModels"),
+            ]
+        return [default_models_path()]
 
     @staticmethod
     def _path_has_models(path: Path) -> bool:

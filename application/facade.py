@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 import sqlite3
+from typing import TypeVar
 from uuid import uuid4
 
 from application.adaptive_review import AdaptiveReviewService
@@ -36,6 +38,10 @@ from infrastructure.importers.common import normalize_import_title
 from infrastructure.ollama import OllamaService
 from infrastructure.ollama.dialogue import DialogueTranscriptLine, DialogueTurnContext, DialogueTurnResult
 from infrastructure.ollama.service import OllamaDiagnostics
+
+
+_USE_SETTINGS_TIMEOUT = object()
+_T = TypeVar("_T")
 
 
 @dataclass(slots=True)
@@ -84,13 +90,110 @@ class AppFacade:
             generation_timeout_seconds=resolved_generation,
         )
 
-    def build_import_ollama_service(self) -> OllamaService:
+    def build_import_ollama_service(self, generation_timeout_seconds: float | None | object = _USE_SETTINGS_TIMEOUT) -> OllamaService:
+        resolved_generation = (
+            float(self._settings.timeout_seconds)
+            if generation_timeout_seconds is _USE_SETTINGS_TIMEOUT
+            else generation_timeout_seconds
+        )
         return OllamaService(
             self._settings.base_url,
             models_path=self._settings.models_path,
             inspect_timeout_seconds=3.0,
-            generation_timeout_seconds=float(self._settings.timeout_seconds),
+            generation_timeout_seconds=resolved_generation,
         )
+
+    @staticmethod
+    def _recommended_import_part_count(ticket_total: int) -> int:
+        if ticket_total >= 192:
+            return 6
+        if ticket_total >= 144:
+            return 5
+        if ticket_total >= 96:
+            return 4
+        return 1
+
+    @classmethod
+    def _partition_import_items(cls, items: list[_T]) -> list[list[_T]]:
+        if not items:
+            return []
+        parts = cls._recommended_import_part_count(len(items))
+        if parts <= 1:
+            return [items[:]]
+        batch_size = max(1, (len(items) + parts - 1) // parts)
+        return [items[index:index + batch_size] for index in range(0, len(items), batch_size)]
+
+    @staticmethod
+    def _import_progress_counts(result: ImportExecutionResult) -> tuple[int, int, int, int]:
+        return (
+            result.llm_done_tickets,
+            result.llm_pending_tickets,
+            result.llm_fallback_tickets,
+            result.llm_failed_tickets,
+        )
+
+    def complete_import_with_progress(
+        self,
+        path: str | Path,
+        answer_profile_code: str | AnswerProfileCode = AnswerProfileCode.STANDARD_TICKET,
+        progress_callback=None,
+        *,
+        max_resume_passes: int = 8,
+        generation_timeout_seconds: float | None | object = _USE_SETTINGS_TIMEOUT,
+        parallel_workers: int = 1,
+    ) -> ImportExecutionResult:
+        result = self.import_document_with_progress(
+            path,
+            answer_profile_code=answer_profile_code,
+            progress_callback=progress_callback,
+            generation_timeout_seconds=generation_timeout_seconds,
+        )
+        previous_counts = self._import_progress_counts(result)
+        attempts = 0
+        while result.resume_available and attempts < max(0, max_resume_passes):
+            attempts += 1
+            result = self.resume_document_import_with_progress(
+                result.document_id,
+                progress_callback=progress_callback,
+                generation_timeout_seconds=generation_timeout_seconds,
+                parallel_workers=parallel_workers,
+            )
+            current_counts = self._import_progress_counts(result)
+            if current_counts == previous_counts:
+                break
+            previous_counts = current_counts
+        return result
+
+    def complete_resume_document_import_with_progress(
+        self,
+        document_id: str,
+        progress_callback=None,
+        *,
+        max_resume_passes: int = 8,
+        generation_timeout_seconds: float | None | object = _USE_SETTINGS_TIMEOUT,
+        parallel_workers: int = 1,
+    ) -> ImportExecutionResult:
+        result = self.resume_document_import_with_progress(
+            document_id,
+            progress_callback=progress_callback,
+            generation_timeout_seconds=generation_timeout_seconds,
+            parallel_workers=parallel_workers,
+        )
+        previous_counts = self._import_progress_counts(result)
+        attempts = 1
+        while result.resume_available and attempts < max(1, max_resume_passes):
+            attempts += 1
+            result = self.resume_document_import_with_progress(
+                document_id,
+                progress_callback=progress_callback,
+                generation_timeout_seconds=generation_timeout_seconds,
+                parallel_workers=parallel_workers,
+            )
+            current_counts = self._import_progress_counts(result)
+            if current_counts == previous_counts:
+                break
+            previous_counts = current_counts
+        return result
 
     def inspect_ollama(self) -> OllamaDiagnostics:
         return self.build_ollama_service().inspect(self._settings.model)
@@ -133,6 +236,19 @@ class AppFacade:
 
     def load_documents(self) -> list[DocumentData]:
         return self.queries.load_documents()
+
+    def delete_document(self, document_id: str) -> bool:
+        """Полное удаление импортированного документа.
+
+        Делегирует атомарное удаление репозиторию (FK-каскад + ручная чистка
+        ``weak_areas`` и orphan ``cross_ticket_concepts``) и после успешного
+        удаления перестраивает adaptive queue, чтобы Training/Statistics не
+        ссылались на исчезнувшие билеты.
+        """
+        deleted = self.repository.delete_document(document_id)
+        if deleted:
+            self._refresh_review_queue()
+        return deleted
 
     def load_subjects(self) -> list[SubjectData]:
         return self.queries.load_subjects()
@@ -534,14 +650,26 @@ class AppFacade:
         self.repository.save_review_queue("local-user", queue)
         return self.queries.load_training_snapshot(limit=self._settings.training_queue_size, tickets=loaded_tickets)
 
-    def import_document(self, path: str | Path, answer_profile_code: str | AnswerProfileCode = AnswerProfileCode.STANDARD_TICKET) -> ImportExecutionResult:
-        return self.import_document_with_progress(path, answer_profile_code=answer_profile_code)
+    def import_document(
+        self,
+        path: str | Path,
+        answer_profile_code: str | AnswerProfileCode = AnswerProfileCode.STANDARD_TICKET,
+        *,
+        generation_timeout_seconds: float | None | object = _USE_SETTINGS_TIMEOUT,
+    ) -> ImportExecutionResult:
+        return self.import_document_with_progress(
+            path,
+            answer_profile_code=answer_profile_code,
+            generation_timeout_seconds=generation_timeout_seconds,
+        )
 
     def import_document_with_progress(
         self,
         path: str | Path,
         answer_profile_code: str | AnswerProfileCode = AnswerProfileCode.STANDARD_TICKET,
         progress_callback=None,
+        *,
+        generation_timeout_seconds: float | None | object = _USE_SETTINGS_TIMEOUT,
     ) -> ImportExecutionResult:
         document_path = Path(path)
         stem_title = normalize_import_title(document_path.stem)
@@ -574,10 +702,14 @@ class AppFacade:
             return ImportExecutionResult(False, error=str(exc))
 
         queue_items = service.create_import_queue_items(prepared.candidates, prepared.source_document.document_id, "imported-section")
+        candidate_batches = self._partition_import_items(prepared.candidates)
+        queue_batches = self._partition_import_items(queue_items)
+        part_total = max(len(candidate_batches), 1)
         unique_sections = self._build_sections_from_queue(exam.exam_id, queue_items)
         exam.total_tickets = len(queue_items)
 
         if progress_callback is not None:
+            progress_callback(29, "План обработки", f"Найдено билетов: {len(queue_items)} • частей: {part_total}")
             progress_callback(30, "Сохранение каркаса импорта", "Фиксируем документ, фрагменты и очередь билетов в SQLite")
         # Скелет импорта — одна транзакция: иначе крах между save_exam и
         # save_import_queue оставит БД в рассинхронизированном состоянии
@@ -605,63 +737,68 @@ class AppFacade:
         total_candidates = max(1, len(prepared.candidates))
         build_start = 34
         build_end = 78
-        for index, candidate in enumerate(prepared.candidates, start=1):
-            queue_item = queue_items[index - 1]
-            detail = f"Билет {index} из {total_candidates}: {candidate.title[:72]}"
-            self.repository.update_document_import_state(
-                prepared.source_document.document_id,
-                status="importing",
-                last_attempted_at=datetime.now().isoformat(),
-            )
-            if progress_callback is not None:
-                progress_callback(
-                    self._loop_progress(build_start, build_end, index - 1, total_candidates),
-                    "Построение карты билета",
-                    detail,
+        processed_candidates = 0
+        for part_index, (candidate_batch, queue_batch) in enumerate(zip(candidate_batches, queue_batches, strict=True), start=1):
+            for candidate, queue_item in zip(candidate_batch, queue_batch, strict=True):
+                processed_candidates += 1
+                detail = (
+                    f"Часть {part_index}/{part_total} • билет {processed_candidates} из {total_candidates}: "
+                    f"{candidate.title[:72]}"
                 )
-            try:
-                ticket, used_llm, llm_warning = service.build_ticket_map(
-                    candidate,
-                    exam.exam_id,
-                    queue_item.section_id,
+                self.repository.update_document_import_state(
                     prepared.source_document.document_id,
-                    ticket_id=queue_item.ticket_id,
-                    answer_profile_code=prepared.source_document.answer_profile_code,
+                    status="importing",
+                    last_attempted_at=datetime.now().isoformat(),
                 )
-                needs_llm_refinement = llm_refinement_enabled and service.needs_llm_refinement(candidate, ticket)
-                queue_status = "pending" if needs_llm_refinement else ("fallback" if llm_warning else "done")
-                self.repository.save_ticket_map(
-                    ticket,
-                    llm_status=queue_status,
-                    llm_error=llm_warning,
-                )
-                self.repository.save_exercise_instances(service.generate_exercise_instances(ticket))
-                self.repository.update_import_queue_item(
-                    queue_item.ticket_id,
-                    llm_status=queue_status,
-                    llm_error=llm_warning,
-                    llm_attempted=used_llm,
-                    used_llm=used_llm,
-                )
-                if llm_warning:
-                    warnings.append(f"{ticket.title}: {llm_warning}")
-                used_llm_assist = used_llm_assist or used_llm
-            except Exception as exc:  # noqa: BLE001
-                error_text = str(exc)
-                warnings.append(f"{candidate.title}: {error_text}")
-                self.repository.update_import_queue_item(
-                    queue_item.ticket_id,
-                    llm_status="failed",
-                    llm_error=error_text,
-                    llm_attempted=True,
-                    used_llm=False,
-                )
-            if progress_callback is not None:
-                progress_callback(
-                    self._loop_progress(build_start, build_end, index, total_candidates),
-                    "Построение карты билета",
-                    detail,
-                )
+                if progress_callback is not None:
+                    progress_callback(
+                        self._loop_progress(build_start, build_end, processed_candidates - 1, total_candidates),
+                        "Построение карты билета",
+                        detail,
+                    )
+                try:
+                    ticket, used_llm, llm_warning = service.build_ticket_map(
+                        candidate,
+                        exam.exam_id,
+                        queue_item.section_id,
+                        prepared.source_document.document_id,
+                        ticket_id=queue_item.ticket_id,
+                        answer_profile_code=prepared.source_document.answer_profile_code,
+                    )
+                    needs_llm_refinement = llm_refinement_enabled and service.needs_llm_refinement(candidate, ticket)
+                    queue_status = "pending" if needs_llm_refinement else ("fallback" if llm_warning else "done")
+                    self.repository.save_ticket_map(
+                        ticket,
+                        llm_status=queue_status,
+                        llm_error=llm_warning,
+                    )
+                    self.repository.save_exercise_instances(service.generate_exercise_instances(ticket))
+                    self.repository.update_import_queue_item(
+                        queue_item.ticket_id,
+                        llm_status=queue_status,
+                        llm_error=llm_warning,
+                        llm_attempted=used_llm,
+                        used_llm=used_llm,
+                    )
+                    if llm_warning:
+                        warnings.append(f"{ticket.title}: {llm_warning}")
+                    used_llm_assist = used_llm_assist or used_llm
+                except Exception as exc:  # noqa: BLE001
+                    error_text = str(exc)
+                    warnings.append(f"{candidate.title}: {error_text}")
+                    self.repository.update_import_queue_item(
+                        queue_item.ticket_id,
+                        llm_status="failed",
+                        llm_error=error_text,
+                        llm_attempted=True,
+                        used_llm=False,
+                    )
+                if progress_callback is not None:
+                    progress_callback(
+                        self._loop_progress(build_start, build_end, processed_candidates, total_candidates),
+                        "Построение карты билета",
+                        detail,
+                    )
 
         if progress_callback is not None:
             progress_callback(82, "Связи между билетами", "Строим cross-ticket concepts и перекрёстные ссылки")
@@ -684,16 +821,18 @@ class AppFacade:
             )
         return final_result
 
-    def resume_document_import_with_progress(self, document_id: str, progress_callback=None) -> ImportExecutionResult:
+    def resume_document_import_with_progress(
+        self,
+        document_id: str,
+        progress_callback=None,
+        *,
+        generation_timeout_seconds: float | None | object = _USE_SETTINGS_TIMEOUT,
+        parallel_workers: int = 1,
+    ) -> ImportExecutionResult:
         source_row = self.repository.load_source_document_row(document_id)
         if source_row is None:
             return ImportExecutionResult(False, error="Документ для локальной доработки не найден.")
 
-        service = DocumentImportService(
-            ollama_service=self.build_import_ollama_service(),
-            llm_model=self._settings.model,
-            enable_llm_structuring=True,
-        )
         queue_rows = self.repository.load_import_queue(document_id, statuses=("pending", "fallback", "failed"))
         if not queue_rows:
             self._backfill_legacy_import_queue(document_id)
@@ -709,77 +848,67 @@ class AppFacade:
         warnings = self._load_document_warnings(document_id)
         used_llm_assist = bool(source_row["used_llm_assist"])
         total_rows = max(1, len(queue_rows))
+        row_batches = self._partition_import_items(queue_rows)
+        part_total = max(len(row_batches), 1)
         resume_start = 38
         resume_end = 88
+        workers = max(1, int(parallel_workers))
         self.repository.update_document_import_state(
             document_id,
             status="importing",
             last_attempted_at=datetime.now().isoformat(),
             last_error="",
         )
-        for index, row in enumerate(queue_rows, start=1):
-            detail = f"Билет {row['ticket_index']} из {int(source_row['ticket_total'] or total_rows)}: {row['title'][:72]}"
-            if progress_callback is not None:
-                progress_callback(
-                    self._loop_progress(resume_start, resume_end, index - 1, total_rows),
-                    "Локальная доработка хвоста",
-                    detail,
-                )
-            try:
-                source_text = row["body_text"] or self._reconstruct_ticket_source_text(row["ticket_id"])
-                try:
-                    existing_ticket = self.queries.load_ticket_map(row["ticket_id"])
-                except KeyError:
-                    candidate = TicketCandidate(
-                        index=int(row["ticket_index"] or index),
-                        title=row["title"],
-                        body=source_text,
-                        confidence=float(row["candidate_confidence"] or 0.5),
-                        section_title=row["section_id"],
-                    )
-                    updated_ticket, used_llm, llm_warning = service.build_ticket_map(
-                        candidate,
-                        source_row["exam_id"],
-                        row["section_id"],
-                        document_id,
-                        ticket_id=row["ticket_id"],
-                        answer_profile_code=self._normalize_answer_profile_code(source_row["answer_profile_code"]),
-                    )
-                else:
-                    updated_ticket, used_llm, llm_warning = service.rebuild_ticket_map(existing_ticket, source_text, force_llm=True)
-                self.repository.save_ticket_map(
-                    updated_ticket,
-                    llm_status="fallback" if llm_warning else "done",
-                    llm_error=llm_warning,
-                )
-                self.repository.save_exercise_instances(service.generate_exercise_instances(updated_ticket))
-                self.repository.update_import_queue_item(
-                    row["ticket_id"],
-                    llm_status="fallback" if llm_warning else "done",
-                    llm_error=llm_warning,
-                    llm_attempted=True,
-                    used_llm=used_llm,
-                )
-                warnings = self._replace_warning(warnings, updated_ticket.title, llm_warning)
-                used_llm_assist = used_llm_assist or used_llm
-            except Exception as exc:  # noqa: BLE001
-                error_text = str(exc)
-                warnings = self._replace_warning(warnings, row["title"], error_text)
-                self.repository.update_import_queue_item(
-                    row["ticket_id"],
-                    llm_status="failed",
-                    llm_error=error_text,
-                    llm_attempted=True,
-                    used_llm=False,
-                )
-            if progress_callback is not None:
-                progress_callback(
-                    self._loop_progress(resume_start, resume_end, index, total_rows),
-                    "Локальная доработка хвоста",
-                    detail,
-                )
+        processed_rows = 0
+        service: DocumentImportService | None = None
+        shared_ollama = self.build_import_ollama_service(generation_timeout_seconds=generation_timeout_seconds)
 
-        self._refresh_document_cross_links(document_id, service)
+        def _service_factory() -> DocumentImportService:
+            return DocumentImportService(
+                ollama_service=shared_ollama,
+                llm_model=self._settings.model,
+                enable_llm_structuring=True,
+            )
+
+        for part_index, batch_rows in enumerate(row_batches, start=1):
+            service = _service_factory()
+            if workers > 1 and len(batch_rows) > 1:
+                processed_rows, warnings, used_llm_assist = self._resume_batch_parallel(
+                    service_factory=_service_factory,
+                    batch_rows=batch_rows,
+                    source_row=source_row,
+                    document_id=document_id,
+                    warnings=warnings,
+                    used_llm_assist=used_llm_assist,
+                    processed_rows=processed_rows,
+                    total_rows=total_rows,
+                    part_index=part_index,
+                    part_total=part_total,
+                    resume_start=resume_start,
+                    resume_end=resume_end,
+                    progress_callback=progress_callback,
+                    workers=workers,
+                )
+            else:
+                for row in batch_rows:
+                    processed_rows, warnings, used_llm_assist = self._resume_one_row_sequential(
+                        service=service,
+                        row=row,
+                        source_row=source_row,
+                        document_id=document_id,
+                        warnings=warnings,
+                        used_llm_assist=used_llm_assist,
+                        processed_rows=processed_rows,
+                        total_rows=total_rows,
+                        part_index=part_index,
+                        part_total=part_total,
+                        resume_start=resume_start,
+                        resume_end=resume_end,
+                        progress_callback=progress_callback,
+                    )
+
+        if service is not None:
+            self._refresh_document_cross_links(document_id, service)
         result = self._finalize_import_document(document_id, source_row["title"], warnings, used_llm_assist)
         if progress_callback is not None:
             progress_callback(96, "Обновление очереди", "Перестраиваем adaptive queue и статистику")
@@ -791,6 +920,229 @@ class AppFacade:
                 "Результат сохранён в SQLite и отражён в интерфейсе.",
             )
         return result
+
+    def _prepare_resume_row(self, row, source_row, document_id: str, fallback_index: int):
+        """Подгружает всё, что нужно для LLM-обработки билета, из SQLite.
+        Выполняется строго в главном потоке, чтобы не трогать sqlite из воркеров."""
+        source_text = row["body_text"] or self._reconstruct_ticket_source_text(row["ticket_id"])
+        try:
+            existing_ticket = self.queries.load_ticket_map(row["ticket_id"])
+        except KeyError:
+            existing_ticket = None
+        candidate: TicketCandidate | None = None
+        if existing_ticket is None:
+            candidate = TicketCandidate(
+                index=int(row["ticket_index"] or fallback_index),
+                title=row["title"],
+                body=source_text,
+                confidence=float(row["candidate_confidence"] or 0.5),
+                section_title=row["section_id"],
+            )
+        return {
+            "row": row,
+            "source_text": source_text,
+            "existing_ticket": existing_ticket,
+            "candidate": candidate,
+            "answer_profile_code": self._normalize_answer_profile_code(source_row["answer_profile_code"]),
+            "exam_id": source_row["exam_id"],
+        }
+
+    @staticmethod
+    def _call_llm_for_resume_row(service: DocumentImportService, prep: dict, document_id: str):
+        """Только LLM-вызовы и генерация упражнений в памяти — никаких обращений к БД.
+        Возвращает готовые объекты; главный поток потом сам всё сохранит."""
+        if prep["existing_ticket"] is None:
+            updated_ticket, used_llm, llm_warning = service.build_ticket_map(
+                prep["candidate"],
+                prep["exam_id"],
+                prep["row"]["section_id"],
+                document_id,
+                ticket_id=prep["row"]["ticket_id"],
+                answer_profile_code=prep["answer_profile_code"],
+            )
+        else:
+            updated_ticket, used_llm, llm_warning = service.rebuild_ticket_map(
+                prep["existing_ticket"], prep["source_text"], force_llm=True
+            )
+        exercise_instances = service.generate_exercise_instances(updated_ticket)
+        return updated_ticket, used_llm, llm_warning, exercise_instances
+
+    def _resume_persist_success(
+        self,
+        row,
+        updated_ticket,
+        used_llm: bool,
+        llm_warning: str,
+        exercise_instances: list,
+        warnings: list[str],
+    ) -> tuple[list[str], bool]:
+        status = "fallback" if llm_warning else "done"
+        self.repository.save_ticket_map(updated_ticket, llm_status=status, llm_error=llm_warning)
+        self.repository.save_exercise_instances(exercise_instances)
+        self.repository.update_import_queue_item(
+            row["ticket_id"],
+            llm_status=status,
+            llm_error=llm_warning,
+            llm_attempted=True,
+            used_llm=used_llm,
+        )
+        return self._replace_warning(warnings, updated_ticket.title, llm_warning), used_llm
+
+    def _resume_persist_failure(self, row, error_text: str, warnings: list[str]) -> list[str]:
+        self.repository.update_import_queue_item(
+            row["ticket_id"],
+            llm_status="failed",
+            llm_error=error_text,
+            llm_attempted=True,
+            used_llm=False,
+        )
+        return self._replace_warning(warnings, row["title"], error_text)
+
+    def _resume_one_row_sequential(
+        self,
+        *,
+        service: DocumentImportService,
+        row,
+        source_row,
+        document_id: str,
+        warnings: list[str],
+        used_llm_assist: bool,
+        processed_rows: int,
+        total_rows: int,
+        part_index: int,
+        part_total: int,
+        resume_start: int,
+        resume_end: int,
+        progress_callback,
+    ) -> tuple[int, list[str], bool]:
+        processed_rows += 1
+        detail = (
+            f"Часть {part_index}/{part_total} • билет {row['ticket_index']} "
+            f"из {int(source_row['ticket_total'] or total_rows)}: {row['title'][:72]}"
+        )
+        if progress_callback is not None:
+            progress_callback(
+                self._loop_progress(resume_start, resume_end, processed_rows - 1, total_rows),
+                "Локальная доработка хвоста",
+                detail,
+            )
+        try:
+            prep = self._prepare_resume_row(row, source_row, document_id, fallback_index=processed_rows)
+            updated_ticket, used_llm, llm_warning, exercise_instances = self._call_llm_for_resume_row(
+                service, prep, document_id
+            )
+            warnings, llm_flag = self._resume_persist_success(
+                row, updated_ticket, used_llm, llm_warning, exercise_instances, warnings
+            )
+            used_llm_assist = used_llm_assist or llm_flag
+        except Exception as exc:  # noqa: BLE001
+            warnings = self._resume_persist_failure(row, str(exc), warnings)
+        if progress_callback is not None:
+            progress_callback(
+                self._loop_progress(resume_start, resume_end, processed_rows, total_rows),
+                "Локальная доработка хвоста",
+                detail,
+            )
+        return processed_rows, warnings, used_llm_assist
+
+    def _resume_batch_parallel(
+        self,
+        *,
+        service_factory,
+        batch_rows: list,
+        source_row,
+        document_id: str,
+        warnings: list[str],
+        used_llm_assist: bool,
+        processed_rows: int,
+        total_rows: int,
+        part_index: int,
+        part_total: int,
+        resume_start: int,
+        resume_end: int,
+        progress_callback,
+        workers: int,
+    ) -> tuple[int, list[str], bool]:
+        """Параллельный прогон LLM-refinement для батча билетов.
+
+        Главный поток: pre-load из БД → dispatch в пул → собираем futures → save в БД.
+        Воркеры: только LLM-вызовы (thread-safe requests к Ollama) + экземпляры
+        упражнений в памяти (чистые объекты, без БД).
+
+        Каждый воркер получает свой `DocumentImportService` через `service_factory`
+        (thread-local), чтобы избежать race-условия на мутациях
+        ``enable_llm_structuring`` внутри ``rebuild_ticket_map``.
+        """
+        import threading as _threading
+
+        # Pre-load всех prep-объектов одной серией (всё в main thread).
+        preps_by_ticket: dict[str, dict] = {}
+        for local_index, row in enumerate(batch_rows, start=1):
+            preps_by_ticket[row["ticket_id"]] = self._prepare_resume_row(
+                row, source_row, document_id, fallback_index=processed_rows + local_index
+            )
+
+        thread_local = _threading.local()
+
+        def _worker(ticket_id: str):
+            prep = preps_by_ticket[ticket_id]
+            service = getattr(thread_local, "service", None)
+            if service is None:
+                service = service_factory()
+                thread_local.service = service
+            try:
+                updated_ticket, used_llm, llm_warning, exercise_instances = self._call_llm_for_resume_row(
+                    service, prep, document_id
+                )
+                return (ticket_id, True, updated_ticket, used_llm, llm_warning, exercise_instances, "")
+            except Exception as exc:  # noqa: BLE001
+                return (ticket_id, False, None, False, "", [], str(exc))
+
+        # На каждый билет — по одному progress-callback'у (в момент запуска в пул),
+        # иначе цифры прыгают непредсказуемо при `as_completed`.
+        for local_index, row in enumerate(batch_rows, start=1):
+            if progress_callback is not None:
+                pending_index = processed_rows + local_index
+                detail = (
+                    f"Часть {part_index}/{part_total} • билет {row['ticket_index']} "
+                    f"из {int(source_row['ticket_total'] or total_rows)}: {row['title'][:72]} [parallel]"
+                )
+                progress_callback(
+                    self._loop_progress(resume_start, resume_end, pending_index - 1, total_rows),
+                    "Локальная доработка хвоста",
+                    detail,
+                )
+
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="tezis-resume") as pool:
+            futures: list[Future] = [pool.submit(_worker, row["ticket_id"]) for row in batch_rows]
+            completed_in_batch = 0
+            for future in as_completed(futures):
+                ticket_id, ok, updated_ticket, used_llm, llm_warning, exercise_instances, error_text = future.result()
+                prep = preps_by_ticket[ticket_id]
+                row = prep["row"]
+                if ok:
+                    warnings, llm_flag = self._resume_persist_success(
+                        row, updated_ticket, used_llm, llm_warning, exercise_instances, warnings
+                    )
+                    used_llm_assist = used_llm_assist or llm_flag
+                else:
+                    warnings = self._resume_persist_failure(row, error_text, warnings)
+
+                completed_in_batch += 1
+                if progress_callback is not None:
+                    completed_index = processed_rows + completed_in_batch
+                    detail = (
+                        f"Часть {part_index}/{part_total} • готов {completed_index} "
+                        f"из {int(source_row['ticket_total'] or total_rows)} [parallel]"
+                    )
+                    progress_callback(
+                        self._loop_progress(resume_start, resume_end, completed_index, total_rows),
+                        "Локальная доработка хвоста",
+                        detail,
+                    )
+
+        processed_rows += len(batch_rows)
+        return processed_rows, warnings, used_llm_assist
 
     def evaluate_answer(
         self,

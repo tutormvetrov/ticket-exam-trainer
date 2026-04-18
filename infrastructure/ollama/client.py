@@ -9,6 +9,7 @@ import requests
 
 DEFAULT_INSPECT_TIMEOUT_SECONDS = 3.0
 DEFAULT_GENERATION_TIMEOUT_SECONDS = 60.0
+_UNSET_TIMEOUT = object()
 
 
 @dataclass(slots=True)
@@ -40,10 +41,10 @@ class OllamaClient:
         timeout_seconds: float | None = None,
         *,
         inspect_timeout_seconds: float | None = None,
-        generation_timeout_seconds: float | None = None,
+        generation_timeout_seconds: float | None | object = _UNSET_TIMEOUT,
     ) -> None:
         self.base_url = base_url.rstrip("/")
-        if generation_timeout_seconds is None:
+        if generation_timeout_seconds is _UNSET_TIMEOUT:
             generation_timeout_seconds = (
                 timeout_seconds if timeout_seconds is not None else DEFAULT_GENERATION_TIMEOUT_SECONDS
             )

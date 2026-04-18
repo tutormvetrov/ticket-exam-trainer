@@ -570,6 +570,75 @@ class KnowledgeRepository:
         row = self.connection.execute(f"SELECT COUNT(*) AS total FROM {table_name}").fetchone()
         return int(row["total"])
 
+    def delete_document(self, document_id: str) -> bool:
+        """Удаляет документ и все привязанные к нему данные.
+
+        Схема опирается на ``ON DELETE CASCADE``: удаление из ``source_documents``
+        каскадом чистит ``content_chunks``, ``tickets`` и ``import_ticket_queue``,
+        а удаление билетов, в свою очередь, — все ticket-child таблицы
+        (``atoms``, ``skills``, ``exercise_templates``, ``attempts``,
+        ``dialogue_sessions`` → ``dialogue_turns``, ``ticket_answer_blocks``,
+        ``ticket_mastery_profiles`` и т.п.).
+
+        Таблицы без FK на удаляемые строки чистим явно:
+        - ``weak_areas`` (``reference_id`` может указывать на удалённый
+          ticket/atom/skill),
+        - ``cross_ticket_concepts`` (концепты становятся orphan'ами,
+          когда связь через ``ticket_concepts`` каскадно удалена).
+
+        Возвращает True, если документ существовал и был удалён.
+        """
+        from infrastructure.db.transaction import atomic
+
+        with atomic(self.connection):
+            ticket_rows = self.connection.execute(
+                "SELECT ticket_id FROM tickets WHERE source_document_id = ?",
+                (document_id,),
+            ).fetchall()
+            ticket_ids = [row["ticket_id"] for row in ticket_rows]
+
+            atom_ids: list[str] = []
+            skill_ids: list[str] = []
+            if ticket_ids:
+                placeholders = ",".join("?" * len(ticket_ids))
+                atom_ids = [
+                    row["atom_id"]
+                    for row in self.connection.execute(
+                        f"SELECT atom_id FROM atoms WHERE ticket_id IN ({placeholders})",
+                        ticket_ids,
+                    ).fetchall()
+                ]
+                skill_ids = [
+                    row["skill_id"]
+                    for row in self.connection.execute(
+                        f"SELECT skill_id FROM skills WHERE ticket_id IN ({placeholders})",
+                        ticket_ids,
+                    ).fetchall()
+                ]
+
+            cursor = self.connection.execute(
+                "DELETE FROM source_documents WHERE document_id = ?",
+                (document_id,),
+            )
+            if cursor.rowcount == 0:
+                return False
+
+            affected_ids = ticket_ids + atom_ids + skill_ids
+            if affected_ids:
+                placeholders = ",".join("?" * len(affected_ids))
+                self.connection.execute(
+                    f"DELETE FROM weak_areas WHERE reference_id IN ({placeholders})",
+                    affected_ids,
+                )
+
+            self.connection.execute(
+                """
+                DELETE FROM cross_ticket_concepts
+                WHERE concept_id NOT IN (SELECT DISTINCT concept_id FROM ticket_concepts)
+                """
+            )
+        return True
+
     def _clear_ticket_children(self, ticket_id: str) -> None:
         for table_name in [
             "atoms",

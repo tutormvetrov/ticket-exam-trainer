@@ -1,7 +1,8 @@
 param(
     [string]$ReleaseDir = "",
     [switch]$Rebuild,
-    [string]$PythonExe = "python"
+    [string]$PythonExe = "python",
+    [string]$SeedDatabasePath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,13 +13,26 @@ if (-not $ReleaseDir) {
 }
 
 if ($Rebuild) {
-    & powershell -ExecutionPolicy Bypass -File (Join-Path $root "scripts\build_exe.ps1") -PythonExe $PythonExe
+    if ($SeedDatabasePath) {
+        & powershell -ExecutionPolicy Bypass -File (Join-Path $root "scripts\build_exe.ps1") -PythonExe $PythonExe -SeedDatabasePath $SeedDatabasePath
+    } else {
+        & powershell -ExecutionPolicy Bypass -File (Join-Path $root "scripts\build_exe.ps1") -PythonExe $PythonExe
+    }
 }
 
 $releaseExe = Join-Path $ReleaseDir "Tezis.exe"
 $screenshotPath = Join-Path $ReleaseDir "release-smoke.png"
 $buildInfoPath = Join-Path $ReleaseDir "build_info.json"
 $packagedDbPath = Join-Path $ReleaseDir "exam_trainer.db"
+$smokeWorkspace = Join-Path $ReleaseDir "release-smoke-workspace"
+$resolvedSeedDbPath = ""
+
+if ($SeedDatabasePath) {
+    $resolvedSeedDbPath = (
+        & $PythonExe -c "from app.release_seed import resolve_seed_database; import sys; resolved = resolve_seed_database(sys.argv[1]); print(resolved if resolved is not None else '')" $SeedDatabasePath |
+            Select-Object -First 1
+    ).Trim()
+}
 
 if (-not (Test-Path -LiteralPath $releaseExe)) {
     throw "Release executable not found: $releaseExe"
@@ -27,12 +41,22 @@ if (-not (Test-Path -LiteralPath $releaseExe)) {
 if (Test-Path -LiteralPath $screenshotPath) {
     Remove-Item -LiteralPath $screenshotPath -Force
 }
+if (Test-Path -LiteralPath $smokeWorkspace) {
+    Remove-Item -LiteralPath $smokeWorkspace -Recurse -Force
+}
+New-Item -ItemType Directory -Force -Path $smokeWorkspace | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $smokeWorkspace "app_data") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $smokeWorkspace "backups") | Out-Null
+if (Test-Path -LiteralPath $packagedDbPath) {
+    Copy-Item -LiteralPath $packagedDbPath -Destination (Join-Path $smokeWorkspace "exam_trainer.db") -Force
+}
 
 Write-Host "Running packaged smoke: $releaseExe"
 $startInfo = New-Object System.Diagnostics.ProcessStartInfo
 $startInfo.FileName = $releaseExe
 $startInfo.UseShellExecute = $false
 $startInfo.EnvironmentVariables["TEZIS_DISABLE_SPLASH"] = "1"
+$startInfo.EnvironmentVariables["TEZIS_WORKSPACE_ROOT"] = $smokeWorkspace
 $process = [System.Diagnostics.Process]::Start($startInfo)
 try {
     $windowReady = $false
@@ -114,8 +138,17 @@ if (-not (Test-Path -LiteralPath $screenshotPath)) {
 if (-not (Test-Path -LiteralPath $buildInfoPath)) {
     throw "Packaged build info is missing: $buildInfoPath"
 }
-if (Test-Path -LiteralPath $packagedDbPath) {
-    throw "Release must not bundle a live workspace database by default: $packagedDbPath"
+if ($resolvedSeedDbPath) {
+    if (-not (Test-Path -LiteralPath $packagedDbPath)) {
+        throw "Seeded release is missing packaged database: $packagedDbPath"
+    }
+    $sourceSeedHash = (Get-FileHash -LiteralPath $resolvedSeedDbPath -Algorithm SHA256).Hash
+    $packagedSeedHash = (Get-FileHash -LiteralPath $packagedDbPath -Algorithm SHA256).Hash
+    if ($sourceSeedHash -ne $packagedSeedHash) {
+        throw "Packaged seed database is out of sync with repo-tracked demo seed."
+    }
+} elseif (Test-Path -LiteralPath $packagedDbPath) {
+    throw "Release must not bundle a workspace database when no explicit seed is configured: $packagedDbPath"
 }
 
 $checks = @(

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
+import json
 import os
+from pathlib import Path
 import sys
 import time
 
@@ -50,8 +53,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int)
     parser.add_argument(
         "--view",
-        choices=["library", "subjects", "sections", "tickets", "import", "training", "dialogue", "statistics", "defense", "settings"],
+        choices=[
+            "library",
+            "subjects",
+            "sections",
+            "tickets",
+            "import",
+            "training",
+            "dialogue",
+            "statistics",
+            "defense",
+            "settings",
+        ],
     )
+    parser.add_argument("--import-worker", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--workspace-root", help=argparse.SUPPRESS)
+    parser.add_argument("--document-path", help=argparse.SUPPRESS)
+    parser.add_argument("--answer-profile-code", default="standard_ticket", help=argparse.SUPPRESS)
+    parser.add_argument("--resume-document-id", help=argparse.SUPPRESS)
+    parser.add_argument("--max-resume-passes", type=int, default=8, help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
@@ -67,8 +87,51 @@ def _should_show_splash(*, screenshot_mode: bool) -> bool:
     return True
 
 
+def _emit_worker_event(event: str, **payload: object) -> None:
+    print(json.dumps({"event": event, **payload}, ensure_ascii=False), flush=True)
+
+
+def _run_import_worker(args: argparse.Namespace) -> int:
+    workspace_root = Path(args.workspace_root).expanduser().resolve() if args.workspace_root else get_workspace_root()
+    database_path = get_database_path(workspace_root)
+    connection = connect_initialized(database_path)
+    settings_store = SettingsStore(workspace_root / "app_data" / "settings.json")
+    facade = AppFacade(workspace_root, connection, settings_store)
+
+    def _report_progress(percent: int, stage: str, detail: str = "") -> None:
+        _emit_worker_event("progress", percent=int(percent), stage=stage, detail=detail)
+
+    try:
+        if args.resume_document_id:
+            result = facade.complete_resume_document_import_with_progress(
+                args.resume_document_id,
+                progress_callback=_report_progress,
+                max_resume_passes=max(1, int(args.max_resume_passes or 1)),
+                generation_timeout_seconds=None,
+            )
+        else:
+            if not args.document_path:
+                raise RuntimeError("Document path is required for import worker mode.")
+            result = facade.complete_import_with_progress(
+                Path(args.document_path),
+                answer_profile_code=args.answer_profile_code or "standard_ticket",
+                progress_callback=_report_progress,
+                max_resume_passes=max(0, int(args.max_resume_passes or 0)),
+                generation_timeout_seconds=None,
+            )
+        _emit_worker_event("result", payload=asdict(result))
+        return 0 if result.ok else 1
+    except Exception as exc:  # noqa: BLE001
+        _emit_worker_event("error", message=str(exc))
+        return 1
+    finally:
+        connection.close()
+
+
 def run() -> int:
     args = parse_args()
+    if args.import_worker:
+        return _run_import_worker(args)
     workspace_root = get_workspace_root()
     database_path = get_database_path(workspace_root)
     connection = connect_initialized(database_path)
@@ -124,21 +187,27 @@ def run() -> int:
         QTimer.singleShot(900, loop.quit)
         loop.exec()
         app.processEvents()
-        frame = window.frameGeometry()
-        left = max(0, frame.left())
-        top = max(0, frame.top())
-        right = left + max(1, frame.width())
-        bottom = top + max(1, frame.height())
-        try:
-            from PIL import ImageGrab
+        # Grab the rendered widget directly — работает и в offscreen-режиме, и на
+        # настоящем экране, и не рискует захватить чужое окно поверх приложения.
+        pixmap = window.grab()
+        if pixmap.isNull():
+            frame = window.frameGeometry()
+            left = max(0, frame.left())
+            top = max(0, frame.top())
+            right = left + max(1, frame.width())
+            bottom = top + max(1, frame.height())
+            try:
+                from PIL import ImageGrab
 
-            image = ImageGrab.grab(bbox=(left, top, right, bottom), all_screens=True)
-            image.save(args.screenshot)
-        except Exception:
-            screen = window.windowHandle().screen() if window.windowHandle() is not None else app.primaryScreen()
-            if screen is None:
-                raise RuntimeError("No screen available for screenshot mode.")
-            screen.grabWindow(window.winId()).save(args.screenshot)
+                image = ImageGrab.grab(bbox=(left, top, right, bottom), all_screens=True)
+                image.save(args.screenshot)
+            except Exception:
+                screen = window.windowHandle().screen() if window.windowHandle() is not None else app.primaryScreen()
+                if screen is None:
+                    raise RuntimeError("No screen available for screenshot mode.")
+                screen.grabWindow(window.winId()).save(args.screenshot)
+        else:
+            pixmap.save(args.screenshot)
         sys.stdout.flush()
         sys.stderr.flush()
         # Screenshot mode is a one-shot automation path. Hard exit avoids a native Qt

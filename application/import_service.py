@@ -38,6 +38,8 @@ TICKET_PATTERN = re.compile(r"^(?:[^\W\d_]+\s*)?(\d+)[\.\): -]*(.+)$", re.UNICOD
 NUMBERED_PATTERN = re.compile(r"^(\d{1,3})[\.\)]\s+(.+)$")
 TOC_SECTION_PATTERN = re.compile(r"^\d{1,2}\.\d{1,2}\.\s+(.+?)\s+(\d{1,3})$")
 TOC_TICKET_PATTERN = re.compile(r"^\d{1,3}\.\s+(.+?)\s+(\d{1,3})$")
+TOC_PAREN_TICKET_PATTERN = re.compile(r"^\((\d{1,3})\)\s+(\d{1,3})(?:[.)])?\s*(.+?)\s+(\d{1,3})$")
+TOC_PAGE_SUFFIX_PATTERN = re.compile(r"\s\d{1,3}$")
 SECTION_NUMBER_PATTERN = re.compile(r"^\d{1,2}\.\d{1,2}\.\s+(.+)$")
 ImportProgressCallback = Callable[[int, str, str], None]
 
@@ -379,7 +381,7 @@ class DocumentImportService:
 
         entries: list[tuple[str, str]] = []
         current_section = "default-section"
-        for line in lines[:800]:
+        for line in self._coalesce_toc_lines(lines[:800]):
             section_match = TOC_SECTION_PATTERN.match(line)
             if section_match:
                 current_section = self._clean_toc_text(section_match.group(1)) or current_section
@@ -388,6 +390,13 @@ class DocumentImportService:
             ticket_match = TOC_TICKET_PATTERN.match(line)
             if ticket_match:
                 title = self._clean_toc_text(ticket_match.group(1))
+                if title and not self._looks_like_toc_noise(title):
+                    entries.append((current_section, title))
+                continue
+
+            paren_ticket_match = TOC_PAREN_TICKET_PATTERN.match(line)
+            if paren_ticket_match:
+                title = self._clean_toc_text(paren_ticket_match.group(3))
                 if title and not self._looks_like_toc_noise(title):
                     entries.append((current_section, title))
 
@@ -401,27 +410,19 @@ class DocumentImportService:
         candidates: list[TicketCandidate] = []
         cursor = content_start
         for index, (section_title, title) in enumerate(entries, start=1):
-            title_pos = normalized_text.find(title, cursor)
-            if title_pos < 0:
-                continue
-            body_start = title_pos + len(title)
-            next_pos = len(normalized_text)
-            for next_section, next_title in entries[index:index + 5]:
-                candidate_next = normalized_text.find(next_title, body_start)
-                if candidate_next >= 0:
-                    next_pos = candidate_next
-                    break
-
-            body = self._clean_candidate_body(normalized_text[body_start:next_pos])
-            cursor = body_start
+            title_pos, body = self._extract_toc_candidate_body(normalized_text, title, entries, index, cursor)
+            if title_pos >= 0:
+                cursor = title_pos + len(title)
+            confidence = 0.93
             if len(body) < 40:
-                continue
+                body = body or title
+                confidence = 0.52 if title_pos >= 0 else 0.34
             candidates.append(
                 TicketCandidate(
                     index=len(candidates) + 1,
                     title=title,
                     body=body,
-                    confidence=0.93,
+                    confidence=confidence,
                     section_title=section_title,
                 )
             )
@@ -429,6 +430,60 @@ class DocumentImportService:
         if len(candidates) >= max(2, min(len(entries) // 2, 12)):
             return candidates
         return []
+
+    @staticmethod
+    def _coalesce_toc_lines(lines: list[str]) -> list[str]:
+        merged: list[str] = []
+        index = 0
+        while index < len(lines):
+            combined = lines[index].strip()
+            if not combined:
+                index += 1
+                continue
+            while (
+                combined.startswith("(")
+                and not TOC_PAGE_SUFFIX_PATTERN.search(combined)
+                and index + 1 < len(lines)
+            ):
+                next_line = lines[index + 1].strip()
+                if not next_line or next_line.startswith("(") or TOC_SECTION_PATTERN.match(next_line):
+                    break
+                combined = f"{combined} {next_line}"
+                index += 1
+            merged.append(combined)
+            index += 1
+        return merged
+
+    def _extract_toc_candidate_body(
+        self,
+        normalized_text: str,
+        title: str,
+        entries: list[tuple[str, str]],
+        index: int,
+        cursor: int,
+    ) -> tuple[int, str]:
+        best_pos = -1
+        best_body = ""
+        search_from = cursor
+        for _ in range(3):
+            title_pos = normalized_text.find(title, search_from)
+            if title_pos < 0:
+                break
+            body_start = title_pos + len(title)
+            next_pos = len(normalized_text)
+            for _, next_title in entries[index:index + 8]:
+                candidate_next = normalized_text.find(next_title, body_start)
+                if candidate_next >= 0:
+                    next_pos = candidate_next
+                    break
+            body = self._clean_candidate_body(normalized_text[body_start:next_pos])
+            if len(body) >= 40:
+                return title_pos, body
+            if len(body) > len(best_body):
+                best_pos = title_pos
+                best_body = body
+            search_from = title_pos + len(title)
+        return best_pos, best_body
 
     @staticmethod
     def split_inline_title_and_body(raw_title: str) -> tuple[str, str]:
@@ -462,7 +517,11 @@ class DocumentImportService:
             return True
         if re.fullmatch(r"[.\s\d]+", compact):
             return True
-        if TOC_SECTION_PATTERN.match(compact) or TOC_TICKET_PATTERN.match(compact):
+        if (
+            TOC_SECTION_PATTERN.match(compact)
+            or TOC_TICKET_PATTERN.match(compact)
+            or TOC_PAREN_TICKET_PATTERN.match(compact)
+        ):
             return True
         return False
 

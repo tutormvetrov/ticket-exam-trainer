@@ -1,5 +1,5 @@
 APP_NAME = "Тезис"
 APP_WINDOW_TITLE = "Тезис"
-APP_VERSION = "1.1.0-beta"
+APP_VERSION = "1.2.0-beta"
 GITHUB_REPOSITORY = "tutormvetrov/ticket-exam-trainer"
 GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPOSITORY}/releases"

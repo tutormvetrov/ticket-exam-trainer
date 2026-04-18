@@ -8,7 +8,7 @@ import re
 import subprocess
 
 from application.defense_ui_data import ModelRecommendation
-from infrastructure.ollama.service import OllamaDiagnostics, OllamaService
+from infrastructure.ollama.service import OllamaService
 
 
 @dataclass(slots=True)
@@ -19,6 +19,14 @@ class HardwareProfile:
 
 
 class ModelProfileResolver:
+    INSTALL_TIERS: tuple[tuple[str, float], ...] = (
+        ("qwen3:14b", 32.0),
+        ("qwen3:8b", 20.0),
+        ("qwen3:4b", 12.0),
+        ("qwen3:1.7b", 8.0),
+        ("qwen3:0.6b", 0.0),
+    )
+
     def detect_hardware(self) -> HardwareProfile:
         return HardwareProfile(
             memory_gb=self._detect_memory_gb(),
@@ -26,47 +34,77 @@ class ModelProfileResolver:
             platform_name=platform.system().lower(),
         )
 
+    def recommend_install_target(self, hardware: HardwareProfile | None = None) -> ModelRecommendation:
+        profile = hardware or self.detect_hardware()
+        model_name = self._pick_install_target(profile)
+        return ModelRecommendation(
+            model_name=model_name,
+            label=f"Рекомендуемая модель: {model_name}",
+            rationale=(
+                f"RAM: {profile.memory_gb:.1f} GB, threads: {profile.cpu_threads}. "
+                f"Для такого ПК комфортнее начинать с {model_name}."
+            ),
+            available=False,
+        )
+
     def recommend(self, service: OllamaService, preferred_model: str) -> ModelRecommendation:
         hardware = self.detect_hardware()
         diagnostics = service.inspect(preferred_model)
         available = [name for name in diagnostics.available_models if name]
-
-        target = preferred_model
+        install_target = self.recommend_install_target(hardware)
         rationale = f"RAM: {hardware.memory_gb:.1f} GB, threads: {hardware.cpu_threads}."
+
         if available:
-            target = self._pick_best_installed(available, hardware.memory_gb, preferred_model)
+            target = self._pick_best_installed(available, hardware, preferred_model)
+            if target:
+                return ModelRecommendation(
+                    model_name=target,
+                    label=f"Рекомендуемая модель: {target}",
+                    rationale=(
+                        f"{rationale} Выбрана самая сильная локально доступная {self._family_label(target)} "
+                        "в комфортном диапазоне для этого железа."
+                    ),
+                    available=True,
+                )
+
+            smallest = self._pick_smallest_installed(available)
             return ModelRecommendation(
-                model_name=target,
-                label=f"Рекомендуемая модель: {target}",
-                rationale=f"{rationale} Выбрана самая сильная доступная локально {self._family_label(target)} для этого железа.",
-                available=True,
+                model_name=install_target.model_name,
+                label=install_target.label,
+                rationale=(
+                    f"{rationale} Локально уже есть только более тяжёлый профиль {smallest}. "
+                    f"Для комфортной работы на этом ПК лучше поставить {install_target.model_name}."
+                ),
+                available=False,
             )
+
         return ModelRecommendation(
-            model_name=preferred_model,
-            label=f"Рекомендуемая модель: {preferred_model}",
+            model_name=install_target.model_name,
+            label=install_target.label,
             rationale=f"{rationale} Нужная локальная модель пока не найдена.",
-            available=diagnostics.endpoint_ok and diagnostics.model_ok,
+            available=False,
         )
 
+    def _pick_install_target(self, hardware: HardwareProfile) -> str:
+        for model_name, min_memory_gb in self.INSTALL_TIERS:
+            if hardware.memory_gb >= min_memory_gb:
+                return model_name
+        return self.INSTALL_TIERS[-1][0]
+
     @staticmethod
-    def _pick_best_installed(models: list[str], memory_gb: float, preferred_model: str) -> str:
+    def _pick_best_installed(models: list[str], hardware: HardwareProfile, preferred_model: str) -> str:
+        comfort_cap = _comfort_size_cap(hardware.memory_gb)
         ranked = sorted(models, key=lambda name: _model_rank(name, preferred_model), reverse=True)
-        if memory_gb < 18:
-            for size_token in ("8b", "7b", "9b", "6b"):
-                for name in ranked:
-                    if size_token in name.lower():
-                        return name
-        if memory_gb < 24:
-            for size_token in ("12b", "14b", "8b", "7b"):
-                for name in ranked:
-                    if size_token in name.lower():
-                        return name
-        if memory_gb < 32:
-            for size_token in ("14b", "12b", "8b", "7b"):
-                for name in ranked:
-                    if size_token in name.lower():
-                        return name
-        return ranked[0]
+        compatible = [
+            name for name in ranked
+            if (size_b := _model_size_b(name)) is None or size_b <= comfort_cap + 0.05
+        ]
+        return compatible[0] if compatible else ""
+
+    @staticmethod
+    def _pick_smallest_installed(models: list[str]) -> str:
+        ranked = sorted(models, key=lambda name: (_model_size_b(name) or 999.0, -_family_rank(name)))
+        return ranked[0] if ranked else ""
 
     @staticmethod
     def _family_label(model_name: str) -> str:
@@ -75,8 +113,6 @@ class ModelProfileResolver:
             return "Qwen-модель"
         if "gemma" in lower:
             return "Gemma-модель"
-        if "mistral" in lower:
-            return "Mistral-модель"
         if "llama" in lower:
             return "Llama-модель"
         return "локальная LLM-модель"
@@ -112,21 +148,42 @@ class ModelProfileResolver:
         return 8.0
 
 
-def _model_rank(name: str, preferred_model: str) -> tuple[int, int, int, int]:
+def _model_rank(name: str, preferred_model: str) -> tuple[int, int, float, int]:
     lower = name.lower()
     preferred = 1 if name == preferred_model else 0
-    family_rank = 0
-    if lower.startswith("qwen3"):
-        family_rank = 5
-    elif lower.startswith("qwen"):
-        family_rank = 4
-    elif "gemma" in lower:
-        family_rank = 3
-    elif "mistral" in lower:
-        family_rank = 2
-    elif "llama" in lower:
-        family_rank = 1
-    size_match = re.search(r"(\d+)\s*b", lower)
-    size_rank = int(size_match.group(1)) if size_match else 0
+    family_rank = _family_rank(name)
+    size_rank = _model_size_b(name) or 0.0
     variant_bonus = 1 if "instruct" in lower or "latest" in lower else 0
     return (family_rank, preferred, size_rank, variant_bonus)
+
+
+def _family_rank(name: str) -> int:
+    lower = name.lower()
+    if lower.startswith("qwen3"):
+        return 5
+    if lower.startswith("qwen"):
+        return 4
+    if "gemma" in lower:
+        return 3
+    if "llama" in lower:
+        return 1
+    return 0
+
+
+def _model_size_b(name: str) -> float | None:
+    match = re.search(r"(\d+(?:\.\d+)?)\s*b", name.lower())
+    if match is None:
+        return None
+    return float(match.group(1))
+
+
+def _comfort_size_cap(memory_gb: float) -> float:
+    if memory_gb >= 32:
+        return 14.0
+    if memory_gb >= 20:
+        return 8.0
+    if memory_gb >= 12:
+        return 4.0
+    if memory_gb >= 8:
+        return 1.7
+    return 0.6

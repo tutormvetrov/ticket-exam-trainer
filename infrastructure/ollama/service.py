@@ -24,6 +24,9 @@ from infrastructure.ollama.prompts import (
 from infrastructure.ollama.runtime import OllamaRuntimeManager
 
 
+_UNSET_TIMEOUT = object()
+
+
 @dataclass(slots=True)
 class OllamaDiagnostics:
     endpoint_ok: bool
@@ -91,9 +94,15 @@ class OllamaService:
         models_path=None,
         *,
         inspect_timeout_seconds: float | None = None,
-        generation_timeout_seconds: float | None = None,
+        generation_timeout_seconds: float | None | object = _UNSET_TIMEOUT,
     ) -> None:
         self.base_url = base_url
+        # Резолвим наш локальный sentinel до передачи в клиент — у клиента
+        # свой отдельный `_UNSET_TIMEOUT`, и, пройдя через него как "unknown
+        # object", sentinel доходил до self.timeout_seconds и ломал min/max
+        # в inspect() ("'>' not supported between instances of 'float' and 'object'").
+        if generation_timeout_seconds is _UNSET_TIMEOUT:
+            generation_timeout_seconds = timeout_seconds
         # `timeout_seconds` сохраняем как generation-фактический таймаут, чтобы
         # старый код (и логи) продолжали видеть осмысленное значение.
         self.client = OllamaClient(

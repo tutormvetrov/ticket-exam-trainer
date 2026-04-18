@@ -30,3 +30,11 @@ def test_release_seed_accepts_existing_nonempty_file(tmp_path: Path) -> None:
     seeded_db.write_bytes(b"sqlite-data")
 
     assert resolve_seed_database(seeded_db) == seeded_db.resolve()
+
+
+def test_release_seed_no_longer_exposes_repo_default_helpers() -> None:
+    import app.release_seed as module
+
+    assert not hasattr(module, "default_release_seed_target")
+    assert not hasattr(module, "resolve_default_seed_database")
+    assert not hasattr(module, "DEFAULT_RELEASE_SEED_RELATIVE")

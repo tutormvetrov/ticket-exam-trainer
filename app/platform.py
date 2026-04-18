@@ -8,6 +8,10 @@ import subprocess
 import sys
 
 
+WINDOWS_DEFAULT_MODELS_PATH = Path(r"D:\Ollama\models")
+WINDOWS_LEGACY_SHARED_MODELS_PATH = Path(r"D:\OllamaModels")
+
+
 def platform_key() -> str:
     if sys.platform.startswith("win"):
         return "windows"
@@ -40,7 +44,7 @@ def default_models_path() -> Path:
     if is_windows():
         drive_d = Path(r"D:\\")
         if drive_d.exists():
-            return Path(r"D:\OllamaModels")
+            return WINDOWS_DEFAULT_MODELS_PATH
         return Path.home() / ".ollama" / "models"
     if is_macos():
         return Path.home() / ".ollama"

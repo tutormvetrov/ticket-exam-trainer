@@ -79,9 +79,11 @@ if ($LASTEXITCODE -ne 0) {
 
 $exePath = Join-Path $OutputDir "Tezis.exe"
 if (Test-Path $exePath) {
-  $size = (Get-Item $exePath).Length / 1MB
+  $sizeMb = [math]::Round((Get-Item $exePath).Length / 1MB, 1)
   Write-Host ""
-  Write-Host "+ Built: $exePath ({0:N1} MB)" -ForegroundColor Green -f $size
+  Write-Host ("+ Built: {0} ({1} MB)" -f $exePath, $sizeMb) -ForegroundColor Green
+  exit 0
 } else {
   Write-Warning "Build finished but $exePath is missing. Check console output above."
+  exit 1
 }

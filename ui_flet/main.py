@@ -22,6 +22,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import shutil
+import sqlite3
+
 import flet as ft
 
 # Reuse the same workspace/bootstrap logic as the Qt app so seed DB, settings,
@@ -41,9 +44,78 @@ from ui_flet.theme.theme import apply_theme
 from ui_flet.theme.fonts import font_map
 
 
+SEED_FILENAME = "state_exam_public_admin_demo.db"
+
+
+def _seed_candidates(workspace_root: Path) -> list[Path]:
+    """Paths where a bundled seed DB may live, in priority order.
+
+    When running from source (``python -m ui_flet.main``) we look at the
+    repo's ``data/`` and ``build/demo_seed/``. When running frozen through
+    flet-pack / pyinstaller, ``sys._MEIPASS`` points at the temporary
+    extraction directory that contains ``data/`` (per the --add-data flag
+    in scripts/build_flet_exe.ps1). We also look next to the exe and in the
+    workspace root for user-shipped copies.
+    """
+    paths: list[Path] = []
+    # Frozen: pyinstaller extracts add-data into _MEIPASS
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        paths.append(Path(meipass) / "data" / SEED_FILENAME)
+        paths.append(Path(meipass) / SEED_FILENAME)
+    # Dev / next to script / next to exe
+    paths.append(REPO_ROOT / "data" / SEED_FILENAME)
+    paths.append(REPO_ROOT / "build" / "demo_seed" / SEED_FILENAME)
+    # Next to the running exe (classmates sometimes drop it there)
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        paths.append(exe_dir / "data" / SEED_FILENAME)
+        paths.append(exe_dir / SEED_FILENAME)
+    # User-local fallback
+    paths.append(workspace_root / "data" / SEED_FILENAME)
+    return paths
+
+
+def _ticket_count(db_path: Path) -> int:
+    """Return tickets count; 0 on any error (file missing, table missing, etc)."""
+    try:
+        conn = sqlite3.connect(str(db_path))
+        try:
+            row = conn.execute("SELECT COUNT(*) FROM tickets").fetchone()
+            return int(row[0]) if row else 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
+def _bootstrap_seed_if_empty(workspace_root: Path, database_path: Path) -> str:
+    """Copy bundled seed over the workspace DB when the workspace has no tickets.
+
+    Returns a short diagnostic string for logging: "seeded", "skipped_has_data",
+    "no_source", or "failed". Never raises — seeding failure leaves the app in
+    its current (possibly empty) state and users see the empty catalog.
+    """
+    if _ticket_count(database_path) > 0:
+        return "skipped_has_data"
+
+    for candidate in _seed_candidates(workspace_root):
+        if candidate.exists() and candidate.stat().st_size > 0:
+            try:
+                database_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(candidate, database_path)
+                return "seeded"
+            except Exception:
+                continue
+    return "no_source"
+
+
 def _build_facade() -> tuple[AppFacade, Path]:
     workspace_root = get_workspace_root()
     database_path = get_database_path(workspace_root)
+    # Seed bootstrap runs BEFORE connect_initialized so the schema layer sees
+    # a populated DB and applies its incremental migrations over real data.
+    _bootstrap_seed_if_empty(workspace_root, database_path)
     connection = connect_initialized(database_path)
     settings_store = SettingsStore(workspace_root / "app_data" / "settings.json")
     facade = AppFacade(workspace_root, connection, settings_store)
@@ -171,10 +243,11 @@ def _main(page: ft.Page) -> None:
     # result via ``state.is_ollama_available()``.
     state.probe_ollama()
 
-    # Re-apply theme on toggle
+    # Re-apply theme on toggle. Rebuild the current view so controls that
+    # captured `palette(is_dark)` at build time pick up the new palette.
     def _on_theme_change() -> None:
         apply_theme(page, state.is_dark)
-        page.update()
+        state.refresh()
     state.on_theme_change(_on_theme_change)
 
     page.on_route_change = on_route_change(state)

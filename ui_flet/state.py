@@ -124,7 +124,34 @@ class AppState:
 
     # ---- navigation helpers ----
     def go(self, route: str) -> None:
+        """Navigate to route. If we're already on it, force a view rebuild
+        (Flet's page.go is a no-op for same-route calls, which made nav chip
+        clicks look broken when they happened to land on the current route)."""
+        current = getattr(self.page, "route", None) or "/"
+        if current == route:
+            self.refresh()
+            return
         self.page.go(route)
+
+    def refresh(self) -> None:
+        """Force-rebuild the current view. Used on theme toggle and when a nav
+        action resolves to the current route."""
+        from ui_flet.router import on_route_change
+        route = getattr(self.page, "route", None) or "/tickets"
+        # Synthesize a route-change event so the router rebuilds views.
+        handler = self.page.on_route_change
+        if handler is None:
+            handler = on_route_change(self)
+            self.page.on_route_change = handler
+
+        class _FakeEvt:
+            def __init__(self, r: str) -> None:
+                self.route = r
+
+        try:
+            handler(_FakeEvt(route))
+        except Exception:
+            pass
 
     def open_training(self, ticket_id: str, mode: str = "reading") -> None:
         self.selected_ticket_id = ticket_id

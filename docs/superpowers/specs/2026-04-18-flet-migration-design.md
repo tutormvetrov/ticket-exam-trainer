@@ -28,7 +28,7 @@ Data-слой закрыт на ветке `data-pipeline` (коммиты `c277
 | Scope экранов | **3** — Tickets, Training, Settings | 6 из v1.2.x (Library/Import/Statistics/Dialogue/Knowledge Map) — режем, т.к. seed финальный, второго не предвидится |
 | Тренировочные режимы | **6 evidence-based** — `reading` → `plan` → `cloze` → `active-recall` → `state-exam-full` → `review` (см. часть 4) | 8 режимов из v1.2.x (matching, mini-exam, dialogue) — режем, дублируют существующие или неприменимы к письменному экзамену |
 | LLM-стратегия | **Локальная Ollama, опциональная** | Cloud — запрещён product spec; обязательная Ollama — создаёт барьер входа для классмейтов со слабым железом |
-| Рецензент-движок | **qwen3:8b как default, fallback keyword-matching без Ollama** | Результат R0 валидации (`docs/superpowers/specs/2026-04-18-model-selection.md`): только 8b реально различает качество; 1.7b возвращает `{}`, 0.6b всем ставит «covered/100» |
+| Рецензент-движок | **qwen2.5:7b-instruct как default, vikhr-nemo:12b как premium, keyword-fallback для слабых машин и без Ollama** (обновлено 2026-04-19 после research в `docs/superpowers/specs/2026-04-19-review-model-research.md`) | qwen3:8b слишком медленный на CPU (50-130с, 2/5 timeout), qwen3:1.7b returns `{}`, qwen3:0.6b всем ставит «covered/100» (честнее keyword-fallback). Требует промпт-rewrite (RU + few-shot + CoT). |
 | Визуал | **Warm tokens + Material 3**, light+dark, responsive 1024-3840+ | Minimum (Material 3 defaults) — пользователь запретил; премиум storybook — не окупается за 3 недели |
 | Data pipeline | **Закрыт, merge в main после UI-приёмки** | Переход к W1 заново не требуется — база готова |
 | Установщик Ollama | **Secondary**: ручная инструкция в README + опциональный wizard если время остаётся | Обязательный wizard как в v1 — тянет +15 часов, не критичен (app работает на fallback без LLM) |
@@ -207,18 +207,33 @@ SPACE  = {"xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24, "2xl": 32, "3xl": 48}
 RADIUS = {"sm": 6, "md": 10, "lg": 14, "xl": 20, "pill": 999}
 ```
 
-### 3.3 Responsive breakpoints
+### 3.3 Responsive behavior (обновлено 2026-04-19)
+
+**Fullscreen-first.** Приложение открывается в **полноэкранном режиме** по умолчанию (`page.window.full_screen = True`). В Settings → «Режим окна» — переключатель «Полноэкранный / Оконный». Для полноэкранного скрывать window chrome (в рамках возможностей Flet + Windows). Выход из fullscreen — кнопка выхода в TopBar или `Esc` (стандартный хоткей).
+
+**Целевые разрешения ноутбуков и ПК** (должны выглядеть без обрезаний / двойного скролла):
+
+| Класс | Ширина | Примеры устройств | Layout |
+|---|---|---|---|
+| laptop-small | 1366×768 | бюджетные ноутбуки, старые 14" | 1 колонка + chip-навигация → popup-меню |
+| laptop-standard | 1440×900 — 1536×864 | MacBook Air 13" (1440×900), многие 15" (1536×864) | 2 колонки (список 40% / деталь 60%) |
+| laptop-hd | 1600×900 — 1920×1080 | 15-17" Windows ноуты, FullHD-мониторы | 2 колонки (35/65) + расширенный hero-блок деталей |
+| desktop-wide | 2560×1440 | 27" QHD | 3 колонки (список / деталь / правая статистика) |
+| 4k | 3840×2160+ | 4K мониторы | 3 колонки + `page.scale = 1.25` |
 
 ```python
 BREAKPOINTS = {
-    "compact":    (0, 1280),     # 1-колон, chip-навигация сворачивается в попап
-    "standard":   (1280, 1920),  # 2-колоночный tickets_view (список + деталь)
-    "wide":       (1920, 2560),  # 2-колон с max-width reading
-    "ultrawide":  (2560, None),  # 3-колон: tickets + training_workspace + правая статистика
+    "laptop_small":    (0, 1400),      # 1366×768 и ниже
+    "laptop_standard": (1400, 1700),   # 1440×900, 1536×864
+    "laptop_hd":       (1700, 2200),   # 1600×900, 1920×1080
+    "desktop_wide":    (2200, 3200),   # 2560×1440
+    "4k":              (3200, None),   # 3840×2160+
 }
 ```
 
-На `ultrawide+`: `tickets_view` = список | детали | прогресс (3 колонки). На `compact`: список → тап → full-width detail.
+Нижний порог — **1366×768** (ни один классмейтский ноут не должен оказаться вне scope). На `laptop_small` приоритет — читаемость полного текста билета при ответе: «Теория» и прочие многострочные поля раскрываются во всю ширину, сайдбар сворачивается в bottom sheet. На `desktop_wide+` появляется правая колонка с прогрессом, очередью повторений (FSRS) и mastery-картой.
+
+**Acceptance для адаптива:** интерфейс снимается без обрезаний и двойных скроллов на каждом из 5 классов на реальной или VM-машине. `scripts/run_resolution_matrix.ps1` (если успеваем) делает серию скриншотов в offscreen-режиме для визуальной проверки.
 
 ### 3.4 Facade integration
 
@@ -227,6 +242,14 @@ BREAKPOINTS = {
 ### 3.5 Theme switching
 
 `page.theme_mode = ft.ThemeMode.LIGHT / DARK` — переключатель в Settings. Все компоненты читают токены через `page.theme.color_scheme.*` — переключение без рестарта.
+
+### 3.5a Window mode (обновлено 2026-04-19)
+
+По умолчанию — `page.window.full_screen = True`. В Settings → «Режим окна»:
+- **Полноэкранный** (по умолчанию) — приложение открывается во весь экран. Выход через кнопку в TopBar или `Esc`.
+- **Оконный** — сохраняются размеры (`window.width/height/left/top`) в `settings.json` между запусками.
+
+Сброс в полноэкранный — кнопка «Открыть на весь экран» в TopBar.
 
 ### 3.6 Deliverable W2
 
@@ -262,10 +285,37 @@ BREAKPOINTS = {
 
 **Прогрессия:** студент проходит билет снизу-вверх по списку: `reading` → `plan` → `cloze` → `active-recall` → `state-exam-full` → `review`. Приложение предлагает следующий режим после успешного прохождения предыдущего (adaptive queue в Tickets view).
 
-### 4.2 Фоновые механизмы (не режимы)
+### 4.2 Интервальные повторения — ключевая фича v2.0 (обновлено 2026-04-19)
 
-- **Distributed practice / spaced repetition** — алгоритм планирования очереди билетов на день (SM-2 или FSRS, реализация в `application/adaptive_review.py`, уже есть в v1). Отображается в Tickets view как «на сегодня: 8 билетов» — но это не отдельный режим тренировки.
-- **Interleaving** — при построении очереди на день билеты мешаются из разных разделов (не все подряд из «Философии»). Это параметр планировщика, не режим.
+**Было в v1:** SM-2 в `application/adaptive_review.py` как фоновый механизм, без явной визуализации.
+
+**Стало в v2.0:** FSRS (Free Spaced Repetition Scheduler) — первоклассная фича. По нашим оценкам это самая сильная сторона приложения для подготовки за 3-4 недели до экзамена: без него пользователь тренируется хаотично, с ним — идёт по оптимальному графику повторений с учётом собственных успехов.
+
+**Почему FSRS, а не SM-2.** FSRS — современный ML-калиброванный алгоритм (Jarrett Ye, 2022+), открытый код, свободно используется Anki. На одинаковых логах показывает retention на 10-20% лучше SM-2 при той же нагрузке. Вход — три параметра на повторение: `grade (Again/Hard/Good/Easy)`, `time_elapsed`, `past_history`. Выход — `next_review_at`.
+
+**Скоуп v2.0:**
+
+1. **Миграция `application/adaptive_review.py` на FSRS.** Реализация `py-fsrs` (PyPI `fsrs`) в существующий `ReviewScheduler`. Контракт `next_review_at` остаётся, но формула меняется. Тесты `test_adaptive_review_edge_cases.py` обновить под новые интервалы.
+2. **Mapping attempt → grade.** Из `TrainingEvaluationResult.score_percent`:
+   - `state-exam-full`: ≥80 → Easy, 60-79 → Good, 40-59 → Hard, <40 → Again.
+   - `active-recall`: ≥75 → Good, 50-74 → Hard, <50 → Again (нет Easy — слишком короткий формат).
+   - `review` / `reading` / `cloze` / `plan` — не меняют интервалы (пассивные или вспомогательные режимы).
+3. **Очередь повторений в Tickets view.** Правая панель на `laptop_hd+`: «Сегодня: N билетов», прогресс-бар по completion, список из 5-10 ближайших билетов с due-time. Клик открывает ticket + рекомендует следующий режим.
+4. **Dashboard в Tickets view:** вверху слева plot «retention за 7/30 дней» + счётчик «билетов в активной ротации». На `laptop_small` — скрываемая секция, раскрывается по кнопке «Прогресс».
+5. **Adaptive scheduling в меню билета:** кнопка «Начать тренировку» по умолчанию дёргает режим, который соответствует текущему состоянию билета по правилу:
+   - новый билет → `reading`
+   - был `reading`, но не было retention → `plan`
+   - был `plan` → `cloze`
+   - был `cloze` → `active-recall`
+   - был `active-recall` с score ≥60 → `state-exam-full`
+   - после `state-exam-full` — `review` при желании
+   - после N дней без взаимодействия — FSRS отправляет в «overdue» с пометкой
+
+**Interleaving** — параметр построения очереди дня: билеты мешаются из разных разделов (не «8 билетов подряд из Философии»).
+
+**Out of scope v2.0:**
+- Настройка параметров FSRS вручную (stability/difficulty) — используем рекомендованные defaults из `fsrs` пакета.
+- Экспорт/импорт истории из Anki.
 
 ### 4.3 Отброшенные режимы
 
@@ -273,16 +323,32 @@ BREAKPOINTS = {
 - `mini-exam` — дублирует `state-exam-full` без 6-блочной структуры
 - `dialogue` — устный формат, не соответствует письменному экзамену (сохранён как Deferred v2.1)
 
-### 4.4 Review engine (R0 уже проведён)
+### 4.4 Review engine — выбор модели (обновлено 2026-04-19)
 
-Валидация рецензента завершена (`docs/superpowers/specs/2026-04-18-model-selection.md`):
+R0 на qwen3-семействе показал: 0.6b всем ставит «covered/100», 1.7b возвращает `{}`, 8b реально различает но 50-130 сек на CPU и 2/5 таймаутят (см. `docs/superpowers/specs/2026-04-18-model-selection.md`). Второй раунд research (январь 2026, `docs/superpowers/specs/2026-04-19-review-model-research.md`) дал альтернативы на других семействах.
 
-- **default tier: qwen3:8b** — единственная модель, реально различающая качество ответа. Медленная (50-130 сек CPU, 10-25 сек GPU).
-- **fallback tier: qwen3:0.6b** с UX-дисклеймером «упрощённая рецензия: проверяет структуру, но не глубину».
-- **qwen3:1.7b — не использовать** (`format=json` возвращает `{}` на текущем промпте).
-- **без Ollama** — keyword-matching fallback в `scoring.build_review_verdict_fallback`. UX-индикатор «рецензия в упрощённом режиме (Ollama не запущена)».
+**Новая карта моделей для v2.0:**
 
-Все режимы работают без Ollama (кроме review-на-LLM) — приложение не имеет hard dependency на её наличие.
+| Тир | Модель | RAM | Диск | CPU 400 tok | RU | JSON | Назначение |
+|---|---|---|---|---|---|---|---|
+| Light | — (keyword fallback) | 0 | 0 | <1 сек | — | — | машины 4-8 GB RAM без GPU. Честное поведение: не ставим `qwen3:0.6b` c false-covered, а используем рулбейс по `thesis.keywords`. UI-метка: «Базовая проверка тезисов, без LLM». |
+| Default | `qwen2.5:7b-instruct-q4_K_M` | ~5.5 GB | ~4.7 GB | 25-45 сек | хороший | надёжный | 8-16 GB RAM CPU-only. Основной путь. В 2-3× быстрее qwen3:8b, в 2× меньше RAM, сопоставимое RU-качество. |
+| Premium | `vikhr-nemo-12b-instruct-r-21-09-24:q4_K_M` | ~8.5 GB | ~7 GB | 35-60 сек | **лучший в классе** (RU fine-tune Mistral Nemo) | хороший | 16+ GB или GPU 8+. Если tag недоступен в Ollama registry к дню установки — fallback на `qwen2.5:14b-instruct-q4_K_M`. |
+
+**qwen3:8b не рекомендуется как default** — по скорости на CPU проигрывает qwen2.5:7b, RU-качество сопоставимое, JSON-надёжность хуже (2/5 parse-errors в R0).
+
+**Без Ollama** — keyword-matching fallback в `scoring.build_review_verdict_fallback`. UX-индикатор «рецензия в упрощённом режиме (Ollama не запущена)».
+
+**Промпт-rewrite (блокер качества на 4-7B).** Текущий `infrastructure/ollama/prompts.py::review_prompt()` написан на английском — малые модели игнорируют "be strict" и всем ставят covered. В W2 перед R1-валидацией переписать:
+
+1. Русский system-prompt с явной рубрикой `missing/partial/covered` и числовыми диапазонами (score ≥90 только при всех covered, <50 при 2+ missing).
+2. Few-shot из 2 реалистичных примеров (excellent + weak) ~300 и ~150 символов.
+3. Single-pass CoT: `<reasoning>3-5 предложений почему такая оценка</reasoning>` перед JSON. Не два прохода — удваивает latency.
+4. Избегать `format=json` без few-shot — малые модели трактуют его как «минимальный валидный JSON» и отдают `{}`.
+
+**R1-валидация (дни 9-14).** На финальном промпте прогнать 3 топ-кандидата (`qwen2.5:7b`, `qwen3:4b`, `vikhr-nemo:12b`) × 5 билетов × 6 ответов (5 из R0 + «wrong answer»). Метрики: JSON-valid rate, schema-valid rate, latency p50/p95, discrimination `|score(excellent) − score(empty)|` (цель ≥50), human-agreement на 30 ответах (цель ≥70%), peak RSS. Запуск на референсном ноуте классмейта (i5 gen11 / 8 GB / без GPU) для top-2 — dev-машина врёт в 1.5-2×.
+
+Все тренировочные режимы работают без Ollama (кроме LLM-review, который тогда fallback на keyword) — приложение не имеет hard dependency на наличие Ollama.
 
 ---
 
@@ -388,14 +454,17 @@ UI-smoke через Flet testing API (если стабильно) или чер
 - Review workspace (per-thesis verdict display)
 
 **Дни 9-14 (27 апреля — 2 мая):**
-- Settings view (тема, шрифт, модель Ollama, test connection)
-- Dark theme polish, responsive breakpoints
-- Ollama integration + error states
-- Ollama wizard (если успеваем — W3 secondary)
+- Settings view (тема, шрифт, модель Ollama, window-mode toggle, test connection)
+- **FSRS миграция** `application/adaptive_review.py` — py-fsrs, mapping score→grade, обновлённые тесты
+- **Очередь повторений в Tickets view** — правая панель на laptop_hd+, mini-dashboard
+- Dark theme polish, адаптив на 5 разрешениях (1366×768, 1440×900, 1536×864, 1920×1080, 2560×1440)
+- **Fullscreen-first** — `page.window.full_screen = True` при старте, переключатель в Settings
+- Ollama integration + error states — быстрый connect-probe чтобы не висеть 60с при offline
+- R1 валидация review-модели на финальном промпте (3 кандидата × 5 ответов)
 - Smoke на 2 VM (Windows 10 + 11)
 
 **Дни 15-21 (3-9 мая):**
-- Финальный polish, bug-bash
+- Финальный polish, bug-bash (особенно FSRS edge-cases: новые билеты, долгий перерыв, массовое Again)
 - README для однокурсников, финальный zip
 - Rollout внутренний (2-3 классмейта на тест)
 
@@ -407,10 +476,12 @@ UI-smoke через Flet testing API (если стабильно) или чер
 
 Если не успеваем — режем в порядке (первое — с минимумом потерь):
 1. Dark theme — только Light в релизе
-2. 4K multi-panel — только 2-колон ultrawide
+2. 4K (>2560) multi-panel — только 2-колон на `laptop_hd`/`desktop_wide`
 3. Ollama wizard — README-инструкция вместо него
-4. `review` workspace как отдельный — embedded в state-exam-full
-5. Timer в active-recall — без таймера
+4. R1-валидация премиум-модели (vikhr-nemo) — оставить только default-тир qwen2.5:7b
+5. FSRS dashboard plot retention — оставить просто список ближайших билетов (очередь обязательна, plot опционален)
+6. `review` workspace как отдельный — embedded в state-exam-full
+7. Timer в active-recall — без таймера
 
 ---
 
@@ -419,15 +490,21 @@ UI-smoke через Flet testing API (если стабильно) или чер
 | Файл / Каталог | Stream | Тип | Описание |
 |---|---|---|---|
 | `ui_flet/` | W2 | **new pkg** | весь пакет |
-| `pyproject.toml` | W2 | modify | добавить `flet>=0.24`, `flet[desktop]` |
+| `pyproject.toml` | W2 | modify | добавить `flet>=0.27,<0.28`, `fsrs>=4.0` |
 | `requirements.txt` | W2 | modify | pinned versions |
-| `tests/test_flet_*.py` | W2 | **new** | ~5 файлов |
+| `application/adaptive_review.py` | W2 | **rewrite** | миграция SM-2 → FSRS (py-fsrs), mapping score→grade |
+| `infrastructure/ollama/prompts.py` | W2 | modify | `review_prompt()` — RU system + few-shot + single-pass CoT |
+| `tests/test_flet_*.py` | W2 | **new** | 4-5 файлов (часть уже в 7bec85c) |
+| `tests/test_fsrs_scheduler.py` | W2 | **new** | интервалы, cold-start, score→grade |
 | `tests/qt_legacy/` | W2 | **new dir** | перенос Qt-тестов |
+| `scripts/run_resolution_matrix.ps1` | W2 | **new** | snapshot-прогон на 5 разрешениях |
+| `scripts/r1_review_validation.py` | W2 | **new** | R1: 3 модели × 5 билетов × 6 ответов |
 | `scripts/build_flet_exe.ps1` | W3 | **new** | flet pack wrapper |
 | `scripts/package_release.ps1` | W3 | **new** | zip builder |
 | `scripts/install_ollama_wizard.ps1` | W3 | **new** (опц.) | если успеваем |
 | `ui/` | W2 | **delete** (после приёмки) | удаляем весь Qt-пакет |
-| `docs/product_spec.md` | coord | modify | scope v2.0 (3 экрана, 6 режимов) |
+| `docs/superpowers/specs/2026-04-19-review-model-research.md` | coord | **new** | текущий research (создан) |
+| `docs/product_spec.md` | coord | modify | scope v2.0 (3 экрана, 6 режимов, FSRS) |
 | `docs/architecture.md` | coord | modify | Flet-слой |
 | `README.md` | coord | modify | v2.0 инструкции |
 | `CHANGELOG.md` | coord | **new** | |
@@ -442,9 +519,12 @@ UI-smoke через Flet testing API (если стабильно) или чер
 
 - **Flet UI**: 3 экрана (Tickets, Training, Settings), 8 компонентов, 6 training workspaces
 - **6 evidence-based тренировочных режимов** (reading, plan, cloze, active-recall, state-exam-full, review)
+- **FSRS spaced-repetition** — first-class фича (часть 4.2): миграция `adaptive_review.py`, очередь в Tickets view, dashboard retention, adaptive mode suggestion
 - **Warm-minimal visual language** в Material 3 адаптации, light + dark
-- **Responsive** 1024-3840+
+- **Fullscreen-first** window behavior + windowed toggle в Settings (часть 3.5a)
+- **Адаптивность** на 5 классах разрешений — 1366×768 … 3840×2160+ (часть 3.3)
 - **Pre-baked seed DB** `state_exam_public_admin_demo.db` (готов, не пересобираем)
+- **Review engine** (часть 4.4): tier model system — keyword-fallback / qwen2.5:7b / vikhr-nemo:12b + rewrite промпта (RU + few-shot + CoT)
 - **Windows-дистрибутив** (zip, exe); Ollama wizard — опционально
 - **Fallback без Ollama** (keyword-matching review)
 
@@ -481,8 +561,11 @@ UI-smoke через Flet testing API (если стабильно) или чер
 | Flet timer widget не обновляется в фоне при fullscreen-writing | Низкая | Среднее | Ручной таймер через `page.on_interval` |
 | Классмейт не ставит Ollama — думает что приложение сломано | Высокая | Среднее | Явный UX-индикатор «рецензия в упрощённом режиме», README-инструкция по установке, fallback review всё равно работает |
 | TTF шрифты не грузятся у классмейта | Низкая | Низкое | Bundled в `ui_flet/theme/fonts/`, no-network fallback |
-| 1366×768 ноутбук — chip-навигация не помещается | Низкая | Среднее | Explicit compact breakpoint c popup-меню; smoke на VM |
-| Flet API несовместимые изменения между минорными версиями | Низкая | Высокое | Pin `flet==0.24.x` в requirements |
+| 1366×768 ноутбук — chip-навигация не помещается | Низкая | Среднее | Explicit `laptop_small` breakpoint c popup-меню; snapshot-прогон на 5 разрешениях до release |
+| Flet API несовместимые изменения между минорными версиями | Низкая | Высокое | Pin `flet==0.27.x` в requirements |
+| py-fsrs возвращает странные интервалы на малом истории (1-2 attempts) | Средняя | Среднее | Cold-start rule: первые 3 повторения — линейная лестница 1д/3д/7д, потом FSRS |
+| qwen2.5:7b не пулл'ится (network / диск) | Низкая | Среднее | Fallback в install-wizard на qwen3:4b, явный UX если нет ни одной модели → keyword-only |
+| Fullscreen не отпускает мышь на dual-monitor (Flet на Windows) | Средняя | Низкое | `Esc` hotkey + кнопка выхода из fullscreen в TopBar |
 
 ---
 
@@ -492,10 +575,12 @@ UI-smoke через Flet testing API (если стабильно) или чер
 2. `flet pack` собирает `Tezis.exe`, запускается на Windows 10 + 11 VM
 3. Все 6 тренировочных режимов работают на любом билете (с и без Ollama)
 4. Seed DB `state_exam_public_admin_demo.db` подключается автоматически при первом запуске
-5. На 1280×800 интерфейс не имеет наложений/обрезаний
-6. Light + Dark переключаются без багов
-7. README понятен не-программисту (10 шагов от скачивания до первого ответа на билет)
-8. Однокурсник: exe → open ticket → `state-exam-full` 20 мин → review verdict
+5. **Адаптивность:** интерфейс снимается без наложений/обрезаний на 5 контрольных разрешениях — 1366×768, 1440×900, 1536×864, 1920×1080, 2560×1440. Проверка через скриншоты на VM или снапшот-прогон.
+6. **Полноэкранный режим:** приложение стартует в fullscreen; переключатель «Полноэкранный/Оконный» в Settings работает; размеры окна сохраняются между запусками.
+7. Light + Dark переключаются без багов.
+8. **FSRS:** после серии attempts в `state-exam-full` и `active-recall` очередь повторений на завтра / послезавтра меняется адекватно; правая панель показывает «Сегодня: N билетов»; dashboard retention отрисовывается.
+9. README понятен не-программисту (10 шагов от скачивания до первого ответа на билет).
+10. Однокурсник: exe → open ticket → `state-exam-full` 20 мин → review verdict → завтра открывает — видит свой билет в очереди повторений.
 
 ---
 
@@ -504,12 +589,18 @@ UI-smoke через Flet testing API (если стабильно) или чер
 - После 13 мая — решение по возвращению Dialogue / Knowledge Map
 - Потенциальная web-версия через `flet --web` — офлайн-first
 - Контент-пак для других предметов
-- Перенос `application/adaptive_review.py` на FSRS из SM-2
-- Spaced repetition dashboard как отдельный экран (пока — просто очередь в Tickets view)
+- Ручная настройка FSRS-параметров (retention target, stability min/max) для продвинутых пользователей
+- Экспорт/импорт истории повторений из Anki / в Anki
 
 ---
 
 ## Status Log
 
 - **2026-04-18** — design created, scope: 3 workstreams, 6 экранов, 6 тренировочных режимов, обязательный Ollama wizard, установщик как первоклассный scope.
-- **2026-04-19** — **scope обновлён**. W1 (data pipeline) закрыт, seed DB финальный (см. Часть 2 snapshot). Экраны сокращены с 6 до 3 (Library/Import/Statistics/Dialogue/Knowledge Map — удалены). Тренировочные режимы пересмотрены через evidence-based research (Dunlosky 2013, Roediger & Karpicke 2006, Bjork) — оставлен порядок reading → plan → cloze → active-recall → state-exam-full → review с обоснованием в Части 4. Ollama wizard перенесён в secondary (приложение работает без него на fallback-review). macOS сборка отложена в v2.1.
+- **2026-04-19 (1st update)** — W1 (data pipeline) закрыт, seed DB финальный (см. Часть 2). Экраны сокращены с 6 до 3. Тренировочные режимы пересмотрены через evidence-based research. Ollama wizard — secondary. macOS — v2.1.
+- **2026-04-19 (2nd update)** — правки по замечаниям пользователя:
+  1. **Адаптивность** переписана (часть 3.3): вместо одного порога 1280×800 — таргет на 5 классов ноутбуков и мониторов (1366×768, 1440×900, 1536×864, 1920×1080, 2560×1440). Добавлен `scripts/run_resolution_matrix.ps1` в Files Affected.
+  2. **Fullscreen-first** (новая часть 3.5a): приложение стартует в полноэкранном, переключатель «Полноэкранный/Оконный» в Settings, сохранение window-size между запусками.
+  3. **FSRS** повышен из Deferred в первоклассный scope v2.0 (часть 4.2): миграция `application/adaptive_review.py` с SM-2 на FSRS (py-fsrs), mapping score→grade, очередь повторений в Tickets view, retention dashboard, adaptive mode suggestion.
+  4. **Review engine rewriten** (часть 4.4): после research (`2026-04-19-review-model-research.md`) дефолт — `qwen2.5:7b-instruct-q4_K_M` (2-3× быстрее qwen3:8b, сопоставимое RU). Premium — `vikhr-nemo:12b-instruct` (лучший RU). Light — keyword-fallback без LLM (qwen3:0.6b исключён: false-covered хуже чем честное отсутствие LLM). Промпт rewrite блокирует R1 validation (дни 9-14).
+  5. Acceptance criteria обновлены под новые требования (адаптивность, fullscreen, FSRS). Cut order перераспределён. Risks дополнены 3 новыми (FSRS cold-start, qwen2.5 pull failure, fullscreen dual-monitor).

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import logging
 import re
 from hashlib import sha256
@@ -10,7 +11,6 @@ from typing import Any
 
 import requests
 from PIL import Image
-from rapidocr_onnxruntime import RapidOCR
 
 _LOG = logging.getLogger(__name__)
 
@@ -32,7 +32,10 @@ _CYRILLIC_REC_KEYS_URL = (
 _CYRILLIC_REC_KEYS_SHA256 = "db40aa52ceb112055be80c694afdf655d5d2c4f7873704524cc16a447ca913ba"
 
 _ENGINE_LOCK = Lock()
-_ENGINE_CACHE: dict[str, RapidOCR] = {}
+_ENGINE_CACHE: dict[str, Any] = {}
+_RAPID_OCR_CLASS: type[Any] | None = None
+_RAPID_OCR_IMPORT_ERROR: Exception | None = None
+_RAPID_OCR_IMPORT_ATTEMPTED = False
 
 
 def resolve_ocr_cache_dir(workspace_root: Path | None = None) -> Path:
@@ -73,7 +76,7 @@ def should_keep_ocr_text(existing_text: str, ocr_text: str, *, min_chars: int = 
     return normalized_ocr not in normalized_existing
 
 
-def _get_ocr_engine(cache_dir: Path) -> RapidOCR:
+def _get_ocr_engine(cache_dir: Path) -> Any:
     cache_key = str(cache_dir.resolve())
     cached = _ENGINE_CACHE.get(cache_key)
     if cached is not None:
@@ -84,7 +87,8 @@ def _get_ocr_engine(cache_dir: Path) -> RapidOCR:
         if cached is not None:
             return cached
         assets = _ensure_ocr_assets(cache_dir)
-        engine = RapidOCR(
+        rapid_ocr_class = _load_rapidocr_class()
+        engine = rapid_ocr_class(
             print_verbose=False,
             text_score=0.35,
             rec_model_path=str(assets["rec_model"]),
@@ -92,6 +96,30 @@ def _get_ocr_engine(cache_dir: Path) -> RapidOCR:
         )
         _ENGINE_CACHE[cache_key] = engine
         return engine
+
+
+def _load_rapidocr_class() -> type[Any]:
+    global _RAPID_OCR_CLASS, _RAPID_OCR_IMPORT_ATTEMPTED, _RAPID_OCR_IMPORT_ERROR
+
+    if _RAPID_OCR_CLASS is not None:
+        return _RAPID_OCR_CLASS
+    if _RAPID_OCR_IMPORT_ATTEMPTED:
+        message = "rapidocr_onnxruntime backend is unavailable"
+        if _RAPID_OCR_IMPORT_ERROR is not None:
+            raise RuntimeError(f"{message}: {_RAPID_OCR_IMPORT_ERROR}") from _RAPID_OCR_IMPORT_ERROR
+        raise RuntimeError(message)
+
+    try:
+        module = importlib.import_module("rapidocr_onnxruntime")
+        rapid_ocr_class = module.RapidOCR
+    except Exception as exc:
+        _RAPID_OCR_IMPORT_ATTEMPTED = True
+        _RAPID_OCR_IMPORT_ERROR = exc
+        raise RuntimeError(f"rapidocr_onnxruntime backend is unavailable: {exc}") from exc
+
+    _RAPID_OCR_CLASS = rapid_ocr_class
+    _RAPID_OCR_IMPORT_ATTEMPTED = True
+    return rapid_ocr_class
 
 
 def _ensure_ocr_assets(cache_dir: Path) -> dict[str, Path]:

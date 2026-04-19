@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import importlib
 from dataclasses import replace
 from pathlib import Path
 
 from reportlab.pdfgen import canvas
 
 import application.import_service as import_service_module
+import infrastructure.importers.ocr_support as ocr_support_module
 import infrastructure.importers.pdf_importer as pdf_importer_module
 from application.facade import AppFacade
 from application.import_service import DocumentImportService
@@ -71,6 +73,58 @@ def test_pdf_import_appends_ocr_text(tmp_path: Path, monkeypatch) -> None:
     imported = import_pdf(str(pdf_path), workspace_root=tmp_path)
 
     assert "OCR supplement" in imported.raw_text
+
+
+def test_pdf_import_keeps_base_text_when_pymupdf_is_unavailable(tmp_path: Path, monkeypatch) -> None:
+    pdf_path = tmp_path / "demo.pdf"
+    pdf = canvas.Canvas(str(pdf_path))
+    text = pdf.beginText(40, 800)
+    text.textLine(SOURCE_TEXT)
+    pdf.drawText(text)
+    pdf.save()
+
+    monkeypatch.setattr(
+        pdf_importer_module,
+        "_load_fitz",
+        lambda: (_ for _ in ()).throw(RuntimeError("fitz unavailable on this platform")),
+    )
+
+    imported = import_pdf(str(pdf_path), workspace_root=tmp_path)
+
+    assert "Demo topic" in imported.raw_text
+    assert imported.warnings
+    assert "fitz unavailable" in imported.warnings[0]
+
+
+def test_pdf_import_keeps_base_text_when_rapidocr_is_unavailable(tmp_path: Path, monkeypatch) -> None:
+    pdf_path = tmp_path / "demo.pdf"
+    pdf = canvas.Canvas(str(pdf_path))
+    text = pdf.beginText(40, 800)
+    text.textLine(SOURCE_TEXT)
+    pdf.drawText(text)
+    pdf.save()
+
+    original_import_module = importlib.import_module
+
+    def _fake_import_module(name: str):
+        if name == "rapidocr_onnxruntime":
+            raise ImportError(f"missing optional dependency: {name}")
+        return original_import_module(name)
+
+    monkeypatch.setattr(ocr_support_module, "_RAPID_OCR_CLASS", None)
+    monkeypatch.setattr(ocr_support_module, "_RAPID_OCR_IMPORT_ERROR", None)
+    monkeypatch.setattr(ocr_support_module, "_RAPID_OCR_IMPORT_ATTEMPTED", False)
+    monkeypatch.setattr(
+        ocr_support_module.importlib,
+        "import_module",
+        _fake_import_module,
+    )
+
+    imported = import_pdf(str(pdf_path), workspace_root=tmp_path)
+
+    assert "Demo topic" in imported.raw_text
+    assert imported.warnings
+    assert "rapidocr_onnxruntime backend is unavailable" in imported.warnings[0]
 
 
 def test_facade_reset_application_data_returns_workspace_to_cold_start(tmp_path: Path) -> None:

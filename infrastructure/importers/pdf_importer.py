@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import importlib
 import logging
 from hashlib import sha256
 from pathlib import Path
+from typing import Any
 
-import fitz
 from pypdf import PdfReader
 
 from infrastructure.importers.common import ImportedDocumentText, normalize_import_title
@@ -48,7 +49,8 @@ def _augment_pages_with_ocr(
     workspace_root: Path | None = None,
 ) -> list[str]:
     augmented_pages = list(page_texts)
-    with fitz.open(pdf_path) as document:
+    fitz = _load_fitz()
+    with fitz.open(str(pdf_path)) as document:
         for page_index in range(document.page_count):
             base_text = page_texts[page_index] if page_index < len(page_texts) else ""
             ocr_blocks = _extract_page_ocr_blocks(
@@ -56,6 +58,7 @@ def _augment_pages_with_ocr(
                 page_index,
                 base_text,
                 workspace_root=workspace_root,
+                fitz_module=fitz,
             )
             if ocr_blocks:
                 augmented_pages[page_index] = "\n\n".join(part for part in [base_text, *ocr_blocks] if part)
@@ -63,11 +66,12 @@ def _augment_pages_with_ocr(
 
 
 def _extract_page_ocr_blocks(
-    document: fitz.Document,
+    document: Any,
     page_index: int,
     base_text: str,
     *,
     workspace_root: Path | None = None,
+    fitz_module: Any,
 ) -> list[str]:
     page = document.load_page(page_index)
     blocks: list[str] = []
@@ -95,7 +99,7 @@ def _extract_page_ocr_blocks(
     if blocks or len(base_text.strip()) >= _MIN_PAGE_TEXT_BEFORE_FALLBACK:
         return blocks
 
-    page_bytes = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False).tobytes("png")
+    page_bytes = page.get_pixmap(matrix=fitz_module.Matrix(2, 2), alpha=False).tobytes("png")
     if not is_meaningful_image(page_bytes):
         return blocks
 
@@ -103,3 +107,10 @@ def _extract_page_ocr_blocks(
     if should_keep_ocr_text(base_text, fallback_text):
         blocks.append(fallback_text)
     return blocks
+
+
+def _load_fitz() -> Any:
+    try:
+        return importlib.import_module("fitz")
+    except Exception as exc:
+        raise RuntimeError(f"PyMuPDF backend is unavailable: {exc}") from exc

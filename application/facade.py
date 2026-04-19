@@ -192,12 +192,18 @@ class AppFacade:
         max_resume_passes: int = 8,
         generation_timeout_seconds: float | None | object = _USE_SETTINGS_TIMEOUT,
         parallel_workers: int = 1,
+        exam_id: str | None = None,
+        exam_title: str | None = None,
+        exam_description: str | None = None,
     ) -> ImportExecutionResult:
         result = self.import_document_with_progress(
             path,
             answer_profile_code=answer_profile_code,
             progress_callback=progress_callback,
             generation_timeout_seconds=generation_timeout_seconds,
+            exam_id=exam_id,
+            exam_title=exam_title,
+            exam_description=exam_description,
         )
         previous_counts = self._import_progress_counts(result)
         attempts = 0

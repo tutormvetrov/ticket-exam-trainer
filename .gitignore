@@ -12,9 +12,12 @@ audit/screens/
 *.pyo
 *.pyd
 *.db
+*.db.pre-derivation-backup
 *.db-shm
 *.db-wal
 app_data/
+/tmp-inspect-model/
+/tmp-measure-contract*/
 tmp_qt_smoke/
 tmp_qt_smoke2/
 local_tools/

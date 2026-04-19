@@ -242,10 +242,12 @@ def build_tickets_view(state: AppState) -> ft.Control:
     # ListView instead of Column(scroll=AUTO) — Column with scroll requires a
     # bounded parent height, and Flet 0.27 renders it as a grey placeholder
     # (no children visible) when wrapped in expand-chain containers.
+    # padding right резервирует место под scrollbar Flet'а — иначе полоса
+    # прокрутки наезжает на правый край карточек.
     list_container = ft.ListView(
         spacing=SPACE["sm"],
         expand=True,
-        padding=ft.padding.all(0),
+        padding=ft.padding.only(right=SPACE["md"]),
     )
     detail_container = ft.Container(expand=True, padding=SPACE["lg"])
     progress_container = ft.Container(expand=True, padding=SPACE["lg"])

@@ -107,6 +107,16 @@ _MODE_KEYS = {
     "dialogue",
 }
 
+# Известные runtime-значения из домена, которые НЕ должны появляться в UI
+# как-есть — для них обязателен перевод в i18n. Тест проверяет, что текста
+# этих токенов нет в source как последний аргумент `str(...)` внутри
+# потенциально-UI-контекста. Это guardrail против повторения бага
+# «conclusion / examples» в chip'ах.
+_FORBIDDEN_DOMAIN_TOKENS_IN_UI = (
+    "str(atom.type)",
+    "str(block.block_code)",
+)
+
 
 def _iter_ui_python_files() -> list[Path]:
     files: list[Path] = []
@@ -168,6 +178,76 @@ class _WidgetStringCollector(ast.NodeVisitor):
     def _check(self, lineno: int, origin: str, value: str) -> None:
         if not _passes_language_contract(value):
             self.violations.append((lineno, origin, value))
+
+
+def _is_domain_enum_render(node: ast.AST) -> bool:
+    """True если узел — это `str(atom.type)` или `str(block.block_code)`.
+
+    Такие значения — английские enum'ы, их нельзя рендерить как есть.
+    Проверяем именно вызов `str(...)` поверх атрибута (.type/.block_code).
+    """
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    is_str_call = isinstance(func, ast.Name) and func.id == "str"
+    if not is_str_call or len(node.args) != 1:
+        return False
+    arg = node.args[0]
+    if not isinstance(arg, ast.Attribute):
+        return False
+    if arg.attr in ("type", "block_code"):
+        return True
+    return False
+
+
+class _DomainEnumInUiCollector(ast.NodeVisitor):
+    """Находит `str(atom.type)` / `str(block.block_code)`, которые подаются
+    ПРЯМЫМ аргументом в widget-construct или `or`-fallback для widget-arg.
+
+    Сравнения (`== code`, `in set`, `.lower()`) НЕ ловит — это не рендеринг.
+    """
+
+    def __init__(self) -> None:
+        self.violations: list[tuple[int, str]] = []
+
+    def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+        name = _call_name(node)
+        if name in _WIDGET_CALLABLES:
+            for arg in node.args:
+                self._scan_value_for_domain_enum(arg)
+            for keyword in node.keywords:
+                if keyword.arg in _WIDGET_KWARGS:
+                    self._scan_value_for_domain_enum(keyword.value)
+        self.generic_visit(node)
+
+    def _scan_value_for_domain_enum(self, node: ast.AST) -> None:
+        if _is_domain_enum_render(node):
+            self.violations.append((node.lineno, ast.unparse(node)))
+            return
+        if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
+            # `atom.label or str(atom.type)` — второй операнд уходит в UI.
+            for operand in node.values:
+                self._scan_value_for_domain_enum(operand)
+
+
+@pytest.mark.parametrize("path", _iter_ui_python_files(), ids=lambda p: p.relative_to(REPO_ROOT).as_posix())
+def test_no_raw_domain_tokens_in_ui(path: Path) -> None:
+    """Не даём `str(atom.type)` / `str(block.block_code)` уйти в widget — это
+    английские enum-значения, их нужно маппить через TEXT['atom.type.<v>'] /
+    TEXT['block.<code>']."""
+    source = path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(path))
+    collector = _DomainEnumInUiCollector()
+    collector.visit(tree)
+    if collector.violations:
+        formatted = "\n".join(
+            f"  {path.relative_to(REPO_ROOT).as_posix()}:{lineno}  →  {snippet}"
+            for lineno, snippet in collector.violations
+        )
+        pytest.fail(
+            f"Прямая рендеринг доменного enum в UI ({path.name}):\n{formatted}\n\n"
+            "Используйте TEXT[f'atom.type.{value}'] или TEXT[f'block.{code}']."
+        )
 
 
 @pytest.mark.parametrize("path", _iter_ui_python_files(), ids=lambda p: p.relative_to(REPO_ROOT).as_posix())

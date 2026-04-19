@@ -34,10 +34,26 @@ _ATOM_TYPE_ACCENT = {
 }
 
 
+def _atom_type_value(atom) -> str:
+    """Нормализует атом-тип в lowercased-snake-string ('conclusion', 'examples', ...)."""
+    raw = atom.type
+    if hasattr(raw, "value"):
+        return str(raw.value)
+    return str(raw).lower().split(".")[-1]
+
+
+def _block_code_value(block) -> str:
+    raw = getattr(block, "block_code", "")
+    if hasattr(raw, "value"):
+        return str(raw.value)
+    return str(raw).lower().split(".")[-1]
+
+
 def _atom_card(palette_map: dict, atom) -> ft.Control:
-    accent_key = _ATOM_TYPE_ACCENT.get(str(atom.type), "accent")
+    atom_type_value = _atom_type_value(atom)
+    accent_key = _ATOM_TYPE_ACCENT.get(atom_type_value, "accent")
     accent_colour = palette_map.get(accent_key, palette_map["accent"])
-    type_label = str(atom.type).replace("_", " ")
+    type_label = TEXT.get(f"atom.type.{atom_type_value}", atom_type_value.replace("_", " "))
 
     header_row: list[ft.Control] = [
         ft.Container(
@@ -106,6 +122,8 @@ def _atom_card(palette_map: dict, atom) -> ft.Control:
 
 
 def _answer_block_card(palette_map: dict, block) -> ft.Control:
+    code = _block_code_value(block)
+    fallback_title = TEXT.get(f"block.{code}", code.replace("_", " "))
     return ft.Container(
         padding=SPACE["md"],
         bgcolor=palette_map["bg_surface"],
@@ -115,7 +133,7 @@ def _answer_block_card(palette_map: dict, block) -> ft.Control:
             spacing=SPACE["xs"],
             controls=[
                 ft.Text(
-                    block.title or str(block.block_code),
+                    block.title or fallback_title,
                     size=14,
                     weight=ft.FontWeight.W_600,
                     color=palette_map["text_primary"],

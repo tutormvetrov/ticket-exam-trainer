@@ -33,6 +33,13 @@ _RU_STOPWORDS = {
 }
 
 
+def _atom_type_label_ru(atom) -> str:
+    """Возвращает RU-метку по atom.type или падает обратно на raw value."""
+    raw = atom.type
+    value = raw.value if hasattr(raw, "value") else str(raw).lower().split(".")[-1]
+    return TEXT.get(f"atom.type.{value}", value.replace("_", " "))
+
+
 def _pick_atoms(ticket, max_atoms: int = 3):
     picked = []
     for atom in ticket.atoms or []:
@@ -155,7 +162,7 @@ def _render_atom(palette_map: dict, atom) -> tuple[ft.Control, list[ft.TextField
             spacing=SPACE["sm"],
             controls=[
                 ft.Text(
-                    atom.label or str(atom.type),
+                    atom.label or _atom_type_label_ru(atom),
                     size=14,
                     weight=ft.FontWeight.W_600,
                     color=palette_map["text_primary"],

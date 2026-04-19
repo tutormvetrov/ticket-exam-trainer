@@ -220,4 +220,16 @@ TEXT = {
     # Skeleton marker
     "skeleton.weak.tooltip":          "Эталонный план у этого билета короткий — сверяй смысл, не структуру.",
     "skeleton.weak.warning":          "У этого билета эталонный скелет неточный — ориентируйся на смысл ответа, не на количество блоков.",
+
+    # Atom type chips в reading-workspace
+    "atom.type.definition":     "определение",
+    "atom.type.examples":        "примеры",
+    "atom.type.features":        "признаки",
+    "atom.type.stages":          "этапы",
+    "atom.type.functions":       "функции",
+    "atom.type.causes":          "причины",
+    "atom.type.consequences":    "последствия",
+    "atom.type.classification":  "классификация",
+    "atom.type.process_step":   "шаг процесса",
+    "atom.type.conclusion":      "вывод",
 }

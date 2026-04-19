@@ -42,9 +42,11 @@ _FONT_PRESET_OPTIONS: list[tuple[str, str]] = [
 
 _OLLAMA_MODEL_OPTIONS: list[tuple[str, str, bool]] = [
     # (model_id, description, is_recommended)
-    ("qwen3:0.6b", "qwen3:0.6b · быстро, слабое железо", False),
+    # "Рекомендовано" вешает сам дропдаун отдельным маркером —
+    # не дублировать в description.
+    ("qwen3:0.6b", "qwen3:0.6b · быстро, для слабого железа", False),
     ("qwen3:4b", "qwen3:4b · баланс скорости и качества", False),
-    ("qwen3:8b", "qwen3:8b · рекомендуется", True),
+    ("qwen3:8b", "qwen3:8b · качество рецензии", True),
 ]
 
 

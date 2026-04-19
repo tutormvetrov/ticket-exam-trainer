@@ -87,6 +87,7 @@ def test_request_generation_does_not_fallback_to_unrelated_family(monkeypatch) -
 
 def test_review_answer_parses_json_response(monkeypatch) -> None:
     import json
+
     from infrastructure.ollama.client import OllamaResponse
     from infrastructure.ollama.service import OllamaService
 

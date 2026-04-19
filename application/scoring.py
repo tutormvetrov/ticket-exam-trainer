@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
-import re
 from uuid import uuid4
 
 from application.state_exam_scoring import StateExamScoringService
 from application.ui_data import ReviewVerdict, ThesisVerdict
-from domain.answer_profile import AnswerBlockCode, AnswerCriterionCode, AnswerProfileCode, AttemptBlockScore, TicketBlockMasteryProfile
+from domain.answer_profile import (
+    AnswerBlockCode,
+    AnswerCriterionCode,
+    AnswerProfileCode,
+    AttemptBlockScore,
+    TicketBlockMasteryProfile,
+)
 from domain.knowledge import (
     AttemptRecord,
     ExerciseInstance,
@@ -19,7 +25,6 @@ from domain.knowledge import (
     WeakArea,
     WeakAreaKind,
 )
-
 
 WORD_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё0-9-]+")
 

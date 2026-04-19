@@ -22,6 +22,7 @@ class SettingsStore:
             examiner_followups=bool(payload.get("examiner_followups", DEFAULT_OLLAMA_SETTINGS.examiner_followups)),
             rule_based_fallback=bool(payload.get("rule_based_fallback", DEFAULT_OLLAMA_SETTINGS.rule_based_fallback)),
             theme_name=payload.get("theme_name", DEFAULT_OLLAMA_SETTINGS.theme_name),
+            theme_family=str(payload.get("theme_family", DEFAULT_OLLAMA_SETTINGS.theme_family) or DEFAULT_OLLAMA_SETTINGS.theme_family),
             startup_view=payload.get("startup_view", DEFAULT_OLLAMA_SETTINGS.startup_view),
             auto_check_ollama_on_start=bool(payload.get("auto_check_ollama_on_start", DEFAULT_OLLAMA_SETTINGS.auto_check_ollama_on_start)),
             show_dlc_teaser=bool(payload.get("show_dlc_teaser", DEFAULT_OLLAMA_SETTINGS.show_dlc_teaser)),
@@ -37,6 +38,8 @@ class SettingsStore:
             window_mode=str(payload.get("window_mode", DEFAULT_OLLAMA_SETTINGS.window_mode) or DEFAULT_OLLAMA_SETTINGS.window_mode),
             window_width=int(payload.get("window_width", DEFAULT_OLLAMA_SETTINGS.window_width) or DEFAULT_OLLAMA_SETTINGS.window_width),
             window_height=int(payload.get("window_height", DEFAULT_OLLAMA_SETTINGS.window_height) or DEFAULT_OLLAMA_SETTINGS.window_height),
+            gemini_api_key=str(payload.get("gemini_api_key", DEFAULT_OLLAMA_SETTINGS.gemini_api_key) or DEFAULT_OLLAMA_SETTINGS.gemini_api_key),
+            gemini_model=str(payload.get("gemini_model", DEFAULT_OLLAMA_SETTINGS.gemini_model) or DEFAULT_OLLAMA_SETTINGS.gemini_model),
         )
 
     def save(self, settings: OllamaSettings) -> None:

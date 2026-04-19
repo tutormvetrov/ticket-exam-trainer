@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import time
+from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlparse
 
 import requests

@@ -43,8 +43,14 @@ from uuid import uuid4
 
 from fsrs import Card, Rating, Scheduler
 
-from domain.knowledge import ReviewMode, SpacedReviewItem, TicketKnowledgeMap, TicketMasteryProfile, WeakArea, WeakAreaKind
-
+from domain.knowledge import (
+    ReviewMode,
+    SpacedReviewItem,
+    TicketKnowledgeMap,
+    TicketMasteryProfile,
+    WeakArea,
+    WeakAreaKind,
+)
 
 # Cold-start ladder: на первых трёх попытках мы не доверяем FSRS-оценке,
 # потому что для совсем новой карточки она выдаёт дефолтные параметры (stability
@@ -52,15 +58,14 @@ from domain.knowledge import ReviewMode, SpacedReviewItem, TicketKnowledgeMap, T
 # используем ручной ramp-up: 1 день → 3 дня → 7 дней.
 COLD_START_INTERVALS_DAYS: tuple[int, ...] = (1, 3, 7)
 
-# Режимы, которые в принципе меняют расписание карточки.
-# Reading/plan/cloze/matching — пассивные, они не влияют на расписание.
-_ACTIVE_MODES: frozenset[str] = frozenset({"state-exam-full", "active-recall", "mini-exam", "review"})
+# Режимы, которые реально двигают расписание карточки в текущем приложении.
+_ACTIVE_MODES: frozenset[str] = frozenset({"state-exam-full", "active-recall", "review"})
 
 
 def score_to_rating(mode_key: str, score_percent: int) -> Rating | None:
     """Маппинг ``(mode, score %) -> fsrs.Rating``.
 
-    Пассивные режимы (reading, plan, cloze, matching и пр.) не двигают FSRS —
+    Пассивные режимы (reading, plan, cloze и пр.) не двигают FSRS —
     возвращаем ``None``.
     """
     score = max(0, min(100, int(score_percent)))
@@ -72,7 +77,7 @@ def score_to_rating(mode_key: str, score_percent: int) -> Rating | None:
         if score >= 40:
             return Rating.Hard
         return Rating.Again
-    if mode_key in {"active-recall", "mini-exam", "review"}:
+    if mode_key in {"active-recall", "review"}:
         # Короткий формат — Easy выдавать рано. Максимум — Good.
         if score >= 75:
             return Rating.Good
@@ -204,7 +209,7 @@ class AdaptiveReviewService:
         ``fsrs_state_json``, ``attempts_count``, ``last_reviewed_at`` и
         ``next_review_at``. Оригинальный объект не мутируется.
 
-        Для пассивных режимов (``reading``/``plan``/``cloze``/``matching``)
+        Для пассивных режимов (``reading``/``plan``/``cloze``)
         ничего не делается: ``score_to_rating`` вернёт ``None`` и profile
         возвращается как есть.
         """

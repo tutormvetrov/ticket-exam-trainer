@@ -3,13 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from domain.defense import (
+    CommitteePersonaKind,
     DefenseClaim,
     DefenseGapFinding,
     DefenseQuestion,
     DefenseRepairTask,
     DefenseScoreProfile,
     DefenseWeakArea,
-    CommitteePersonaKind,
     DlcLicenseState,
     SlideStoryboardCard,
     ThesisProject,

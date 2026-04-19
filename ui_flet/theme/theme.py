@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import flet as ft
 
-from ui_flet.theme.tokens import COLOR_LIGHT, COLOR_DARK, TYPE
+from ui_flet.theme.tokens import palette, text_style
 
 
 def _color_scheme(p: dict[str, str], is_dark: bool) -> ft.ColorScheme:
@@ -34,10 +34,11 @@ def _color_scheme(p: dict[str, str], is_dark: bool) -> ft.ColorScheme:
 
 
 def build_theme(is_dark: bool) -> ft.Theme:
-    p = COLOR_DARK if is_dark else COLOR_LIGHT
+    p = palette(is_dark)
+    body_family = text_style("body").font_family
     return ft.Theme(
         color_scheme=_color_scheme(p, is_dark),
-        font_family=TYPE["body"]["family"],
+        font_family=body_family,
         use_material3=True,
         visual_density=ft.VisualDensity.STANDARD,
         page_transitions=ft.PageTransitionsTheme(
@@ -51,5 +52,4 @@ def apply_theme(page: ft.Page, is_dark: bool) -> None:
     page.theme_mode = ft.ThemeMode.DARK if is_dark else ft.ThemeMode.LIGHT
     page.theme = build_theme(False)
     page.dark_theme = build_theme(True)
-    p = COLOR_DARK if is_dark else COLOR_LIGHT
-    page.bgcolor = p["bg_base"]
+    page.bgcolor = palette(is_dark)["bg_base"]

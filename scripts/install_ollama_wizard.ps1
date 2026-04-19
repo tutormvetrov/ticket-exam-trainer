@@ -5,9 +5,10 @@
     the choice to the app settings file.
 
 .DESCRIPTION
-    Based on docs/superpowers/specs/2026-04-18-flet-migration-design.md (part
-    5.1-5.2) and refined after the 2026-04-19 model-selection research: default
-    review-model is `qwen2.5:7b-instruct-q4_K_M`, premium tier is
+    Detects hardware, recommends a local review-model tier, installs Ollama if
+    needed, pulls the model, runs a canary, and writes the choice to
+    settings.json. The default review-model is `qwen2.5:7b-instruct-q4_K_M`,
+    premium tier is
     `vikhr-nemo-12b-instruct` (with `qwen2.5:14b-instruct-q4_K_M` as the
     fallback tag). Light tier (<8 GB RAM) skips Ollama entirely and uses the
     keyword fallback baked into the trainer.

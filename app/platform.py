@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shlex
 import subprocess
 import sys
-
+from pathlib import Path
 
 WINDOWS_DEFAULT_MODELS_PATH = Path(r"D:\Ollama\models")
 WINDOWS_LEGACY_SHARED_MODELS_PATH = Path(r"D:\OllamaModels")
@@ -69,7 +68,7 @@ def check_script_name() -> str | None:
 
 def release_build_script_name() -> str | None:
     if is_windows():
-        return "build_exe.ps1"
+        return "build_flet_exe.ps1"
     if is_macos():
         return "build_mac_app.sh"
     return None

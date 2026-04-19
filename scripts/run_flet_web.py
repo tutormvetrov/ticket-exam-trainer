@@ -16,6 +16,5 @@ import flet as ft
 
 from ui_flet.main import _main
 
-
 if __name__ == "__main__":
     ft.app(target=_main, view=ft.AppView.WEB_BROWSER, port=8551)

@@ -23,7 +23,6 @@ from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
 
-
 CONFIDENCE_GUESS = "guess"
 CONFIDENCE_IDEA = "idea"
 CONFIDENCE_SURE = "sure"

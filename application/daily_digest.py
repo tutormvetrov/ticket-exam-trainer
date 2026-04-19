@@ -13,10 +13,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, datetime
 import sqlite3
-
+from dataclasses import dataclass
+from datetime import date
 
 MASTERED_THRESHOLD = 0.75  # score ≥ 75% → считается «в долговременную память»
 NEW_TICKET_MARK = "первый"  # marker used to render "первый заход" delta hint
@@ -180,7 +179,6 @@ def _normalize_mode(raw: str | None) -> str:
         "answer_skeleton": "reading",
         "atom_recall": "active-recall",
         "semantic_cloze": "cloze",
-        "odd_thesis": "matching",
         "structure_reconstruction": "plan",
         "oral_full": "state-exam-full",
         "oral_short": "active-recall",

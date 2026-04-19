@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
-from pathlib import Path
 import shutil
 import sys
 import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from app.release_seed import resolve_seed_database
 from application.facade import AppFacade
 from application.settings import OllamaSettings
 from application.settings_store import SettingsStore
-from app.release_seed import resolve_seed_database
 from domain.answer_profile import AnswerProfileCode
 from infrastructure.db import connect_initialized, get_database_path
 from scripts.build_state_exam_seed import load_seed_settings

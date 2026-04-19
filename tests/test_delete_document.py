@@ -3,8 +3,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from application.facade import AppFacade
 from application.settings import DEFAULT_OLLAMA_SETTINGS
 from application.settings_store import SettingsStore

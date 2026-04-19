@@ -1,21 +1,21 @@
 from __future__ import annotations
 
+import logging
+import shutil
+import sqlite3
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
-import logging
 from pathlib import Path
-import shutil
-import sqlite3
 from typing import TypeVar
 from uuid import uuid4
 
 from application.adaptive_review import AdaptiveReviewService
 from application.answer_profile_registry import answer_profile_label, get_answer_profile
-from application.readiness import ReadinessService
 from application.defense_service import DefenseService
 from application.defense_ui_data import DefenseEvaluationResult, DefenseProcessingResult, DefenseWorkspaceSnapshot
 from application.import_service import DocumentImportService, TicketCandidate
+from application.readiness import ReadinessService
 from application.scoring import MicroSkillScoringService
 from application.settings import OllamaSettings
 from application.settings_store import SettingsStore
@@ -32,15 +32,14 @@ from application.ui_data import (
 )
 from application.ui_query_service import UiQueryService
 from domain.answer_profile import AnswerProfileCode, TicketBlockMasteryProfile
-from domain.knowledge import Exam, ExerciseType, ReviewMode, Section, TicketMasteryProfile
+from domain.knowledge import Exam, ExerciseType, ReviewMode, Section, TicketKnowledgeMap, TicketMasteryProfile
 from domain.models import DocumentData, SubjectData
 from infrastructure.db import DefenseRepository, DialogueRepository, KnowledgeRepository
 from infrastructure.db.transaction import atomic
 from infrastructure.importers.common import normalize_import_title
 from infrastructure.ollama import OllamaService
-from infrastructure.ollama.dialogue import DialogueTranscriptLine, DialogueTurnContext, DialogueTurnResult
+from infrastructure.ollama.dialogue import DialogueTranscriptLine, DialogueTurnContext
 from infrastructure.ollama.service import OllamaDiagnostics
-
 
 _USE_SETTINGS_TIMEOUT = object()
 _T = TypeVar("_T")
@@ -710,7 +709,6 @@ class AppFacade:
         )
 
     def load_readiness_score(self, tickets=None, mastery=None, exam_id: str | None = None):
-        from application.ui_data import ReadinessScore
         resolved_tickets = (
             tickets if tickets is not None
             else self.load_ticket_maps(exam_id=exam_id)

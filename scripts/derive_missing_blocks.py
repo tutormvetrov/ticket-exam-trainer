@@ -28,7 +28,6 @@ from app.paths import get_workspace_root
 from application.block_derivation import derive_missing_blocks
 from infrastructure.db import get_database_path
 
-
 _LOG = logging.getLogger(__name__)
 
 

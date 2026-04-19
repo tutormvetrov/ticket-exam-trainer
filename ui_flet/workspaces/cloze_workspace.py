@@ -14,24 +14,21 @@ rule-based scoring reads keyword matches out of this text.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import List
 
 import flet as ft
 
-import logging
-
 from ui_flet.components.training_workspace_base import build_workspace_frame, safe_update
-
-
-_LOG = logging.getLogger(__name__)
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
-from ui_flet.theme.tokens import palette, SPACE, RADIUS
+from ui_flet.theme.tokens import RADIUS, SPACE, palette
 
+_LOG = logging.getLogger(__name__)
 
 _RU_STOPWORDS = {
-    "или", "при", "для", "это", "этот", "эта", "это", "как", "что", "чтобы",
+    "или", "при", "для", "это", "этот", "эта", "как", "что", "чтобы",
     "если", "либо", "также", "который", "которая", "которые", "между", "через",
     "только", "более", "менее", "всего", "всех", "свой", "быть", "есть",
     "которое", "таких", "таким", "такой", "такая", "такие", "того",
@@ -212,7 +209,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
 
     def _on_check(_evt) -> None:
         hits = 0
-        for field, expected in zip(all_fields, all_expected):
+        for field, expected in zip(all_fields, all_expected, strict=False):
             user_val = (field.value or "").strip().casefold()
             exp_val = (expected or "").strip().casefold()
             if user_val and user_val == exp_val:

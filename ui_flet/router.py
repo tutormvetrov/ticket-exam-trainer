@@ -19,12 +19,12 @@ import flet as ft
 
 from app.runtime_logging import get_log_path
 from ui_flet.state import AppState
+from ui_flet.views.dashboard_view import build_dashboard_view
 from ui_flet.views.journal_view import build_journal_view
 from ui_flet.views.onboarding_view import build_onboarding_view
+from ui_flet.views.settings_view import build_settings_view
 from ui_flet.views.tickets_view import build_tickets_view
 from ui_flet.views.training_view import build_training_view
-from ui_flet.views.settings_view import build_settings_view
-
 
 _LOG = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def on_route_change(state: AppState) -> callable:
             page.go("/onboarding")
             return
         if route in ("/", ""):
-            default_route = "/journal" if state.user_profile is not None else "/onboarding"
+            default_route = "/dashboard" if state.user_profile is not None else "/onboarding"
             page.go(default_route)
             return
 
@@ -60,6 +60,8 @@ def _build_view(state: AppState, route: str) -> ft.View:
 
     if head == "onboarding":
         body = build_onboarding_view(state)
+    elif head == "dashboard":
+        body = build_dashboard_view(state)
     elif head == "journal":
         body = build_journal_view(state)
     elif head == "tickets":

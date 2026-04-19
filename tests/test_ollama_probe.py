@@ -14,8 +14,6 @@ from __future__ import annotations
 import time
 from unittest.mock import patch
 
-import pytest
-
 from ui_flet import ollama_probe
 from ui_flet.ollama_probe import probe_ollama_now
 

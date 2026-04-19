@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
-import json
 
 from domain.answer_profile import AnswerBlockCode, TicketAnswerBlock
 from domain.knowledge import AtomType, ExaminerPrompt, KnowledgeAtom
-from infrastructure.ollama.dialogue import DialogueTurnContext, DialogueTurnPayload, DialogueTurnResult
 from infrastructure.ollama.client import OllamaClient, OllamaResponse
+from infrastructure.ollama.dialogue import DialogueTurnContext, DialogueTurnPayload, DialogueTurnResult
 from infrastructure.ollama.prompts import (
     dialogue_turn_prompt,
     followup_questions_prompt,
@@ -22,7 +22,6 @@ from infrastructure.ollama.prompts import (
     structuring_user_prompt,
 )
 from infrastructure.ollama.runtime import OllamaRuntimeManager
-
 
 _UNSET_TIMEOUT = object()
 

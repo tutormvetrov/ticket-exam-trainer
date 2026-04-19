@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
 import json
 import sqlite3
+from datetime import datetime
 
 from application.answer_profile_registry import answer_profile_label
 from application.ui_data import (
@@ -24,9 +24,9 @@ from domain.answer_profile import AnswerBlockCode, AnswerCriterionCode, AnswerPr
 from domain.knowledge import (
     AtomType,
     CrossTicketLink,
+    ExaminerPrompt,
     ExerciseTemplate,
     ExerciseType,
-    ExaminerPrompt,
     KnowledgeAtom,
     ScoringCriterion,
     SkillCode,
@@ -170,14 +170,31 @@ class UiQueryService:
             for row in rows
         ]
 
-    def load_ticket_maps(self) -> list[TicketKnowledgeMap]:
-        rows = self.connection.execute(
-            """
-            SELECT ticket_id
-            FROM tickets
-            ORDER BY created_at DESC, ticket_id DESC
-            """
-        ).fetchall()
+    def load_ticket_maps(self, exam_id: str | None = None) -> list[TicketKnowledgeMap]:
+        """Билеты для UI. Если ``exam_id`` задан — фильтруем им (мульти-курс).
+
+        Передаётся из ``state.user_profile.active_exam_id``. Без exam_id
+        тянем все билеты — поведение для тестов и фолбэка, если профиль ещё
+        не создан.
+        """
+        if exam_id:
+            rows = self.connection.execute(
+                """
+                SELECT ticket_id
+                FROM tickets
+                WHERE exam_id = ?
+                ORDER BY created_at DESC, ticket_id DESC
+                """,
+                (exam_id,),
+            ).fetchall()
+        else:
+            rows = self.connection.execute(
+                """
+                SELECT ticket_id
+                FROM tickets
+                ORDER BY created_at DESC, ticket_id DESC
+                """
+            ).fetchall()
         return [self.load_ticket_map(row["ticket_id"]) for row in rows]
 
     def load_ticket_maps_for_document(self, document_id: str) -> list[TicketKnowledgeMap]:

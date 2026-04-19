@@ -63,6 +63,25 @@ def test_settings_store_round_trip_preserves_window_mode(tmp_path: Path) -> None
     assert loaded.window_height == 1000
 
 
+def test_settings_store_round_trip_preserves_style_and_gemini_fields(tmp_path: Path) -> None:
+    store = SettingsStore(tmp_path / "settings.json")
+    base = store.load()
+    from dataclasses import replace
+
+    modified = replace(
+        base,
+        theme_family="deco",
+        gemini_api_key="test-key",
+        gemini_model="gemini-2.5-pro",
+    )
+    store.save(modified)
+
+    loaded = store.load()
+    assert loaded.theme_family == "deco"
+    assert loaded.gemini_api_key == "test-key"
+    assert loaded.gemini_model == "gemini-2.5-pro"
+
+
 def test_settings_store_load_falls_back_on_empty_strings(tmp_path: Path) -> None:
     """If a user hand-edits settings.json with blanks, we still boot."""
     path = tmp_path / "settings.json"

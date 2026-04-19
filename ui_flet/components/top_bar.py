@@ -14,36 +14,65 @@ need a full re-layout just for a colour swap.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Callable
 
 import flet as ft
 
 from ui_flet.components.chip import Chip
+from ui_flet.components.decorative import thin_top_border
 from ui_flet.components.feedback import show_snackbar
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
-from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
+from ui_flet.theme.tokens import SPACE, get_active_family, palette, text_style
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _brand_icon_path() -> str:
+    """Путь к brand-иконке для текущего семейства тем."""
+    if get_active_family() == "deco":
+        return str(_REPO_ROOT / "assets" / "logo" / "tezis-deco.png")
+    return str(_REPO_ROOT / "assets" / "icon.png")
+
+
+def _course_short_title(state: AppState) -> str | None:
+    """Короткое название активного курса из COURSE_CATALOG (для подзаголовка)."""
+    from application.user_profile import COURSE_CATALOG
+
+    eid = getattr(state, "active_exam_id", None)
+    if not eid:
+        return None
+    for course in COURSE_CATALOG:
+        if course.get("exam_id") == eid:
+            return course.get("short_title")
+    return None
 
 
 # Ordered nav entries: (i18n_key, route, icon)
 _NAV_ITEMS = [
-    ("nav.journal", "/journal", ft.Icons.BOOK_OUTLINED),
-    ("nav.tickets", "/tickets", ft.Icons.LIBRARY_BOOKS_OUTLINED),
-    ("nav.training", "/training", ft.Icons.EDIT_NOTE_OUTLINED),
-    ("nav.settings", "/settings", ft.Icons.SETTINGS_OUTLINED),
+    ("nav.dashboard", "/dashboard", ft.Icons.DASHBOARD_OUTLINED),
+    ("nav.journal",   "/journal",   ft.Icons.BOOK_OUTLINED),
+    ("nav.tickets",   "/tickets",   ft.Icons.LIBRARY_BOOKS_OUTLINED),
+    ("nav.training",  "/training",  ft.Icons.EDIT_NOTE_OUTLINED),
+    ("nav.settings",  "/settings",  ft.Icons.SETTINGS_OUTLINED),
 ]
 
 
 def _resolve_active_nav(route: str) -> str:
     """Match the current page.route against a nav root."""
     route = (route or "/").lower()
+    if route.startswith("/dashboard"):
+        return "/dashboard"
     if route.startswith("/journal"):
         return "/journal"
     if route.startswith("/training"):
         return "/training"
     if route.startswith("/settings"):
         return "/settings"
-    return "/tickets"
+    if route.startswith("/tickets"):
+        return "/tickets"
+    return "/dashboard"
 
 
 def _load_ollama_badge(state: AppState) -> ft.Control:
@@ -97,24 +126,38 @@ def build_top_bar(
             return
         state.go(route)
 
-    # Brand
+    # Brand: иконка слева + двухстрочный текст «Тезис / подзаголовок».
+    # Подзаголовок динамичный: для пользователя с активным курсом — короткое
+    # «название курса», иначе общий «Подготовка к письменному госэкзамену».
     brand_title = ft.Text(
         TEXT["app_title"],
         style=text_style("h2", color=p["text_primary"]),
     )
+    subtitle_text = _course_short_title(state) or TEXT["app_subtitle"]
     brand_subtitle = ft.Text(
-        TEXT["app_subtitle"],
+        subtitle_text,
         style=text_style("caption", color=p["text_muted"]),
         max_lines=1,
         overflow=ft.TextOverflow.ELLIPSIS,
     )
-    brand_col = ft.Column(
+    brand_text_col = ft.Column(
         [brand_title, brand_subtitle],
         spacing=0,
         tight=True,
         alignment=ft.MainAxisAlignment.CENTER,
     )
-    brand = ft.Container(content=brand_col, padding=ft.padding.only(right=SPACE["xl"]))
+    brand_icon = ft.Image(
+        src=_brand_icon_path(),
+        width=44, height=44,
+        fit=ft.ImageFit.CONTAIN,
+    )
+    brand_row = ft.Row(
+        [brand_icon, brand_text_col],
+        spacing=SPACE["sm"],
+        tight=True,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    )
+    brand = ft.Container(content=brand_row, padding=ft.padding.only(right=SPACE["xl"]))
 
     # Navigation chips
     nav_chips: list[ft.Control] = []
@@ -180,10 +223,15 @@ def build_top_bar(
         spacing=SPACE["md"],
     )
 
-    return ft.Container(
+    # Декоративная нижняя граница TopBar — двойная линия для deco,
+    # azulejo-точки для warm. Заменяет простую линию для большего вкуса.
+    bar_block = ft.Container(
         content=bar_row,
         padding=ft.padding.symmetric(horizontal=SPACE["xl"], vertical=SPACE["md"]),
         bgcolor=p["bg_sidebar"],
-        border=ft.border.only(bottom=ft.BorderSide(1, p["border_soft"])),
-        border_radius=ft.border_radius.only(bottom_left=0, bottom_right=0),
+    )
+    return ft.Column(
+        [bar_block, thin_top_border(state)],
+        spacing=0,
+        tight=True,
     )

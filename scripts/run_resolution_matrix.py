@@ -73,9 +73,9 @@ def _build_facade():
 
 def _smoke_one(name: str, width: int, height: int, facade) -> list[str]:
     from ui_flet.state import AppState
+    from ui_flet.views.settings_view import build_settings_view
     from ui_flet.views.tickets_view import build_tickets_view
     from ui_flet.views.training_view import build_training_view
-    from ui_flet.views.settings_view import build_settings_view
 
     errors: list[str] = []
     page = _MockPage(width, height)

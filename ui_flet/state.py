@@ -28,7 +28,6 @@ from application.facade import AppFacade
 from application.ticket_quality import TicketQualityCache
 from application.user_profile import DEFAULT_EXAM_ID, UserProfile
 
-
 _LOG = logging.getLogger(__name__)
 
 

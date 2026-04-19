@@ -3,12 +3,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from dataclasses import dataclass, replace
-from datetime import datetime, timezone
-from pathlib import Path
 import shutil
 import sys
 import tempfile
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import TextIO
 from uuid import uuid4
 
@@ -21,7 +21,6 @@ from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
 from application.settings_store import SettingsStore
 from domain.answer_profile import AnswerProfileCode
 from infrastructure.db import connect_initialized, get_database_path
-
 
 DEFAULT_OUTPUT_DB = REPO_ROOT / "build" / "demo_seed" / "state_exam_public_admin_demo.db"
 REQUIRED_MODEL_FAMILY = "qwen"

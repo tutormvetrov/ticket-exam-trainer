@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import ctypes
 import os
 import platform
 import re
 import subprocess
+from dataclasses import dataclass
 
 from application.defense_ui_data import ModelRecommendation
 from infrastructure.ollama.service import OllamaService

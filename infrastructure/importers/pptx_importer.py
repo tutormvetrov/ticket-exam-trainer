@@ -6,7 +6,6 @@ from zipfile import ZipFile
 
 from infrastructure.importers.common import ImportedDocumentText, normalize_import_title
 
-
 PRESENTATION_NS = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
 }

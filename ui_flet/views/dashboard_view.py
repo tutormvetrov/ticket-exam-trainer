@@ -22,6 +22,8 @@ import flet as ft
 from application.user_profile import COURSE_CATALOG
 from ui_flet.components.decorative import (
     divider as decorative_divider,
+)
+from ui_flet.components.decorative import (
     sunburst_badge,
 )
 from ui_flet.components.empty_state import build_error_card, build_error_state

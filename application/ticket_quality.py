@@ -18,7 +18,6 @@ from dataclasses import dataclass
 
 from domain.knowledge import TicketKnowledgeMap
 
-
 MIN_BLOCK_COUNT = 4
 MIN_AVG_WORDS_PER_BLOCK = 15
 _LOG = logging.getLogger(__name__)
@@ -55,7 +54,11 @@ class TicketQualityCache:
     def __init__(self) -> None:
         self._verdicts: dict[str, TicketQualityVerdict] = {}
 
+    def invalidate(self) -> None:
+        self._verdicts.clear()
+
     def prime(self, tickets: list[TicketKnowledgeMap]) -> None:
+        self._verdicts.clear()
         for ticket in tickets:
             self._verdicts[ticket.ticket_id] = assess_ticket(ticket)
 

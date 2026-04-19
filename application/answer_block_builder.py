@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 from application.answer_profile_registry import get_answer_profile
 from domain.answer_profile import AnswerBlockCode, AnswerProfileCode, TicketAnswerBlock

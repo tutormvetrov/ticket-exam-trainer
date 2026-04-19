@@ -6,7 +6,6 @@ from typing import Any
 
 import requests
 
-
 DEFAULT_INSPECT_TIMEOUT_SECONDS = 3.0
 DEFAULT_GENERATION_TIMEOUT_SECONDS = 60.0
 _UNSET_TIMEOUT = object()

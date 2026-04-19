@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
-import re
 
 from application.answer_profile_registry import STATE_EXAM_PUBLIC_ADMIN_PROFILE
 from domain.answer_profile import (
@@ -13,7 +13,6 @@ from domain.answer_profile import (
     TicketBlockMasteryProfile,
 )
 from domain.knowledge import TicketKnowledgeMap, WeakArea, WeakAreaKind
-
 
 WORD_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё0-9-]+")
 

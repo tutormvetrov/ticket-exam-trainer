@@ -31,17 +31,19 @@ import flet as ft
 
 from application.user_profile import (
     AVATAR_CHOICES,
+    COURSE_CATALOG,
+    DEFAULT_EXAM_ID,
     ProfileStore,
     build_profile,
     validate_name,
 )
-from ui_flet.components.ornamental_divider import build_ornamental_divider
+from ui_flet.components.decorative import divider as decorative_divider
+from ui_flet.components.decorative import sunburst_badge
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.buttons import primary_button
 from ui_flet.theme.elevation import apply_elevation
 from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
-
 
 _LOG = logging.getLogger(__name__)
 
@@ -56,6 +58,7 @@ def build_onboarding_view(state: AppState) -> ft.Control:
     store = ProfileStore(_profile_path(state))
 
     picked_avatar: dict[str, str | None] = {"value": None}
+    picked_course: dict[str, str] = {"value": DEFAULT_EXAM_ID}
 
     name_field = ft.TextField(
         label=TEXT["onboarding.name_label"],
@@ -98,6 +101,33 @@ def build_onboarding_view(state: AppState) -> ft.Control:
 
     _rebuild_avatars()
 
+    # ---------- course picker ----------
+    course_row = ft.Row(
+        [],
+        spacing=SPACE["md"],
+        wrap=True,
+        alignment=ft.MainAxisAlignment.CENTER,
+    )
+
+    def _rebuild_courses() -> None:
+        course_row.controls = [
+            _course_card(
+                course,
+                selected=(picked_course["value"] == course["exam_id"]),
+                on_pick=_on_pick_course,
+                p=p,
+            )
+            for course in COURSE_CATALOG
+        ]
+        if course_row.page:
+            course_row.update()
+
+    def _on_pick_course(exam_id: str) -> None:
+        picked_course["value"] = exam_id
+        _rebuild_courses()
+
+    _rebuild_courses()
+
     def _on_start(_evt: ft.ControlEvent) -> None:
         raw_name = name_field.value or ""
         ok, err_msg = validate_name(raw_name)
@@ -112,7 +142,11 @@ def build_onboarding_view(state: AppState) -> ft.Control:
             error_text.update()
             return
 
-        profile = build_profile(raw_name, picked_avatar["value"])
+        profile = build_profile(
+            raw_name,
+            picked_avatar["value"],
+            active_exam_id=picked_course["value"],
+        )
         try:
             store.save(profile)
         except Exception:
@@ -138,7 +172,15 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         text_align=ft.TextAlign.CENTER,
     )
     brand_block = ft.Column(
-        [brand_title, brand_subtitle],
+        [
+            ft.Container(
+                content=sunburst_badge(state, size=44),
+                alignment=ft.alignment.center,
+                padding=ft.padding.only(bottom=SPACE["sm"]),
+            ),
+            brand_title,
+            brand_subtitle,
+        ],
         spacing=SPACE["xs"],
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
     )
@@ -162,6 +204,15 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         style=text_style("caption", color=p["text_muted"]),
     )
 
+    course_label = ft.Text(
+        TEXT["onboarding.course_label"],
+        style=text_style("h3", color=p["text_primary"]),
+    )
+    course_hint = ft.Text(
+        TEXT["onboarding.course_hint"],
+        style=text_style("caption", color=p["text_muted"]),
+    )
+
     start_button = ft.ElevatedButton(
         text=TEXT["onboarding.start"],
         on_click=_on_start,
@@ -175,11 +226,20 @@ def build_onboarding_view(state: AppState) -> ft.Control:
     content = ft.Column(
         [
             brand_block,
-            build_ornamental_divider(state),
+            ft.Container(
+                content=decorative_divider(state, width=260),
+                padding=ft.padding.symmetric(vertical=SPACE["md"]),
+                alignment=ft.alignment.center,
+            ),
             welcome,
             subtitle,
             ft.Container(height=SPACE["lg"]),
             ft.Row([name_field], alignment=ft.MainAxisAlignment.CENTER),
+            ft.Container(height=SPACE["md"]),
+            course_label,
+            course_hint,
+            ft.Container(height=SPACE["sm"]),
+            course_row,
             ft.Container(height=SPACE["md"]),
             avatar_label,
             avatar_hint,
@@ -235,6 +295,47 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         threading.Timer(0.02, _trigger_fade).start()
 
     return wrapper
+
+
+def _course_card(
+    course: dict[str, str],
+    selected: bool,
+    on_pick,
+    p: dict,
+) -> ft.Control:
+    """Карточка-кнопка выбора курса (Госэкзамен по ИИ / по ГМУ / …)."""
+    short = course.get("short_title", "")
+    description = course.get("description", "")
+    title_text = ft.Text(
+        short,
+        size=15,
+        weight=ft.FontWeight.W_600,
+        color=p["accent"] if selected else p["text_primary"],
+    )
+    desc_text = ft.Text(
+        description,
+        size=11,
+        color=p["text_muted"],
+        max_lines=2,
+        overflow=ft.TextOverflow.ELLIPSIS,
+    )
+    return ft.Container(
+        content=ft.Column(
+            [title_text, desc_text],
+            spacing=SPACE["xs"],
+            tight=True,
+        ),
+        padding=ft.padding.symmetric(horizontal=SPACE["md"], vertical=SPACE["sm"]),
+        bgcolor=p["accent_soft"] if selected else p["bg_elevated"],
+        border=ft.border.all(
+            2 if selected else 1,
+            p["accent"] if selected else p["border_soft"],
+        ),
+        border_radius=RADIUS["md"],
+        width=240,
+        on_click=lambda _e, eid=course["exam_id"]: on_pick(eid),
+        ink=True,
+    )
 
 
 def _avatar_button(

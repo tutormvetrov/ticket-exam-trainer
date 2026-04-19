@@ -38,7 +38,6 @@ from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
 
-
 _LOG = logging.getLogger(__name__)
 
 
@@ -233,7 +232,7 @@ def _ensure_tickets_breakpoint_listener(state: AppState) -> None:
             state.go("/tickets")
 
     state.on_breakpoint_change(_on_bp)
-    setattr(state, "_tickets_breakpoint_listener_registered", True)
+    state._tickets_breakpoint_listener_registered = True
 
 
 def build_tickets_view(state: AppState) -> ft.Control:

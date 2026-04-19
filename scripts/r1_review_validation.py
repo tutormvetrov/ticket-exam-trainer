@@ -1,13 +1,11 @@
 """R1 review-validation harness.
 
 Запускает выбранные Ollama-модели по набору билетов и вариантов ответа,
-измеряет качественные и операционные метрики и пишет два артефакта:
+измеряет качественные и операционные метрики и пишет два артефакта в
+``build/review_validation/``:
 
-- ``docs/superpowers/specs/2026-04-19-r1-validation-results.md`` — человеко-
-  читаемый отчёт (таблицы модель×метрика, per-ticket breakdown, разрезы
-  score ~ answer_quality).
-- ``docs/superpowers/specs/2026-04-19-r1-validation-raw.json`` — сырой набор
-  прогонов (answer tier, parsed verdicts, timings, ошибки парсинга).
+- ``r1-validation-results.md`` — человеко-читаемый отчёт
+- ``r1-validation-raw.json`` — сырой набор прогонов
 
 Запуск (примеры)::
 
@@ -27,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import statistics
 import sys
 import time
@@ -43,8 +40,9 @@ if str(_PROJECT_ROOT) not in sys.path:
 from infrastructure.ollama.service import OllamaService  # noqa: E402
 
 _DEFAULT_FIXTURE = _PROJECT_ROOT / "tests" / "fixtures" / "review_validation" / "tickets.json"
-_RESULTS_MD = _PROJECT_ROOT / "docs" / "superpowers" / "specs" / "2026-04-19-r1-validation-results.md"
-_RESULTS_JSON = _PROJECT_ROOT / "docs" / "superpowers" / "specs" / "2026-04-19-r1-validation-raw.json"
+_RESULTS_DIR = _PROJECT_ROOT / "build" / "review_validation"
+_RESULTS_MD = _RESULTS_DIR / "r1-validation-results.md"
+_RESULTS_JSON = _RESULTS_DIR / "r1-validation-raw.json"
 
 _REQUIRED_KEYS = (
     "thesis_verdicts",

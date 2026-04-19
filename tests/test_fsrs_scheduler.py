@@ -23,7 +23,6 @@ from application.adaptive_review import (
 from application.import_service import DocumentImportService, TicketCandidate
 from domain.knowledge import TicketMasteryProfile
 
-
 NOW = datetime(2026, 4, 16, 12, 0, 0)
 
 
@@ -70,7 +69,7 @@ def test_active_recall_scale_has_no_easy(score: int, expected: Rating) -> None:
     assert score_to_rating("active-recall", score) is expected
 
 
-@pytest.mark.parametrize("mode_key", ["reading", "plan", "cloze", "matching"])
+@pytest.mark.parametrize("mode_key", ["reading", "plan", "cloze"])
 def test_passive_modes_return_none(mode_key: str) -> None:
     assert score_to_rating(mode_key, 95) is None
 

@@ -13,10 +13,9 @@ from typing import Iterable
 
 import flet as ft
 
-from ui_flet.state import AppState
 from ui_flet.i18n.ru import TEXT
-from ui_flet.theme.tokens import palette, SPACE, RADIUS
-
+from ui_flet.state import AppState
+from ui_flet.theme.tokens import RADIUS, SPACE, palette
 
 _STATUS_LABEL_KEY = {
     "covered": "result.covered",

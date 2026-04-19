@@ -15,7 +15,6 @@ from application.daily_digest import AttemptCard as DigestAttemptCard
 from ui_flet.i18n.ru import TEXT
 from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
 
-
 _MODE_LABELS = {
     "reading": "mode.reading.title",
     "plan": "mode.plan.title",

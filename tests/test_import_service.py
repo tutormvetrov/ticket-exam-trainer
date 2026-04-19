@@ -14,7 +14,6 @@ from domain.answer_profile import AnswerBlockCode, AnswerProfileCode
 from domain.knowledge import Exam, Section
 from infrastructure.db import connect_initialized, get_database_path
 
-
 SOURCE_TEXT = """Section 1. Public assets
 
 Ticket 1. What is public property as an object of management? Public property is a public resource assigned to public bodies. Examples include land, buildings and infrastructure. The asset has a legal regime and requires control. The management cycle includes accounting, valuation, use and review.

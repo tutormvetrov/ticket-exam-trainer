@@ -1,121 +1,85 @@
-# Architecture
+# Архитектура
+
+Репозиторий отражает только актуальную Flet-версию приложения.
 
 ## Слои
 
-- `app`: bootstrap, пути, build info, platform-aware entrypoints.
-- `application`: use cases, import, scoring, adaptive review, dialogue, defense flow, settings.
-- `domain`: сущности билетов, карты знаний, mastery, answer profiles, defense-модель.
-- `infrastructure`: SQLite, importers, local Ollama API, repository, update bridge.
-- `ui`: PySide6 shell, views, widgets, theme package и runtime wiring.
+- `domain/`
+  Чистые модели предметной области.
+- `application/`
+  Сервисы приложения, scoring, FSRS, профиль пользователя, дневная сводка.
+- `infrastructure/`
+  SQLite, локальный Ollama HTTP-клиент и прикладные адаптеры.
+- `ui_flet/`
+  Все пользовательские экраны, роутинг, state holder, компоненты и темы.
+- `app/`
+  Общие runtime-утилиты: пути, build info, release seed, логирование.
 
-## UI shell
+## Точки входа
 
-Текущий shell состоит из:
+- `main.py`
+  Тонкая обёртка, которая запускает Flet entrypoint.
+- `ui_flet/main.py`
+  Главная точка запуска приложения.
 
-- `ui/components/sidebar.py`
-- `ui/components/topbar.py`
-- `ui/main_window.py`
+`ui_flet/main.py` делает четыре вещи:
 
-`MainWindow` держит `Sidebar`, `TopBar` и `QStackedWidget` с основными экранами. Навигационные ключи совпадают с view ids:
+1. Готовит рабочую папку и seed-базу билетов.
+2. Собирает `AppFacade`.
+3. Создаёт `AppState`.
+4. Подключает router и Flet page chrome.
 
-- `library`
-- `subjects`
-- `sections`
-- `tickets`
-- `import`
-- `training`
-- `dialogue`
-- `statistics`
-- `knowledge-map`
-- `defense`
-- `settings`
+## Маршруты
 
-## Theme system
+Публичные пользовательские маршруты:
 
-Тема уже разделена на пакет `ui/theme/`:
+- `/onboarding`
+- `/journal`
+- `/tickets`
+- `/training/<ticket_id>/<mode>`
+- `/settings`
 
-- `palette.py`
-- `typography.py`
-- `spacing.py`
-- `materiality.py`
-- `stylesheet.py`
+Корневой путь перенаправляется в `/onboarding`, если профиля ещё нет, иначе в `/journal`.
 
-Пакет сохраняет backward compatibility через `ui/theme/__init__.py`. Сейчас в продукте используется warm-minimal palette:
+## Тренировочные режимы
 
-- light: sand / parchment / rust / moss
-- dark: cognac / brass / warm ink
+В `ui_flet/workspaces/` есть ровно шесть рабочих режимов:
 
-## Основные цепочки
+- `reading`
+- `plan`
+- `cloze`
+- `active-recall`
+- `state-exam-full`
+- `review`
 
-### Exam import
+Именно их нужно считать актуальным продуктовым набором.
 
-`ImportView -> MainWindow.open_import_dialog -> AppFacade.import_document_with_progress -> import_service -> repository -> refresh views`
+## Хранение данных
 
-Сейчас подтверждены:
+Локально сохраняются:
 
-- `DOCX` и `PDF`;
-- stage-based progress;
-- summary и handoff;
-- сохранение результатов в SQLite.
+- `exam_trainer.db`
+- `settings.json`
+- `profile.json`
+- runtime logs
 
-### Training
+Рабочая папка создаётся в `%LOCALAPPDATA%\Tezis\app_data\` на Windows и в `~/Library/Application Support/Tezis/app_data/` на macOS.
 
-`TrainingView -> AppFacade.evaluate_answer -> scoring -> mastery/weak areas -> repository -> adaptive queue/statistics -> UI refresh`
+## Сборка и релизы
 
-Сейчас в UI доступны 8 отдельных режимов, включая `state-exam-full` и `review`.
+- `scripts/build_flet_exe.ps1`
+  Локальная Windows-сборка через `flet pack`.
+- `scripts/build_mac_app.sh`
+  Локальная macOS-сборка через `flet pack`.
+- `.github/workflows/release.yml`
+  Релизный workflow по тегам `v*`.
 
-### Dialogue
+## Тестовый контур
 
-`DialogueView -> AppFacade.start_dialogue_session / submit_dialogue_turn -> Ollama dialogue service -> repository -> transcript/result`
+Основной smoke-контур:
 
-Dialogue использует ticket-grounded prompts и хранит сессии в локальной БД.
+```powershell
+python -m pytest -q
+```
 
-### Defense DLC
-
-`DefenseView -> MainWindow -> AppFacade.defense_* -> defense_service -> repository/Ollama -> workspace snapshot`
-
-Этот поток включает:
-
-- локальную активацию;
-- проекты;
-- импорт материалов;
-- dossier, outline, storyboard;
-- logical gaps;
-- mock defense и repair queue.
-
-## Persistence
-
-SQLite хранит:
-
-- source documents;
-- tickets;
-- sections;
-- atoms;
-- skills;
-- exercise templates;
-- attempts;
-- mastery profiles;
-- weak areas;
-- review queue;
-- dialogue sessions and turns;
-- defense projects, claims, slides, questions, scores и license state.
-
-## QA hooks
-
-Ключевые проверочные точки:
-
-- `python -m pytest -q`
-- `tests/test_painter_warnings.py`
-- `scripts/ui_click_audit.py`
-- `docs/superpowers/screenshots/2026-04-17-warm-minimal/`
-
-На 2026-04-17 базовый ориентир репозитория:
-
-- `186 passed, 5 skipped`
-
-## Границы продукта
-
-1. Основной подтверждённый release path относится к Windows desktop.
-2. macOS code-path подготовлен, но реальный smoke на Mac остаётся открытым.
-3. Никаких облачных LLM.
-4. `dist/` считается generated output.
+Live Ollama тесты запускаются только с флагом `--run-live-ollama`.

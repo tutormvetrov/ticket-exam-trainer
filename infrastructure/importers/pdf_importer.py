@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from hashlib import sha256
 import logging
+from hashlib import sha256
 from pathlib import Path
 
 import fitz
@@ -13,7 +13,6 @@ from infrastructure.importers.ocr_support import (
     ocr_image_bytes,
     should_keep_ocr_text,
 )
-
 
 _LOG = logging.getLogger(__name__)
 _MIN_PAGE_TEXT_BEFORE_FALLBACK = 120

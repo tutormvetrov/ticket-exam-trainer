@@ -7,8 +7,8 @@
 #   - assets/icon.ico (if present)
 #   - TTF fonts if ui_flet/theme/fonts/*.ttf are dropped in advance
 #
-# Takes 10-20 minutes on a fresh machine (pyinstaller re-bundles Flet,
-# Qt libs, cpython, and all dependencies). Expect ~150-250 MB output.
+# Takes 10-20 minutes on a fresh machine. `flet pack` re-bundles the
+# Flet runtime, embedded Python, and project dependencies.
 #
 # Usage:
 #   .\scripts\build_flet_exe.cmd                   # recommended on Windows

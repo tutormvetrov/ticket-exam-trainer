@@ -11,12 +11,52 @@ a one-off orientation, not a sticky workspace.
 
 from __future__ import annotations
 
+import logging
+import re
+from pathlib import Path
+
 import flet as ft
 
+from application.pdf_export import generate_ticket_pdf
+from ui_flet.components.ask_etalon_panel import open_ask_etalon_dialog
 from ui_flet.components.training_workspace_base import build_workspace_frame
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
-from ui_flet.theme.tokens import palette, SPACE, RADIUS
+from ui_flet.theme.tokens import RADIUS, SPACE, palette
+
+_LOG = logging.getLogger(__name__)
+
+
+def _safe_filename(text: str, fallback: str = "ticket") -> str:
+    """Сделать безопасное имя файла из произвольной строки."""
+    cleaned = re.sub(r"[\\/:*?\"<>|\r\n\t]", "", text or "").strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = cleaned[:80].strip()
+    return cleaned or fallback
+
+
+def _ticket_section_meta(state: AppState, section_id: str) -> tuple[str, str]:
+    """(section_title, lecturer) для билета — читаем напрямую из БД, чтобы
+    не тащить весь словарь sections при экспорте одного PDF.
+    """
+    try:
+        row = state.facade.connection.execute(
+            "SELECT title, description FROM sections WHERE section_id = ?",
+            (section_id,),
+        ).fetchone()
+    except Exception:
+        return "", ""
+    if not row:
+        return "", ""
+    title = row["title"] or ""
+    desc = row["description"] or ""
+    lecturer = ""
+    for part in re.split(r"[•|;]", desc):
+        part = part.strip()
+        if part.lower().startswith(("преподаватель", "лектор")):
+            lecturer = part.split(":", 1)[-1].strip()
+            break
+    return title, lecturer
 
 
 # Stable colour hints per atom_type — falls back to `accent` for unknown types.
@@ -199,7 +239,55 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         ],
     )
 
+    # PDF-экспорт текущего билета.
+    section_title, lecturer = _ticket_section_meta(state, ticket.section_id)
+    default_name = _safe_filename(
+        f"Тезис — Билет {ticket.title}", fallback=f"ticket-{ticket.ticket_id}"
+    )
+
+    def _on_pdf_save(e: ft.FilePickerResultEvent) -> None:
+        if not e.path:
+            return
+        out = Path(e.path)
+        if out.suffix.lower() != ".pdf":
+            out = out.with_suffix(".pdf")
+        try:
+            generate_ticket_pdf(
+                ticket, out,
+                section_title=section_title or None,
+                lecturer=lecturer or None,
+            )
+            _toast(state, TEXT["pdf.saved"].format(path=str(out)))
+        except Exception:
+            _LOG.exception("Failed to export ticket PDF")
+            _toast(state, TEXT["pdf.failed"], error=True)
+
+    file_picker = ft.FilePicker(on_result=_on_pdf_save)
+    state.page.overlay.append(file_picker)
+    state.page.update()
+
+    def _open_save_dialog(_e: ft.ControlEvent) -> None:
+        file_picker.save_file(
+            dialog_title=TEXT["pdf.dialog_title.ticket"],
+            file_name=f"{default_name}.pdf",
+            allowed_extensions=["pdf"],
+            initial_directory=str(Path.home() / "Downloads"),
+        )
+
+    def _open_ask(_e: ft.ControlEvent) -> None:
+        open_ask_etalon_dialog(state, ticket)
+
     actions = [
+        ft.OutlinedButton(
+            text=TEXT["ask.action"],
+            icon=ft.Icons.AUTO_AWESOME,
+            on_click=_open_ask,
+        ),
+        ft.OutlinedButton(
+            text=TEXT["pdf.action.ticket"],
+            icon=ft.Icons.PICTURE_AS_PDF,
+            on_click=_open_save_dialog,
+        ),
         ft.FilledButton(
             text=f"{TEXT['action.start']} — {TEXT['mode.plan.title']}",
             icon=ft.Icons.ARROW_FORWARD,
@@ -214,3 +302,18 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         content=body,
         actions=actions,
     )
+
+
+def _toast(state: AppState, message: str, *, error: bool = False) -> None:
+    """Coloured snackbar — вынесен наружу, чтобы переиспользоваться."""
+    p = palette(state.is_dark)
+    state.page.snack_bar = ft.SnackBar(
+        ft.Text(message, color=p["text_primary"]),
+        bgcolor=p["danger"] if error else p["bg_elevated"],
+        duration=4000,
+    )
+    state.page.snack_bar.open = True
+    try:
+        state.page.update()
+    except Exception:
+        pass

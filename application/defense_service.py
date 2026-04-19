@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
-import re
 from uuid import uuid4
 
 from application.defense_ui_data import (
@@ -33,8 +33,8 @@ from domain.defense import (
     DefenseSession,
     DefenseSessionMode,
     DefenseWeakArea,
-    DlcLicenseState,
     DisciplineProfile,
+    DlcLicenseState,
     SlideStoryboardCard,
     ThesisProject,
     ThesisSource,
@@ -55,7 +55,6 @@ from infrastructure.ollama.defense_prompts import (
     defense_storyboard_prompt,
 )
 from infrastructure.ollama.service import OllamaService
-
 
 CLAIM_LABELS = {
     DefenseClaimKind.PROBLEM: "Проблема исследования",

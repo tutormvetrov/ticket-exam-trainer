@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import pytest
-
 from application.ticket_quality import (
     MIN_BLOCK_COUNT,
     TicketQualityCache,

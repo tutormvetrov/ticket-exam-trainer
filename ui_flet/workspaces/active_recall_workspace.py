@@ -21,8 +21,7 @@ from ui_flet.components.timer_widget import TimerWidget
 from ui_flet.components.training_workspace_base import build_workspace_frame, safe_update
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
-from ui_flet.theme.tokens import palette, SPACE, RADIUS
-
+from ui_flet.theme.tokens import RADIUS, SPACE, palette
 
 _LOG = logging.getLogger(__name__)
 

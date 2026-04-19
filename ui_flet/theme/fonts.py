@@ -24,7 +24,13 @@ if FONTS_DIR.exists():
         BUNDLED_FONTS[family] = str(ttf.resolve())
 
 # Google Fonts URLs as network fallback (only hit on first run if no bundle).
+# Visual direction: Art Deco / Old Money / dandy / summer freshness.
+# - Playfair Display — high-contrast Didot-style serif (Gatsby / Vogue look).
+# - Cormorant Garamond — refined Garamond cousin for body & captions.
+# - Lora — kept as cyrillic-safe fallback.
 GOOGLE_FALLBACK: dict[str, str] = {
+    "Playfair Display": "https://fonts.gstatic.com/s/playfairdisplay/v37/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKdFvUDQZNLo_U2r.woff2",
+    "Cormorant Garamond": "https://fonts.gstatic.com/s/cormorantgaramond/v16/co3bmX5slCNuHLi8bLeY9MK7whWMhyjQEHLuPQ.woff2",
     "Lora": "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOuGQbT0gvTJPa787weuyJGmKxemMeZ.woff2",
     "Golos Text": "https://fonts.gstatic.com/s/golostext/v4/q5uXsoe9Lv5t7Meb31EcOR9UdVTNs822plVRRQ.woff2",
     "JetBrains Mono": "https://fonts.gstatic.com/s/jetbrainsmono/v20/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKxjPVmUsaaDhw.woff2",

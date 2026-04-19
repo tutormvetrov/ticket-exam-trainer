@@ -1,17 +1,16 @@
 from __future__ import annotations
 
+import logging
+import re
 from hashlib import sha256
 from io import BytesIO
-import logging
 from pathlib import Path
-import re
 from threading import Lock
 from typing import Any
 
 import requests
 from PIL import Image
 from rapidocr_onnxruntime import RapidOCR
-
 
 _LOG = logging.getLogger(__name__)
 

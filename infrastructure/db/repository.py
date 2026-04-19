@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from application.import_service import ContentChunk, ImportQueueItem, StructuredImportResult
 from domain.answer_profile import AttemptBlockScore, TicketBlockMasteryProfile
 from domain.knowledge import (
     AttemptRecord,
@@ -15,7 +16,6 @@ from domain.knowledge import (
     TicketMasteryProfile,
     WeakArea,
 )
-from application.import_service import ContentChunk, ImportQueueItem, StructuredImportResult
 
 
 def _json_dump(value: object) -> str:

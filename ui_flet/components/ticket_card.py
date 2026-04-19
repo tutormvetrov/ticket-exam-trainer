@@ -19,10 +19,10 @@ from typing import Callable
 
 import flet as ft
 
+from ui_flet.components.decorative import card_corner
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import RADIUS, SPACE, palette
-
 
 _DIFFICULTY_COLORS = {
     1: "success",
@@ -132,7 +132,7 @@ class TicketCard(ft.Container):
 
         diff_color_key = _DIFFICULTY_COLORS.get(self._difficulty, "info")
         diff_pill = _pill(
-            f"●" * self._difficulty,
+            "●" * self._difficulty,
             bg=p["bg_sidebar"],
             fg=p[diff_color_key],
             border=p["border_soft"],
@@ -161,9 +161,14 @@ class TicketCard(ft.Container):
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
         if self._plan_skeleton_weak:
+            # Сдержанный круглый индикатор-точка вместо эмодзи (см. visual feedback).
             skeleton_badge = ft.Container(
-                content=ft.Text("🔶", size=12),
-                padding=ft.padding.symmetric(horizontal=SPACE["xs"], vertical=2),
+                content=ft.Container(
+                    width=8, height=8,
+                    bgcolor=p["warning"],
+                    border_radius=4,
+                ),
+                padding=ft.padding.symmetric(horizontal=SPACE["xs"], vertical=4),
                 bgcolor=p["bg_sidebar"],
                 border=ft.border.all(1, p["border_soft"]),
                 border_radius=RADIUS["pill"],
@@ -230,8 +235,20 @@ class TicketCard(ft.Container):
             spacing=SPACE["xs"],
             tight=True,
         )
+        # Декоративный угол справа сверху — ступенчатый ар-деко (для deco)
+        # или ромб+точка (для warm). Тонкий акцент, не отвлекает.
+        body_with_corner = ft.Stack(
+            [
+                body,
+                ft.Container(
+                    content=card_corner(self._state),
+                    alignment=ft.alignment.top_right,
+                    padding=ft.padding.only(top=2, right=2),
+                ),
+            ],
+        )
 
-        self.content = body
+        self.content = body_with_corner
         self.padding = SPACE["md"]
         self.border_radius = RADIUS["md"]
         self.ink = True

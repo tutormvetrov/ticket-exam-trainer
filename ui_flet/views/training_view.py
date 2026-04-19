@@ -21,8 +21,13 @@ from ui_flet.components.decorative import divider as decorative_divider
 from ui_flet.components.empty_state import build_error_card, build_error_state
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
-from ui_flet.theme.tokens import palette, SPACE, RADIUS
-
+from ui_flet.theme.tokens import RADIUS, SPACE, palette
+from ui_flet.workspaces.active_recall_workspace import build_workspace as _active_recall
+from ui_flet.workspaces.cloze_workspace import build_workspace as _cloze
+from ui_flet.workspaces.plan_workspace import build_workspace as _plan
+from ui_flet.workspaces.reading_workspace import build_workspace as _reading
+from ui_flet.workspaces.review_workspace import build_workspace as _review
+from ui_flet.workspaces.state_exam_full_workspace import build_workspace as _state_exam_full
 
 _LOG = logging.getLogger(__name__)
 
@@ -54,13 +59,6 @@ def _section_meta(state: AppState, section_id: str) -> tuple[str, str]:
             lecturer = part.split(":", 1)[-1].strip()
             break
     return title, lecturer
-from ui_flet.workspaces.active_recall_workspace import build_workspace as _active_recall
-from ui_flet.workspaces.cloze_workspace import build_workspace as _cloze
-from ui_flet.workspaces.plan_workspace import build_workspace as _plan
-from ui_flet.workspaces.reading_workspace import build_workspace as _reading
-from ui_flet.workspaces.review_workspace import build_workspace as _review
-from ui_flet.workspaces.state_exam_full_workspace import build_workspace as _state_exam_full
-
 
 # Mode key aliases — the UI route path, URL slug, text key base, and
 # facade mode identifier are not always literally equal. We keep a
@@ -151,7 +149,7 @@ def _load_section_title(state: AppState, ticket) -> str:
     if ticket is None:
         return ""
     try:
-        for section in state.facade.load_sections_overview() or []:
+        for _section in state.facade.load_sections_overview() or []:
             # Section overview is keyed by title; ticket has section_id (slug)
             pass
     except Exception:

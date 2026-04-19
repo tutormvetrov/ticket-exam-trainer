@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import json
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime
-import json
 from pathlib import Path
-import subprocess
 
 from app.meta import APP_VERSION
 from app.paths import get_app_root

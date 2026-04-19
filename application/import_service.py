@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-import re
 from typing import Callable
 from uuid import uuid4
 
@@ -14,9 +14,9 @@ from domain.answer_profile import AnswerProfileCode
 from domain.knowledge import (
     AtomType,
     CrossTicketLink,
+    ExaminerPrompt,
     ExerciseTemplate,
     ExerciseType,
-    ExaminerPrompt,
     KnowledgeAtom,
     ScoringCriterion,
     SkillCode,
@@ -26,7 +26,6 @@ from domain.knowledge import (
 )
 from infrastructure.importers import ImportedDocumentText, import_docx, import_pdf
 from infrastructure.ollama.service import OllamaService
-
 
 STOP_WORDS = {
     "и", "в", "во", "на", "по", "к", "из", "от", "до", "для", "что", "это", "как",

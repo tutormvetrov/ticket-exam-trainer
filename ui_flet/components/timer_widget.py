@@ -21,7 +21,7 @@ from typing import Callable, Optional
 import flet as ft
 
 from ui_flet.i18n.ru import TEXT
-from ui_flet.theme.tokens import palette, SPACE, RADIUS
+from ui_flet.theme.tokens import RADIUS, SPACE, palette
 
 
 def _format_mmss(total_seconds: int) -> str:

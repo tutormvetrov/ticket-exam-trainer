@@ -7,14 +7,15 @@ from pathlib import Path
 import pytest
 from docx import Document
 
+from application.facade import AppFacade
 from application.settings import DEFAULT_OLLAMA_SETTINGS
 from application.settings_store import SettingsStore
 from infrastructure.db import connect_initialized, get_database_path
 from scripts.build_state_exam_seed import (
     DEFAULT_OUTPUT_DB,
     MANIFEST_SCHEMA_VERSION,
-    SeedBuildSummary,
     REPO_ROOT,
+    SeedBuildSummary,
     _ensure_qwen_model,
     default_summary_json,
     publish_seed_database,
@@ -22,8 +23,6 @@ from scripts.build_state_exam_seed import (
     write_manifest,
 )
 from scripts.verify_state_exam_seed import verify_state_exam_seed_database
-from application.facade import AppFacade
-
 
 STATE_EXAM_TEXT = (
     "Билет 1. Что представляет собой государственное имущество как объект управления? "

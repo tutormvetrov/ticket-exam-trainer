@@ -6,6 +6,7 @@ from pathlib import Path
 from reportlab.pdfgen import canvas
 
 import application.import_service as import_service_module
+import infrastructure.importers.pdf_importer as pdf_importer_module
 from application.facade import AppFacade
 from application.import_service import DocumentImportService
 from application.settings import DEFAULT_OLLAMA_SETTINGS
@@ -14,8 +15,6 @@ from application.user_profile import ProfileStore, build_profile
 from infrastructure.db import connect_initialized, get_database_path
 from infrastructure.importers.common import ImportedDocumentText
 from infrastructure.importers.pdf_importer import import_pdf
-import infrastructure.importers.pdf_importer as pdf_importer_module
-
 
 SOURCE_TEXT = "Ticket 1. Demo topic. Demo body for OCR augmentation test."
 

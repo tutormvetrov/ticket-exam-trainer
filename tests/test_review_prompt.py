@@ -13,7 +13,6 @@ import re
 
 from infrastructure.ollama.prompts import review_prompt, review_system_prompt
 
-
 REFERENCE_THESES = [
     {"label": "Понятие", "text": "Определение ключевого термина."},
     {"label": "Пример", "text": "Уместный пример из практики."},

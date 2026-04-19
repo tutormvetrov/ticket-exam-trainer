@@ -19,9 +19,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from domain.answer_profile import AnswerBlockCode
-
-
 _LOG = logging.getLogger(__name__)
 
 

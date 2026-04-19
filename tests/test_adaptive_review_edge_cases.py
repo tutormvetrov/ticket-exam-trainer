@@ -9,7 +9,6 @@ from application.adaptive_review import (
 from application.import_service import DocumentImportService, TicketCandidate
 from domain.knowledge import ReviewMode, TicketMasteryProfile, WeakArea, WeakAreaKind
 
-
 NOW = datetime(2026, 4, 16, 12, 0, 0)
 
 

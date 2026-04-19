@@ -14,7 +14,6 @@ import flet as ft
 
 from ui_flet.state import AppState
 
-
 _LOG = logging.getLogger(__name__)
 
 

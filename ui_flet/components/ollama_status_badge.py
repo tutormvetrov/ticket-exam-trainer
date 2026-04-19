@@ -24,7 +24,6 @@ the UI stays usable even when ``requests`` or the runtime raise.
 from __future__ import annotations
 
 import threading
-import time
 from typing import Callable, Literal
 
 import flet as ft

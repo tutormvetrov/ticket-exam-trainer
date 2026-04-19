@@ -13,9 +13,9 @@ from typing import Iterable
 
 import flet as ft
 
+from ui_flet.components.decorative import divider as decorative_divider
 from ui_flet.state import AppState
-from ui_flet.theme.tokens import palette, SPACE, RADIUS
-
+from ui_flet.theme.tokens import RADIUS, SPACE, palette
 
 _LOG = logging.getLogger(__name__)
 
@@ -69,6 +69,10 @@ def build_workspace_frame(
                     [ft.Text(instruction, size=13, color=p["text_secondary"])]
                     if instruction
                     else []
+                ),
+                ft.Container(
+                    content=decorative_divider(state, width=200),
+                    padding=ft.padding.only(top=SPACE["xs"]),
                 ),
             ],
         )

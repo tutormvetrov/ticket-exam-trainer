@@ -54,6 +54,10 @@ class OllamaSettings:
     examiner_followups: bool = True
     rule_based_fallback: bool = True
     theme_name: str = "light"
+    # theme_family — выбор стиля оформления (палитра + типографика):
+    #   "warm" — тёплая земля, sand paper / rust (исходное направление),
+    #   "deco" — Ар-деко / Old Money: ivory + forest green + antique brass.
+    theme_family: str = "warm"
     startup_view: str = "library"
     auto_check_ollama_on_start: bool = True
     show_dlc_teaser: bool = True
@@ -72,6 +76,10 @@ class OllamaSettings:
     window_mode: str = "fullscreen"   # "fullscreen" | "windowed"
     window_width: int = 1440
     window_height: int = 900
+    # Gemini API (Google AI Studio) — для фичи «Спросить у эталона».
+    # Бесплатный ключ выдаётся в https://aistudio.google.com/ за минуту.
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
 
 
 DEFAULT_OLLAMA_SETTINGS = OllamaSettings()

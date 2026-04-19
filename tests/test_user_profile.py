@@ -4,12 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from application.user_profile import (
     AVATAR_CHOICES,
     ProfileStore,
-    UserProfile,
     build_profile,
     validate_name,
 )

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import shutil
 import sys
+from pathlib import Path
 
 from app import platform as platform_helpers
-
 
 APP_WORKSPACE_DIRNAME = "Tezis"
 _MIGRATABLE_APP_DATA_FILES = (
@@ -70,10 +69,8 @@ def get_check_script_path() -> Path | None:
 def logo_assets_dir() -> Path:
     """Папка с брендовыми SVG-шаблонами логотипа.
 
-    В dev-режиме — `<repo>/assets/logo`. В PyInstaller-сборке `sys.frozen`
-    выставлено, и данные распаковываются в `sys._MEIPASS` (см. `--add-data`
-    в scripts/build_exe.ps1). Это может быть `_internal/` в onedir-режиме
-    или временный каталог в onefile-режиме.
+    В dev-режиме — `<repo>/assets/logo`. В упакованной сборке `sys.frozen`
+    выставлено, и данные лежат под `sys._MEIPASS` после `flet pack`.
     """
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "assets" / "logo"  # type: ignore[attr-defined]

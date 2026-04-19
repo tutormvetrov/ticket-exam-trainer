@@ -12,8 +12,8 @@ divider между секциями, bg_surface на bg_base без жёстко
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
 import threading
+from datetime import date, datetime
 
 import flet as ft
 
@@ -26,7 +26,6 @@ from ui_flet.state import AppState
 from ui_flet.theme.buttons import ghost_button, primary_button
 from ui_flet.theme.elevation import apply_elevation
 from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
-
 
 _LOG = logging.getLogger(__name__)
 

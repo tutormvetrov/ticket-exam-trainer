@@ -6,11 +6,9 @@ having the expected shape, and SPACE/RADIUS scales being monotonic.
 
 from __future__ import annotations
 
-import pytest
-
 
 def test_palettes_have_matching_keys():
-    from ui_flet.theme.tokens import COLOR_LIGHT, COLOR_DARK
+    from ui_flet.theme.tokens import COLOR_DARK, COLOR_LIGHT
     assert set(COLOR_LIGHT.keys()) == set(COLOR_DARK.keys())
     # Minimum keys every component expects
     required = {
@@ -24,7 +22,7 @@ def test_palettes_have_matching_keys():
 
 
 def test_palette_helper_returns_correct_mode():
-    from ui_flet.theme.tokens import palette, COLOR_LIGHT, COLOR_DARK
+    from ui_flet.theme.tokens import COLOR_DARK, COLOR_LIGHT, palette
     assert palette(False) is COLOR_LIGHT
     assert palette(True) is COLOR_DARK
 
@@ -51,6 +49,7 @@ def test_radius_scale_is_monotonic():
 
 def test_text_style_returns_textstyle():
     import flet as ft
+
     from ui_flet.theme.tokens import text_style
     style = text_style("h1", color="#123456")
     assert isinstance(style, ft.TextStyle)

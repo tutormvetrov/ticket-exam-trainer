@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import hmac
-from pathlib import Path
 import secrets
+from dataclasses import dataclass
+from pathlib import Path
 
 from app.json_storage import load_json_dict, save_json_dict
-
 
 _PBKDF2_ALGO = "pbkdf2_sha256"
 _PBKDF2_ITERATIONS = 200_000

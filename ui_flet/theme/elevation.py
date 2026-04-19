@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import flet as ft
 
-
 SHADOW_LEVELS: dict[str, dict[str, float]] = {
     "flat":     {"blur": 0.0,  "spread": 0.0, "offset_y": 0.0, "alpha": 0.00},
     "raised":   {"blur": 8.0,  "spread": 0.0, "offset_y": 2.0, "alpha": 0.06},

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from datetime import datetime
 import base64
 import hashlib
 import hmac
 import json
+from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -15,7 +15,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from app.json_storage import load_json_dict, save_json_dict
 from domain.defense import DlcLicenseState
-
 
 # --- Ed25519 public key (production) ---------------------------------------
 # Пустая строка по умолчанию = Ed25519-активация выключена и принимаются только

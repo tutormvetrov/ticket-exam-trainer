@@ -12,21 +12,18 @@ DnD). On "Проверить":
 
 from __future__ import annotations
 
+import logging
 import random
 from typing import List
 
 import flet as ft
 
-import logging
-
 from ui_flet.components.training_workspace_base import build_workspace_frame, safe_update
-
-
-_LOG = logging.getLogger(__name__)
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
-from ui_flet.theme.tokens import palette, SPACE, RADIUS
+from ui_flet.theme.tokens import RADIUS, SPACE, palette
 
+_LOG = logging.getLogger(__name__)
 
 _CANONICAL_ORDER: List[str] = ["intro", "theory", "practice", "skills", "conclusion", "extra"]
 
@@ -160,13 +157,21 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                 content=ft.Row(
                     spacing=SPACE["sm"],
                     controls=[
-                        ft.Text("🔶", size=14),
+                        ft.Container(
+                            width=8,
+                            height=8,
+                            margin=ft.margin.only(top=6),
+                            border_radius=4,
+                            bgcolor=p["warning"],
+                        ),
                         ft.Text(
                             TEXT["skeleton.weak.warning"],
                             size=13,
                             color=p["text_secondary"],
                             expand=True,
                             selectable=True,
+                            no_wrap=False,
+                            overflow=ft.TextOverflow.VISIBLE,
                         ),
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.START,

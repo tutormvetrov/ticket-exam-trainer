@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import logging
-from logging.handlers import RotatingFileHandler
 import os
-from pathlib import Path
 import sys
 import threading
-
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 _LOG_FORMAT = "%(asctime)s %(levelname)s [%(threadName)s] %(name)s: %(message)s"
 _HANDLER_MARKER = "_tezis_runtime_kind"

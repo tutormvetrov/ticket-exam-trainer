@@ -44,7 +44,6 @@ from ui_flet.state import AppState
 from ui_flet.theme.fonts import font_map
 from ui_flet.theme.theme import apply_theme
 
-
 SEED_FILENAME = "state_exam_public_admin_demo.db"
 _LOG = logging.getLogger(__name__)
 
@@ -358,7 +357,7 @@ def _main(page: ft.Page) -> None:
         # Мягкое напоминание заниматься (если пользователь его включил
         # и сегодня ещё не делал ни одной попытки).
         try:
-            from application.reminders import should_remind_now, reminder_message
+            from application.reminders import reminder_message, should_remind_now
             from ui_flet.components.feedback import show_snackbar
             if should_remind_now(state.user_profile, facade.connection):
                 # Небольшая задержка, чтобы snackbar появился ПОСЛЕ

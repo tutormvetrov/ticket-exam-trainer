@@ -14,7 +14,6 @@ import pytest
 
 from application.scoring import extract_json_from_response
 
-
 SAMPLE_PAYLOAD = {
     "thesis_verdicts": [
         {"thesis_label": "A", "status": "covered", "comment": "ok", "student_excerpt": "x"}

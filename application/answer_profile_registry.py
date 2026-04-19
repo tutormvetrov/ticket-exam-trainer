@@ -9,7 +9,6 @@ from domain.answer_profile import (
     AnswerProfileSpec,
 )
 
-
 STANDARD_TICKET_PROFILE = AnswerProfileSpec(
     code=AnswerProfileCode.STANDARD_TICKET,
     title="Обычный билет",
@@ -100,7 +99,6 @@ STATE_EXAM_PUBLIC_ADMIN_PROFILE = AnswerProfileSpec(
         "active-recall": "Вспоминайте ответ не абстрактно, а по блокам госэкзамена.",
         "cloze": "Заполняйте пропуски в ключевых частях структуры госответа.",
         "plan": "Собирайте порядок ответа по структуре госэкзамена.",
-        "mini-exam": "Отвечайте так, как будто закрываете все блоки комиссии под таймер.",
         "state-exam-full": "Дайте полный структурированный ответ по всей рубрике госэкзамена.",
     },
 )

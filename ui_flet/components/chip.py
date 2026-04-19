@@ -16,7 +16,7 @@ from typing import Callable
 import flet as ft
 
 from ui_flet.state import AppState
-from ui_flet.theme.tokens import palette, RADIUS, SPACE
+from ui_flet.theme.tokens import RADIUS, SPACE, palette
 
 
 class Chip(ft.Container):

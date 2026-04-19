@@ -6,11 +6,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import pytest
-
 from application.daily_digest import (
-    MASTERED_THRESHOLD,
-    AttemptCard,
     compute_daily_digest,
 )
 from infrastructure.db import connect_initialized

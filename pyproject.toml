@@ -1,0 +1,71 @@
+# Tooling-only config. The app itself is not installed as a package —
+# requirements.txt remains the source of truth for runtime deps.
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [
+    "archive",
+    "dist",
+    "build",
+    "tezis-build",
+    "app_data",
+    "data",
+    "scripts/vendor",
+]
+
+[tool.ruff.lint]
+# Start with the pragmatic essentials. Can tighten later once the baseline
+# passes: add UP (pyupgrade), SIM (simplify), PTH (pathlib).
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes (unused imports, undefined names, …)
+    "I",   # isort
+    "B",   # bugbear (likely bugs)
+    "W",   # pycodestyle warnings
+]
+ignore = [
+    "E501",  # line length — covered by formatter
+    "B008",  # function-call-in-default-arg — common in dataclasses.field()
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B", "E402"]
+# Entry-point scripts and the Flet bootstrap legitimately manipulate sys.path
+# before their domain imports — E402 would be spurious noise there.
+"scripts/**" = ["E402"]
+"ui_flet/main.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+line-ending = "lf"
+
+[tool.mypy]
+python_version = "3.12"
+files = [
+    "app",
+    "application",
+    "domain",
+    "infrastructure",
+    "ui_flet",
+]
+exclude = [
+    "archive/",
+    "build/",
+    "dist/",
+    "tezis-build/",
+]
+# Intentionally mild for now — the codebase has 38 # type: ignore's that show
+# prior attempts at stricter typing. We start mild to get a green baseline,
+# then ratchet up per-module via `[[tool.mypy.overrides]]`.
+warn_redundant_casts = true
+warn_unused_ignores = false
+check_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+# External libs without shipped stubs — don't noise up the report.
+module = ["flet.*", "fsrs.*", "rapidocr_onnxruntime.*", "pypdf.*", "fitz.*", "docx.*", "reportlab.*"]
+ignore_missing_imports = true

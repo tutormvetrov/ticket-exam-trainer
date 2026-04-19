@@ -19,8 +19,8 @@ class _MockPage:
 
 
 def _make_state(*, with_profile: bool = True):
-    from ui_flet.state import AppState
     from application.user_profile import UserProfile
+    from ui_flet.state import AppState
     facade = SimpleNamespace(
         load_ticket_maps=lambda: [],
         connection=SimpleNamespace(execute=lambda *a, **kw: SimpleNamespace(fetchall=lambda: [])),
@@ -38,7 +38,7 @@ def _make_state(*, with_profile: bool = True):
     return state
 
 
-def test_root_redirects_to_journal_when_profile_exists():
+def test_root_redirects_to_dashboard_when_profile_exists():
     from ui_flet.router import on_route_change
     state = _make_state(with_profile=True)
     handler = on_route_change(state)
@@ -47,7 +47,7 @@ def test_root_redirects_to_journal_when_profile_exists():
         route = "/"
 
     handler(_Evt())
-    assert state.page.route == "/journal"
+    assert state.page.route == "/dashboard"
 
 
 def test_root_redirects_to_onboarding_when_no_profile():

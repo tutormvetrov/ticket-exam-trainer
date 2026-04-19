@@ -794,7 +794,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
                             style=text_style("h1", color=p["text_primary"]),
                         ),
                         ft.Text(
-                            TEXT["tickets.subtitle"],
+                            TEXT["tickets.subtitle"].format(n=len(tickets)),
                             style=text_style("caption", color=p["text_muted"]),
                         ),
                     ],

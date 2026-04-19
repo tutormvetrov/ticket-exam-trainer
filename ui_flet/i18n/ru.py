@@ -21,7 +21,7 @@ TEXT = {
 
     # Tickets view
     "tickets.title":              "Билеты",
-    "tickets.subtitle":           "208 билетов экзамена",
+    "tickets.subtitle":           "{n} билетов экзамена",
     "tickets.filter.all":         "Все",
     "tickets.filter.section":     "Раздел",
     "tickets.filter.difficulty":  "Сложность",
@@ -289,6 +289,9 @@ TEXT = {
     "nav.journal":                  "Дневник",
     "nav.training.needs_ticket":    "Не торопись. Сначала выбери билет.",
     "journal.morning.greeting":      "С добрым утром",
+    "journal.greeting.day":          "Добрый день",
+    "journal.greeting.evening":      "Добрый вечер",
+    "journal.greeting.night":        "Доброй ночи",
     "journal.morning.queue":          "Сегодня тебя ждёт:",
     "journal.morning.queue_review":  "{count} повторений",
     "journal.morning.queue_new":     "{count} новых",

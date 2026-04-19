@@ -35,6 +35,24 @@ _RU_MONTHS_GEN = (
     "июля", "августа", "сентября", "октября", "ноября", "декабря",
 )
 
+def _time_aware_greeting(now: datetime | None = None) -> str:
+    """Pick the greeting phrase that matches the current hour.
+
+    Windows: 5–11 утро, 11–17 день, 17–22 вечер, 22–5 ночь.
+    The morning stage of the journal still triggers on "no attempts today",
+    but the greeting itself follows wall-clock time — otherwise the user
+    sees "С добрым утром" at 23:43 which reads as broken.
+    """
+    hour = (now or datetime.now()).hour
+    if 5 <= hour < 11:
+        return TEXT["journal.morning.greeting"]
+    if 11 <= hour < 17:
+        return TEXT["journal.greeting.day"]
+    if 17 <= hour < 22:
+        return TEXT["journal.greeting.evening"]
+    return TEXT["journal.greeting.night"]
+
+
 _RU_WEEKDAYS = (
     "понедельник", "вторник", "среда", "четверг",
     "пятница", "суббота", "воскресенье",
@@ -145,7 +163,7 @@ def _build_morning(state: AppState, digest: DailyDigest, p: dict) -> ft.Control:
         ),
     )
     greeting = ft.Text(
-        f"{TEXT['journal.morning.greeting']}, {name} {avatar}".strip(),
+        f"{_time_aware_greeting()}, {name} {avatar}".strip(),
         style=text_style("display", color=p["text_primary"]),
     )
 

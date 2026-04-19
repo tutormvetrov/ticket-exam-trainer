@@ -865,15 +865,22 @@ def _handle_test_connection(
 # ============================================================================
 
 def _build_reset_section(state: AppState, p: dict[str, str]) -> ft.Control:
+    # The dialog instance is kept on this closure so close/confirm handlers
+    # reach the exact same control that was opened. Flet 0.27 dropped the
+    # old `page.dialog = ...; dialog.open = True` pattern — use page.open/
+    # page.close now.
+    dialog_holder: dict[str, ft.AlertDialog | None] = {"dlg": None}
+
     def _close_dialog(_e: ft.ControlEvent | None = None) -> None:
-        dialog = getattr(state.page, "dialog", None)
-        if dialog is None:
+        dlg = dialog_holder["dlg"]
+        if dlg is None:
             return
-        dialog.open = False
         try:
-            state.page.update()
+            state.page.close(dlg)
         except Exception:
             _LOG.exception("Failed to close reset dialog")
+        finally:
+            dialog_holder["dlg"] = None
 
     def _confirm_reset(_e: ft.ControlEvent) -> None:
         _close_dialog()
@@ -903,9 +910,8 @@ def _build_reset_section(state: AppState, p: dict[str, str]) -> ft.Control:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        state.page.dialog = dialog
-        dialog.open = True
-        state.page.update()
+        dialog_holder["dlg"] = dialog
+        state.page.open(dialog)
 
     button = ft.FilledTonalButton(
         text=TEXT["settings.reset.action"],

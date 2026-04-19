@@ -213,15 +213,12 @@ def open_ask_etalon_dialog(state: AppState, ticket) -> None:
     )
 
     def _close() -> None:
-        dlg.open = False
         try:
-            page.update()
+            page.close(dlg)
         except Exception:
             pass
 
-    page.dialog = dlg
-    if dlg not in page.overlay:
-        page.overlay.append(dlg)
-    dlg.open = True
-    page.update()
+    # Flet 0.27+: use page.open/page.close instead of the old
+    # page.dialog=…; dialog.open=True pattern, which silently no-ops.
+    page.open(dlg)
     _refresh_messages()

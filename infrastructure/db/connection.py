@@ -33,7 +33,7 @@ def get_database_path(base_dir: Path) -> Path:
 
 def connect(database_path: Path) -> sqlite3.Connection:
     database_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(database_path, timeout=SQLITE_TIMEOUT_SECONDS, factory=AppConnection)
+    connection = sqlite3.connect(database_path, timeout=SQLITE_TIMEOUT_SECONDS, factory=AppConnection, check_same_thread=False)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON;")
     connection.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS};")

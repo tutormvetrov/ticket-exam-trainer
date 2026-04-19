@@ -9,7 +9,7 @@ Startup choreography
    window opens fullscreen or in a sized window (defaults to fullscreen, which
    is what spec 3.5a asks for).
 3. ``state.probe_ollama()`` fires a background probe of ``127.0.0.1:11434``
-   right after the theme is applied — workspaces treat ``ollama_online=None``
+   right after the theme is applied - workspaces treat ``ollama_online=None``
    as offline so there's no window in which the UI can accidentally spin up
    a 60s LLM call.
 4. Key bindings: ``Escape`` leaves fullscreen (drops back to the saved
@@ -19,11 +19,11 @@ Startup choreography
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
+import logging
 import shutil
 import sqlite3
+import sys
+from pathlib import Path
 
 import flet as ft
 
@@ -34,17 +34,19 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from app.paths import get_workspace_root
+from app.runtime_logging import setup_runtime_logging
 from application.facade import AppFacade
 from application.settings_store import SettingsStore
+from application.user_profile import ProfileStore
 from infrastructure.db import connect_initialized, get_database_path
-
-from ui_flet.state import AppState
 from ui_flet.router import on_route_change
-from ui_flet.theme.theme import apply_theme
+from ui_flet.state import AppState
 from ui_flet.theme.fonts import font_map
+from ui_flet.theme.theme import apply_theme
 
 
 SEED_FILENAME = "state_exam_public_admin_demo.db"
+_LOG = logging.getLogger(__name__)
 
 
 def _seed_candidates(workspace_root: Path) -> list[Path]:
@@ -58,20 +60,16 @@ def _seed_candidates(workspace_root: Path) -> list[Path]:
     workspace root for user-shipped copies.
     """
     paths: list[Path] = []
-    # Frozen: pyinstaller extracts add-data into _MEIPASS
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         paths.append(Path(meipass) / "data" / SEED_FILENAME)
         paths.append(Path(meipass) / SEED_FILENAME)
-    # Dev / next to script / next to exe
     paths.append(REPO_ROOT / "data" / SEED_FILENAME)
     paths.append(REPO_ROOT / "build" / "demo_seed" / SEED_FILENAME)
-    # Next to the running exe (classmates sometimes drop it there)
     if getattr(sys, "frozen", False):
         exe_dir = Path(sys.executable).resolve().parent
         paths.append(exe_dir / "data" / SEED_FILENAME)
         paths.append(exe_dir / SEED_FILENAME)
-    # User-local fallback
     paths.append(workspace_root / "data" / SEED_FILENAME)
     return paths
 
@@ -93,12 +91,13 @@ def _bootstrap_seed_if_empty(workspace_root: Path, database_path: Path) -> str:
     """Copy bundled seed over the workspace DB when the workspace has no tickets.
 
     Returns a short diagnostic string for logging: "seeded", "skipped_has_data",
-    "no_source", or "failed". Never raises — seeding failure leaves the app in
+    "no_source", or "failed". Never raises - seeding failure leaves the app in
     its current (possibly empty) state and users see the empty catalog.
     """
     if _ticket_count(database_path) > 0:
         return "skipped_has_data"
 
+    had_copy_failure = False
     for candidate in _seed_candidates(workspace_root):
         if candidate.exists() and candidate.stat().st_size > 0:
             try:
@@ -106,19 +105,29 @@ def _bootstrap_seed_if_empty(workspace_root: Path, database_path: Path) -> str:
                 shutil.copy2(candidate, database_path)
                 return "seeded"
             except Exception:
+                had_copy_failure = True
+                _LOG.exception(
+                    "Seed bootstrap copy failed source=%s target=%s",
+                    candidate,
+                    database_path,
+                )
                 continue
-    return "no_source"
+    return "failed" if had_copy_failure else "no_source"
 
 
-def _build_facade() -> tuple[AppFacade, Path]:
-    workspace_root = get_workspace_root()
+def _build_facade(workspace_root: Path | None = None) -> tuple[AppFacade, Path]:
+    workspace_root = workspace_root or get_workspace_root()
     database_path = get_database_path(workspace_root)
-    # Seed bootstrap runs BEFORE connect_initialized so the schema layer sees
-    # a populated DB and applies its incremental migrations over real data.
-    _bootstrap_seed_if_empty(workspace_root, database_path)
+    seed_status = _bootstrap_seed_if_empty(workspace_root, database_path)
     connection = connect_initialized(database_path)
     settings_store = SettingsStore(workspace_root / "app_data" / "settings.json")
     facade = AppFacade(workspace_root, connection, settings_store)
+    _LOG.info(
+        "Facade built workspace=%s database=%s seed_status=%s",
+        workspace_root,
+        database_path,
+        seed_status,
+    )
     return facade, database_path
 
 
@@ -127,11 +136,12 @@ def _on_resize(state: AppState):
         width = state.page.window.width or state.page.width or 1280
         if state.update_breakpoint(float(width)):
             state.page.update()
+
     return _handler
 
 
 def _configure_page(page: ft.Page) -> None:
-    page.title = "Тезис — подготовка к письменному госэкзамену"
+    page.title = "Тезис - подготовка к письменному госэкзамену"
     page.padding = 0
     page.spacing = 0
     page.fonts = font_map()
@@ -150,7 +160,7 @@ def _apply_window_mode(page: ft.Page, mode: str, width: int, height: int) -> Non
 
 
 def _install_keyboard_handler(state: AppState) -> None:
-    """Esc leaves fullscreen → falls back to the persisted windowed size."""
+    """Esc leaves fullscreen and falls back to the persisted windowed size."""
 
     def _on_keyboard(event: ft.KeyboardEvent) -> None:
         key = getattr(event, "key", "") or ""
@@ -159,7 +169,6 @@ def _install_keyboard_handler(state: AppState) -> None:
             width = int(getattr(settings, "window_width", 1440) or 1440)
             height = int(getattr(settings, "window_height", 900) or 900)
             _apply_window_mode(state.page, "windowed", width, height)
-            # Persist the switch so re-launches match what the user sees.
             _persist_window_mode(state, "windowed")
             state.page.update()
 
@@ -176,19 +185,11 @@ def _persist_window_mode(state: AppState, mode: str) -> None:
             return
         state.facade.save_settings(replace(current, window_mode=mode))
     except Exception:
-        # Never let persistence break the UI — the live page already reflects
-        # the new mode.
-        pass
+        _LOG.exception("Window mode persistence failed mode=%s", mode)
 
 
 def _build_fullscreen_toggle(state: AppState) -> ft.FloatingActionButton:
-    """A tiny floating toggle for fullscreen / windowed.
-
-    Kept in ``main.py`` rather than ``top_bar.py`` because the sibling agent
-    owns TopBar and the task forbids editing it. The FAB sits at the top-right
-    of the page (mini size, subtle) and flips the same state as the Settings
-    segmented button.
-    """
+    """A tiny floating toggle for fullscreen / windowed."""
 
     def _icon_for_mode() -> str:
         return (
@@ -214,58 +215,97 @@ def _build_fullscreen_toggle(state: AppState) -> ft.FloatingActionButton:
         try:
             fab.update()
         except Exception:
-            pass
+            _LOG.exception("Fullscreen FAB update failed")
         state.page.update()
 
     fab.on_click = _on_click
     return fab
 
 
+def _build_startup_error_view(log_path: Path, exc: Exception) -> ft.View:
+    return ft.View(
+        route="/startup-error",
+        padding=0,
+        controls=[
+            ft.Container(
+                expand=True,
+                padding=32,
+                content=ft.Column(
+                    [
+                        ft.Text("Не удалось запустить приложение", size=24, weight=ft.FontWeight.W_600),
+                        ft.Text(f"{type(exc).__name__}: {exc}", selectable=True, color=ft.Colors.RED_700),
+                        ft.Text(f"Смотрите лог: {log_path}", selectable=True),
+                    ],
+                    spacing=12,
+                ),
+            )
+        ],
+    )
+
+
 def _main(page: ft.Page) -> None:
-    _configure_page(page)
-    facade, _ = _build_facade()
-    state = AppState(page=page, facade=facade)
+    workspace_root = get_workspace_root()
+    log_path = setup_runtime_logging(workspace_root, component="flet")
+    _LOG.info("Flet startup workspace=%s frozen=%s", workspace_root, getattr(sys, "frozen", False))
 
-    settings = getattr(facade, "settings", None)
-    saved_window_mode = getattr(settings, "window_mode", "fullscreen") or "fullscreen"
-    saved_window_width = int(getattr(settings, "window_width", 1440) or 1440)
-    saved_window_height = int(getattr(settings, "window_height", 900) or 900)
-    _apply_window_mode(page, saved_window_mode, saved_window_width, saved_window_height)
+    try:
+        _configure_page(page)
+        facade, _ = _build_facade(workspace_root)
+        state = AppState(page=page, facade=facade)
 
-    # Initial theme — read from settings (fallback: light)
-    theme_name = getattr(settings, "theme_name", "light") if settings else "light"
-    state.is_dark = theme_name == "dark"
-    apply_theme(page, state.is_dark)
+        profile_store = ProfileStore(workspace_root / "app_data" / "profile.json")
+        state.user_profile = profile_store.load()
+        _LOG.info(
+            "Profile load result exists=%s name=%s",
+            state.user_profile is not None,
+            getattr(state.user_profile, "name", None),
+        )
 
-    # Kick the background Ollama probe immediately after theme is applied.
-    # Workspaces guard themselves against ``ollama_online is None`` so it's
-    # safe for the probe to resolve asynchronously — we just surface the
-    # result via ``state.is_ollama_available()``.
-    state.probe_ollama()
+        try:
+            state.ticket_quality_cache.prime(facade.load_ticket_maps())
+        except Exception:
+            _LOG.exception("Skeleton-quality priming failed — markers will be cold-computed on demand")
 
-    # Re-apply theme on toggle. Rebuild the current view so controls that
-    # captured `palette(is_dark)` at build time pick up the new palette.
-    def _on_theme_change() -> None:
+        settings = getattr(facade, "settings", None)
+        saved_window_mode = getattr(settings, "window_mode", "fullscreen") or "fullscreen"
+        saved_window_width = int(getattr(settings, "window_width", 1440) or 1440)
+        saved_window_height = int(getattr(settings, "window_height", 900) or 900)
+        _apply_window_mode(page, saved_window_mode, saved_window_width, saved_window_height)
+
+        theme_name = getattr(settings, "theme_name", "light") if settings else "light"
+        state.is_dark = theme_name == "dark"
         apply_theme(page, state.is_dark)
-        state.refresh()
-    state.on_theme_change(_on_theme_change)
 
-    page.on_route_change = on_route_change(state)
-    page.window.on_event = _on_resize(state)
+        state.probe_ollama()
 
-    _install_keyboard_handler(state)
+        def _on_theme_change() -> None:
+            apply_theme(page, state.is_dark)
+            state.refresh()
 
-    # Floating FAB for fullscreen toggle. ``page.floating_action_button`` is
-    # the Flet-native slot; placing it via ``page.overlay`` would stack it over
-    # dialogs, which we don't want.
-    page.floating_action_button = _build_fullscreen_toggle(state)
-    page.floating_action_button_location = ft.FloatingActionButtonLocation.END_TOP
+        state.on_theme_change(_on_theme_change)
 
-    # Initial width sync
-    if page.width:
-        state.update_breakpoint(float(page.width))
+        page.on_route_change = on_route_change(state)
+        page.window.on_event = _on_resize(state)
 
-    page.go(page.route or "/tickets")
+        _install_keyboard_handler(state)
+
+        page.floating_action_button = _build_fullscreen_toggle(state)
+        page.floating_action_button_location = ft.FloatingActionButtonLocation.END_TOP
+
+        if page.width:
+            state.update_breakpoint(float(page.width))
+
+        if state.user_profile is None:
+            initial_route = "/onboarding"
+        else:
+            initial_route = page.route or "/journal"
+        _LOG.info("Flet initial navigation route=%s breakpoint=%s", initial_route, state.breakpoint)
+        page.go(initial_route)
+    except Exception as exc:
+        _LOG.exception("Fatal Flet startup error")
+        page.views.clear()
+        page.views.append(_build_startup_error_view(log_path, exc))
+        page.update()
 
 
 def main() -> None:

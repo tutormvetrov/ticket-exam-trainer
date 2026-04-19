@@ -18,8 +18,9 @@ class _MockPage:
         self.update_called += 1
 
 
-def _make_state():
+def _make_state(*, with_profile: bool = True):
     from ui_flet.state import AppState
+    from application.user_profile import UserProfile
     facade = SimpleNamespace(
         load_ticket_maps=lambda: [],
         connection=SimpleNamespace(execute=lambda *a, **kw: SimpleNamespace(fetchall=lambda: [])),
@@ -31,19 +32,34 @@ def _make_state():
         _settings_store=SimpleNamespace(workspace_root="."),
         build_ollama_service=lambda: SimpleNamespace(),
     )
-    return AppState(page=_MockPage(), facade=facade)
+    state = AppState(page=_MockPage(), facade=facade)
+    if with_profile:
+        state.user_profile = UserProfile(name="Миша", avatar_emoji="🦉", created_at="2026-04-19T22:00:00")
+    return state
 
 
-def test_root_redirects_to_tickets():
+def test_root_redirects_to_journal_when_profile_exists():
     from ui_flet.router import on_route_change
-    state = _make_state()
+    state = _make_state(with_profile=True)
     handler = on_route_change(state)
 
     class _Evt:
         route = "/"
 
     handler(_Evt())
-    assert state.page.route == "/tickets"
+    assert state.page.route == "/journal"
+
+
+def test_root_redirects_to_onboarding_when_no_profile():
+    from ui_flet.router import on_route_change
+    state = _make_state(with_profile=False)
+    handler = on_route_change(state)
+
+    class _Evt:
+        route = "/"
+
+    handler(_Evt())
+    assert state.page.route == "/onboarding"
 
 
 def test_training_route_sets_state():
@@ -71,3 +87,24 @@ def test_settings_route_builds_view():
     # Exactly one view pushed
     assert len(state.page.views) == 1
     assert state.page.views[0].route == "/settings"
+
+
+def test_route_build_failure_renders_error_view(monkeypatch):
+    import ui_flet.router as router
+
+    state = _make_state()
+    handler = router.on_route_change(state)
+
+    def _boom(_state):
+        raise RuntimeError("tickets blew up")
+
+    monkeypatch.setattr(router, "build_tickets_view", _boom)
+
+    class _Evt:
+        route = "/tickets"
+
+    handler(_Evt())
+
+    assert len(state.page.views) == 1
+    assert state.page.views[0].route == "/tickets"
+    assert state.page.update_called == 1

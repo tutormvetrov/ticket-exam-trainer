@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import flet as ft
 
+from ui_flet.components.calibration_chips import CalibrationChips
 from ui_flet.components.review_verdict_widget import build_review_verdict
 from ui_flet.components.training_workspace_base import build_workspace_frame
 from ui_flet.i18n.ru import TEXT
@@ -29,8 +30,20 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         text_size=14,
     )
     result_box = ft.Column(spacing=SPACE["md"], visible=False)
+    calibration = CalibrationChips(state)
+    calibration_warning = ft.Text(
+        TEXT["calibration.required"],
+        color=p["danger"],
+        visible=False,
+    )
 
     def _on_check(_evt) -> None:
+        if not calibration.is_picked():
+            calibration_warning.visible = True
+            calibration_warning.update()
+            return
+        calibration_warning.visible = False
+        calibration_warning.update()
         text = (answer_field.value or "").strip()
         skip_llm = not state.is_ollama_available()
         try:
@@ -39,6 +52,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                 "review",
                 text,
                 skip_llm=skip_llm,
+                confidence=calibration.value,
             )
         except Exception as exc:  # noqa: BLE001
             result_box.controls = [ft.Text(str(exc), color=p["danger"])]
@@ -52,6 +66,9 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         feedback = getattr(result, "feedback", "") or ""
 
         controls: list[ft.Control] = []
+        reply = calibration.render_reply(score_percent)
+        if getattr(reply, "visible", True):
+            controls.append(reply)
         if error:
             controls.append(ft.Text(error, size=13, color=p["danger"], selectable=True))
 
@@ -112,6 +129,8 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         expand=True,
         controls=[
             answer_field,
+            calibration.control,
+            calibration_warning,
             result_box,
         ],
     )

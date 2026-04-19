@@ -122,6 +122,97 @@ def _truncate(text: str, limit: int) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
+def _build_filters_block(
+    *,
+    breakpoint: str,
+    palette_map: dict[str, str],
+    section_choices: list[tuple[str, str]],
+    search_value: str,
+    active_section_value: str,
+    active_difficulty_value: str,
+    on_search,
+    on_section_change,
+    on_difficulty_change,
+) -> tuple[ft.Control, ft.TextField, ft.Dropdown, ft.Dropdown]:
+    """Build the search/filter chrome without mixing wrap + expand.
+
+    Flet web 0.27.x misbehaves when a wrapping Row contains expanded children.
+    The old tickets toolbar used `Row(wrap=True)` plus `search_field.expand=1`,
+    which rendered as a large grey placeholder and hid the rest of the left
+    column. We split the layout by breakpoint:
+    - compact: vertical stack
+    - standard/wide/ultrawide: plain Row without wrap
+    """
+    search_field = ft.TextField(
+        label=TEXT["tickets.search"],
+        value=search_value,
+        on_change=on_search,
+        prefix_icon=ft.Icons.SEARCH,
+        border_color=palette_map["border_medium"],
+        focused_border_color=palette_map["accent"],
+        dense=True,
+        expand=1 if breakpoint != "compact" else None,
+    )
+    section_dd = ft.Dropdown(
+        label=TEXT["tickets.filter.section"],
+        value=active_section_value,
+        options=[ft.dropdown.Option(key=k, text=label) for k, label in section_choices],
+        on_change=on_section_change,
+        border_color=palette_map["border_medium"],
+        focused_border_color=palette_map["accent"],
+        dense=True,
+        width=None if breakpoint == "compact" else 240,
+    )
+    difficulty_dd = ft.Dropdown(
+        label=TEXT["tickets.filter.difficulty"],
+        value=active_difficulty_value,
+        options=[
+            ft.dropdown.Option(key="all", text=TEXT["tickets.filter.all"]),
+            ft.dropdown.Option(key="1", text="1"),
+            ft.dropdown.Option(key="2", text="2"),
+            ft.dropdown.Option(key="3", text="3"),
+            ft.dropdown.Option(key="4", text="4"),
+            ft.dropdown.Option(key="5", text="5"),
+        ],
+        on_change=on_difficulty_change,
+        border_color=palette_map["border_medium"],
+        focused_border_color=palette_map["accent"],
+        dense=True,
+        width=None if breakpoint == "compact" else 160,
+    )
+
+    if breakpoint == "compact":
+        block = ft.Column(
+            [search_field, section_dd, difficulty_dd],
+            spacing=SPACE["sm"],
+            tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        )
+    else:
+        block = ft.Row(
+            [search_field, section_dd, difficulty_dd],
+            spacing=SPACE["md"],
+            wrap=False,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    return block, search_field, section_dd, difficulty_dd
+
+
+def _ensure_tickets_breakpoint_listener(state: AppState) -> None:
+    """Register the /tickets breakpoint listener once per AppState."""
+    if getattr(state, "_tickets_breakpoint_listener_registered", False):
+        return
+
+    def _on_bp(_new_bp: str) -> None:
+        route = getattr(state.page, "route", "") or ""
+        if route.startswith("/tickets"):
+            state.go("/tickets")
+
+    state.on_breakpoint_change(_on_bp)
+    setattr(state, "_tickets_breakpoint_listener_registered", True)
+
+
 def build_tickets_view(state: AppState) -> ft.Control:
     """Entry point — returns a full-page control for the /tickets route."""
     p = palette(state.is_dark)
@@ -133,6 +224,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
         tickets = []
     sections_by_id = _load_sections_map(state)
     mastery_by_id = _load_mastery_map(state)
+    ticket_positions = {ticket.ticket_id: index for index, ticket in enumerate(tickets, start=1)}
 
     # Build unique section options (sorted by title)
     section_choices: list[tuple[str, str]] = [("all", TEXT["tickets.filter.all"])]
@@ -381,15 +473,18 @@ def build_tickets_view(state: AppState) -> ft.Control:
         else:
             for t in filtered:
                 section = sections_by_id.get(t.section_id, {})
+                skeleton_weak = state.ticket_quality_cache.verdict_for(t).plan_skeleton_weak
                 card = TicketCard(
                     state,
                     ticket_id=t.ticket_id,
                     title=t.title or "",
                     section_title=section.get("title", ""),
                     lecturer_name=section.get("lecturer", ""),
+                    display_number=ticket_positions.get(t.ticket_id),
                     difficulty=int(getattr(t, "difficulty", 1) or 1),
                     mastery=mastery_by_id.get(t.ticket_id, 0.0),
                     has_warning=_ticket_has_warning(t),
+                    plan_skeleton_weak=skeleton_weak,
                     selected=(selected_id["value"] == t.ticket_id),
                     on_click=_on_card_click,
                 )
@@ -585,50 +680,17 @@ def build_tickets_view(state: AppState) -> ft.Control:
         active_difficulty["value"] = e.control.value or "all"
         _refresh_list()
 
-    # ---- controls: search + filters ----
-    search_field = ft.TextField(
-        label=TEXT["tickets.search"],
-        value=search_query["value"],
-        on_change=_on_search,
-        prefix_icon=ft.Icons.SEARCH,
-        border_color=p["border_medium"],
-        focused_border_color=p["accent"],
-        dense=True,
-        expand=1,
-    )
-    section_dd = ft.Dropdown(
-        label=TEXT["tickets.filter.section"],
-        value=active_section["value"],
-        options=[ft.dropdown.Option(key=k, text=label) for k, label in section_choices],
-        on_change=_on_section_change,
-        border_color=p["border_medium"],
-        focused_border_color=p["accent"],
-        dense=True,
-        width=240,
-    )
-    difficulty_dd = ft.Dropdown(
-        label=TEXT["tickets.filter.difficulty"],
-        value=active_difficulty["value"],
-        options=[
-            ft.dropdown.Option(key="all", text=TEXT["tickets.filter.all"]),
-            ft.dropdown.Option(key="1", text="1"),
-            ft.dropdown.Option(key="2", text="2"),
-            ft.dropdown.Option(key="3", text="3"),
-            ft.dropdown.Option(key="4", text="4"),
-            ft.dropdown.Option(key="5", text="5"),
-        ],
-        on_change=_on_difficulty_change,
-        border_color=p["border_medium"],
-        focused_border_color=p["accent"],
-        dense=True,
-        width=160,
-    )
-
-    filters_row = ft.Row(
-        [search_field, section_dd, difficulty_dd],
-        spacing=SPACE["md"],
-        wrap=True,
-        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    bp = state.breakpoint
+    filters_block, search_field, section_dd, difficulty_dd = _build_filters_block(
+        breakpoint=bp,
+        palette_map=p,
+        section_choices=section_choices,
+        search_value=search_query["value"],
+        active_section_value=active_section["value"],
+        active_difficulty_value=active_difficulty["value"],
+        on_search=_on_search,
+        on_section_change=_on_section_change,
+        on_difficulty_change=_on_difficulty_change,
     )
 
     # Initial populate
@@ -637,7 +699,6 @@ def build_tickets_view(state: AppState) -> ft.Control:
     _refresh_progress()
 
     # ---- compose per breakpoint ----
-    bp = state.breakpoint
 
     left_column = ft.Container(
         expand=True,
@@ -663,12 +724,13 @@ def build_tickets_view(state: AppState) -> ft.Control:
                     spacing=0,
                     tight=True,
                 ),
-                filters_row,
+                filters_block,
                 counter_label,
                 ft.Container(content=list_container, expand=True, bgcolor=p["bg_base"]),
             ],
             spacing=SPACE["md"],
             expand=True,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         ),
     )
 
@@ -681,7 +743,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
 
     # Compact: list-only (click opens training)
     if bp == "compact":
-        body = ft.Column([left_column], expand=True)
+        body = left_column
     # Standard / wide: 2 columns
     elif bp in ("standard", "wide"):
         body = ft.Row(
@@ -717,15 +779,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
 
     top_bar = build_top_bar(state)
 
-    # Rebuild view when breakpoint changes so layout flips between 1/2/3 cols.
-    def _on_bp(_new_bp: str) -> None:
-        # Only react if we're currently on /tickets — on other routes the next
-        # build_tickets_view() call picks up the new breakpoint naturally.
-        route = getattr(state.page, "route", "") or ""
-        if route.startswith("/tickets"):
-            state.go("/tickets")
-
-    state.on_breakpoint_change(_on_bp)
+    _ensure_tickets_breakpoint_listener(state)
 
     return ft.Container(
         expand=True,

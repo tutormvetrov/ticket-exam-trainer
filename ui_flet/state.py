@@ -17,6 +17,7 @@ Ollama reachability is tracked as a ternary:
 
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass, field
 from typing import Callable
@@ -24,6 +25,11 @@ from typing import Callable
 import flet as ft
 
 from application.facade import AppFacade
+from application.ticket_quality import TicketQualityCache
+from application.user_profile import UserProfile
+
+
+_LOG = logging.getLogger(__name__)
 
 
 BREAKPOINTS = {
@@ -50,6 +56,9 @@ class AppState:
     selected_ticket_id: str | None = None
     selected_mode: str = "reading"          # active workspace for training view
     ollama_online: bool | None = None       # None = not probed yet (treated as offline)
+    user_profile: UserProfile | None = None  # loaded at boot; None → onboarding required
+    day_closed_at: str | None = None         # ISO datetime of "Хватит на сегодня" click
+    ticket_quality_cache: TicketQualityCache = field(default_factory=TicketQualityCache)
     theme_listeners: list[Callable[[], None]] = field(default_factory=list)
     breakpoint_listeners: list[Callable[[str], None]] = field(default_factory=list)
     ollama_listeners: list[Callable[[bool | None], None]] = field(default_factory=list)
@@ -61,7 +70,7 @@ class AppState:
             try:
                 cb()
             except Exception:
-                pass
+                _LOG.exception("Theme listener failed")
 
     def on_theme_change(self, callback: Callable[[], None]) -> None:
         self.theme_listeners.append(callback)
@@ -75,7 +84,7 @@ class AppState:
                 try:
                     cb(new_bp)
                 except Exception:
-                    pass
+                    _LOG.exception("Breakpoint listener failed breakpoint=%s", new_bp)
             return True
         return False
 
@@ -95,7 +104,7 @@ class AppState:
             try:
                 cb(self.ollama_online)
             except Exception:
-                pass
+                _LOG.exception("Ollama listener failed state=%s", self.ollama_online)
 
     def probe_ollama(self, timeout: float = 1.5) -> None:
         """Kick off a background probe of the Ollama endpoint.
@@ -114,6 +123,7 @@ class AppState:
             try:
                 ok = probe_ollama_now(base_url, timeout=timeout)
             except Exception:
+                _LOG.exception("Ollama probe crashed base_url=%s", base_url)
                 ok = False
             previous = self.ollama_online
             self.ollama_online = bool(ok)
@@ -128,6 +138,7 @@ class AppState:
         (Flet's page.go is a no-op for same-route calls, which made nav chip
         clicks look broken when they happened to land on the current route)."""
         current = getattr(self.page, "route", None) or "/"
+        _LOG.info("Navigation requested from=%s to=%s", current, route)
         if current == route:
             self.refresh()
             return
@@ -151,9 +162,10 @@ class AppState:
         try:
             handler(_FakeEvt(route))
         except Exception:
-            pass
+            _LOG.exception("Forced refresh failed route=%s", route)
 
     def open_training(self, ticket_id: str, mode: str = "reading") -> None:
         self.selected_ticket_id = ticket_id
         self.selected_mode = mode
+        _LOG.info("Open training ticket_id=%s mode=%s", ticket_id, mode)
         self.page.go(f"/training/{ticket_id}/{mode}")

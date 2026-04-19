@@ -3,6 +3,7 @@ from __future__ import annotations
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
+import logging
 from pathlib import Path
 import sqlite3
 from typing import TypeVar
@@ -42,6 +43,8 @@ from infrastructure.ollama.service import OllamaDiagnostics
 
 _USE_SETTINGS_TIMEOUT = object()
 _T = TypeVar("_T")
+_REVIEW_VERDICT_MODES = {"active-recall", "mini-exam", "state-exam-full", "review"}
+_LOG = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -102,6 +105,54 @@ class AppFacade:
             inspect_timeout_seconds=3.0,
             generation_timeout_seconds=resolved_generation,
         )
+
+    @staticmethod
+    def _probe_evaluation_ollama_service(service) -> tuple[bool, str]:
+        client = getattr(service, "client", None)
+        get_tags = getattr(client, "get_tags", None)
+        if not callable(get_tags):
+            return True, "probe_unavailable"
+
+        try:
+            response = get_tags()
+        except Exception as exc:  # noqa: BLE001
+            return False, str(exc)
+
+        if hasattr(response, "ok") and not bool(response.ok):
+            return False, str(getattr(response, "error", "") or "get_tags_not_ok")
+        return True, ""
+
+    def _resolve_evaluation_ollama_service(
+        self,
+        *,
+        mode_key: str,
+        skip_llm: bool,
+        needs_followups: bool,
+        needs_review_verdict: bool,
+    ):
+        if skip_llm or not (needs_followups or needs_review_verdict):
+            return None
+
+        generation_timeout_seconds = None
+        if self._settings.rule_based_fallback:
+            generation_timeout_seconds = min(float(self._settings.timeout_seconds or 60), 5.0)
+
+        try:
+            service = self.build_ollama_service(timeout_seconds=generation_timeout_seconds)
+        except Exception:  # noqa: BLE001
+            _LOG.exception("Failed to build Ollama service mode=%s", mode_key)
+            return None
+
+        available, reason = self._probe_evaluation_ollama_service(service)
+        if available:
+            return service
+
+        _LOG.info(
+            "Skipping Ollama-backed evaluation mode=%s reason=%s",
+            mode_key,
+            reason or "unavailable",
+        )
+        return None
 
     @staticmethod
     def _recommended_import_part_count(ticket_total: int) -> int:
@@ -1153,6 +1204,7 @@ class AppFacade:
         model: str | None = None,
         include_followups: bool = True,
         skip_llm: bool = False,
+        confidence: str | None = None,
     ) -> TrainingEvaluationResult:
         answer = answer_text.strip()
         if not answer:
@@ -1178,6 +1230,12 @@ class AppFacade:
         )
         self.repository.save_exercise_instances([exercise])
         self.repository.save_attempt(outcome.attempt)
+        if confidence in ("guess", "idea", "sure"):
+            self.connection.execute(
+                "UPDATE attempts SET confidence = ? WHERE attempt_id = ?",
+                (confidence, outcome.attempt.attempt_id),
+            )
+            self.connection.commit()
         if outcome.attempt_block_scores:
             self.repository.save_attempt_block_scores(outcome.attempt.attempt_id, outcome.attempt_block_scores)
         self.repository.save_mastery_profile(outcome.profile)
@@ -1186,29 +1244,34 @@ class AppFacade:
         self.repository.save_weak_areas("local-user", ticket_id, outcome.weak_areas)
         self._refresh_review_queue()
 
+        weak_titles = [area.title for area in outcome.weak_areas[:2]]
+        needs_followups = bool(weak_titles) and include_followups and self._settings.examiner_followups
+        needs_review_verdict = mode_key in _REVIEW_VERDICT_MODES
+        ollama_service = self._resolve_evaluation_ollama_service(
+            mode_key=mode_key,
+            skip_llm=skip_llm,
+            needs_followups=needs_followups,
+            needs_review_verdict=needs_review_verdict,
+        )
+
         followups: list[str] = []
-        # ``skip_llm`` lets callers (e.g. the Flet UI with a confirmed-offline
-        # Ollama probe) avoid the ~25s ``ensure_server_ready`` wait followed by
-        # a downstream retry. All LLM side-effects are gated on this flag.
-        if not skip_llm and include_followups and self._settings.examiner_followups:
-            weak_titles = [area.title for area in outcome.weak_areas[:2]]
-            if weak_titles:
-                llm_result = self.build_ollama_service().generate_followup_questions(
-                    ticket.title,
-                    ticket.canonical_answer_summary,
-                    weak_titles,
-                    resolved_model,
-                    count=2,
-                )
-                if llm_result.ok and llm_result.content:
-                    followups = [line.removeprefix("- ").strip() for line in llm_result.content.splitlines() if line.strip()]
+        if needs_followups and ollama_service is not None:
+            llm_result = ollama_service.generate_followup_questions(
+                ticket.title,
+                ticket.canonical_answer_summary,
+                weak_titles,
+                resolved_model,
+                count=2,
+            )
+            if llm_result.ok and llm_result.content:
+                followups = [line.removeprefix("- ").strip() for line in llm_result.content.splitlines() if line.strip()]
 
         review_verdict = None
-        if mode_key in {"active-recall", "mini-exam", "state-exam-full", "review"}:
+        if needs_review_verdict:
             review_verdict = self.scoring.build_review_verdict(
                 ticket, mode_key, answer,
-                ollama_service=None if skip_llm else self.build_ollama_service(),
-                model="" if skip_llm else resolved_model,
+                ollama_service=ollama_service,
+                model=resolved_model if ollama_service is not None else "",
             )
 
         return TrainingEvaluationResult(

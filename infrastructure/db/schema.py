@@ -596,6 +596,8 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     # прогонялась (например, на baseline-БД, где schema_version=6).
     _ensure_column(connection, "ticket_mastery_profiles", "fsrs_state_json", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(connection, "ticket_mastery_profiles", "attempts_count", "INTEGER NOT NULL DEFAULT 0")
+    # Calibration: nullable — старые попытки остаются без значения.
+    _ensure_column(connection, "attempts", "confidence", "TEXT")
     connection.commit()
 
     # Прогоняем любые форвард-миграции, зарегистрированные в migrations.py.

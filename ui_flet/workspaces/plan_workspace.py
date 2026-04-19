@@ -143,11 +143,32 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
 
     _render_rows()
 
-    body = ft.Column(
-        spacing=SPACE["md"],
-        scroll=ft.ScrollMode.ADAPTIVE,
-        expand=True,
-        controls=[
+    body_controls: list[ft.Control] = []
+    if state.ticket_quality_cache.verdict_for(ticket).plan_skeleton_weak:
+        body_controls.append(
+            ft.Container(
+                padding=SPACE["md"],
+                bgcolor=p["bg_elevated"],
+                border=ft.border.all(1, p["warning"]),
+                border_radius=RADIUS["md"],
+                content=ft.Row(
+                    spacing=SPACE["sm"],
+                    controls=[
+                        ft.Text("🔶", size=14),
+                        ft.Text(
+                            TEXT["skeleton.weak.warning"],
+                            size=13,
+                            color=p["text_secondary"],
+                            expand=True,
+                            selectable=True,
+                        ),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+            )
+        )
+    body_controls.extend(
+        [
             list_column,
             ft.Container(
                 padding=SPACE["md"],
@@ -157,7 +178,14 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                 content=result_box,
                 visible=True,
             ),
-        ],
+        ]
+    )
+
+    body = ft.Column(
+        spacing=SPACE["md"],
+        scroll=ft.ScrollMode.ADAPTIVE,
+        expand=True,
+        controls=body_controls,
     )
 
     actions = [

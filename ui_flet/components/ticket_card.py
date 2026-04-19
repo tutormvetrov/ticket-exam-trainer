@@ -1,4 +1,4 @@
-"""TicketCard — item cell in the tickets catalog.
+"""TicketCard - item cell in the tickets catalog.
 
 Shows:
 - number badge (#042)
@@ -24,7 +24,6 @@ from ui_flet.state import AppState
 from ui_flet.theme.tokens import RADIUS, SPACE, palette
 
 
-# Difficulty tint — light accents that read on top of bg_elevated.
 _DIFFICULTY_COLORS = {
     1: "success",
     2: "success",
@@ -34,12 +33,11 @@ _DIFFICULTY_COLORS = {
 }
 
 
-def _ticket_number(ticket_id: str) -> str:
-    """Extract a short display number from the ticket id.
+def _ticket_number(ticket_id: str, display_number: int | None = None) -> str:
+    """Build the visible ticket number."""
+    if display_number is not None:
+        return f"#{int(display_number):03d}"
 
-    Ticket ids follow patterns like `ticket-042` or `ticket_042`. We pick the
-    trailing digits and zero-pad to 3. If no digits — fall back to truncated id.
-    """
     digits = ""
     for ch in reversed(ticket_id):
         if ch.isdigit():
@@ -69,7 +67,7 @@ def _pill(
 
 
 class TicketCard(ft.Container):
-    """Clickable ticket cell — rebuildable on theme / selection change."""
+    """Clickable ticket cell - rebuildable on theme / selection change."""
 
     def __init__(
         self,
@@ -79,9 +77,11 @@ class TicketCard(ft.Container):
         title: str,
         section_title: str,
         lecturer_name: str = "",
+        display_number: int | None = None,
         difficulty: int = 1,
         mastery: float = 0.0,
         has_warning: bool = False,
+        plan_skeleton_weak: bool = False,
         selected: bool = False,
         on_click: Callable[[str], None] | None = None,
     ) -> None:
@@ -90,9 +90,11 @@ class TicketCard(ft.Container):
         self._title = title
         self._section_title = section_title
         self._lecturer_name = lecturer_name
+        self._display_number = display_number
         self._difficulty = max(1, min(5, int(difficulty or 1)))
         self._mastery = max(0.0, min(1.0, float(mastery or 0.0)))
         self._has_warning = bool(has_warning)
+        self._plan_skeleton_weak = bool(plan_skeleton_weak)
         self._selected = bool(selected)
         self._on_click_cb = on_click
         self._hover = False
@@ -100,7 +102,6 @@ class TicketCard(ft.Container):
         super().__init__()
         self._rebuild()
 
-    # ---- public ----
     @property
     def ticket_id(self) -> str:
         return self._ticket_id
@@ -113,13 +114,12 @@ class TicketCard(ft.Container):
         if self.page:
             self.update()
 
-    # ---- internal ----
     def _rebuild(self) -> None:
         p = palette(self._state.is_dark)
 
         number_badge = ft.Container(
             content=ft.Text(
-                _ticket_number(self._ticket_id),
+                _ticket_number(self._ticket_id, self._display_number),
                 size=12,
                 weight=ft.FontWeight.W_700,
                 color=p["text_secondary"],
@@ -160,6 +160,17 @@ class TicketCard(ft.Container):
             alignment=ft.MainAxisAlignment.START,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
+        if self._plan_skeleton_weak:
+            skeleton_badge = ft.Container(
+                content=ft.Text("🔶", size=12),
+                padding=ft.padding.symmetric(horizontal=SPACE["xs"], vertical=2),
+                bgcolor=p["bg_sidebar"],
+                border=ft.border.all(1, p["border_soft"]),
+                border_radius=RADIUS["pill"],
+                tooltip=TEXT["skeleton.weak.tooltip"],
+            )
+            header_row.controls.append(skeleton_badge)
+
         if self._has_warning:
             warning_badge = ft.Container(
                 content=ft.Row(
@@ -179,7 +190,7 @@ class TicketCard(ft.Container):
                 bgcolor=p["bg_sidebar"],
                 border=ft.border.all(1, p["border_soft"]),
                 border_radius=RADIUS["pill"],
-                tooltip="Атомы догенерированы — нет полного исходного материала в конспекте",
+                tooltip="Атомы догенерированы: нет полного исходного материала в конспекте",
             )
             header_row.controls.append(warning_badge)
 
@@ -226,7 +237,6 @@ class TicketCard(ft.Container):
         self.ink = True
         self.tooltip = TEXT["tickets.open"]
 
-        # Visual state: selected > hover > rest
         if self._selected:
             self.bgcolor = p["accent_soft"]
             self.border = ft.border.all(1, p["accent"])
@@ -247,7 +257,6 @@ class TicketCard(ft.Container):
 
     def _handle_hover(self, event: ft.HoverEvent) -> None:
         self._hover = event.data == "true"
-        # Rebuild skipping selected state to avoid churn
         p = palette(self._state.is_dark)
         if self._selected:
             return

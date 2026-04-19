@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import flet as ft
 
+from ui_flet.components.calibration_chips import CalibrationChips
 from ui_flet.components.review_verdict_widget import build_review_verdict
 from ui_flet.components.timer_widget import TimerWidget
 from ui_flet.components.training_workspace_base import build_workspace_frame
@@ -122,6 +123,12 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
     )
 
     result_box = ft.Column(spacing=SPACE["md"], visible=False)
+    calibration = CalibrationChips(state)
+    calibration_warning = ft.Text(
+        TEXT["calibration.required"],
+        color=p["danger"],
+        visible=False,
+    )
 
     def _combine_text() -> str:
         parts: list[str] = []
@@ -134,6 +141,12 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         return "\n\n".join(parts)
 
     def _on_submit(_evt) -> None:
+        if not calibration.is_picked():
+            calibration_warning.visible = True
+            calibration_warning.update()
+            return
+        calibration_warning.visible = False
+        calibration_warning.update()
         combined = _combine_text()
         skip_llm = not state.is_ollama_available()
         try:
@@ -142,6 +155,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                 "state-exam-full",
                 combined,
                 skip_llm=skip_llm,
+                confidence=calibration.value,
             )
         except Exception as exc:  # noqa: BLE001
             result_box.controls = [ft.Text(str(exc), color=p["danger"])]
@@ -176,6 +190,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                     ],
                 ),
             ),
+            calibration.render_reply(score_percent),
         ]
         if feedback:
             controls.append(ft.Text(feedback, size=13, color=p["text_secondary"], selectable=True))
@@ -282,6 +297,8 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         expand=True,
         controls=[
             *field_cards,
+            calibration.control,
+            calibration_warning,
             result_box,
         ],
     )

@@ -165,4 +165,59 @@ TEXT = {
     "empty.no_ticket":            "Билет не выбран",
     "empty.no_ticket.hint":        "Откройте список билетов слева и выберите один для тренировки.",
     "empty.generic":               "Данных нет",
+
+    # Onboarding (первый запуск — создание профиля)
+    "onboarding.welcome":           "Привет. Давай познакомимся.",
+    "onboarding.subtitle":          "Это твой тренажёр к госэкзамену. Без регистрации и без облака — всё остаётся на этом компьютере.",
+    "onboarding.name_label":        "Как к тебе обращаться?",
+    "onboarding.name_hint":         "Имя или короткое прозвище, которое увидишь в приложении.",
+    "onboarding.avatar_label":      "Выбери аватар",
+    "onboarding.avatar_hint":       "Любой — его можно будет поменять в настройках позже.",
+    "onboarding.start":             "Начнём",
+    "onboarding.avatar_not_picked": "Выбери аватар, прежде чем продолжить.",
+
+    # Journal
+    "nav.journal":                  "Дневник",
+    "journal.morning.greeting":      "С добрым утром",
+    "journal.morning.queue":          "Сегодня тебя ждёт:",
+    "journal.morning.queue_review":  "{count} повторений",
+    "journal.morning.queue_new":     "{count} новых",
+    "journal.morning.queue_time":    "примерно {minutes} минут",
+    "journal.morning.queue_empty":   "Очередь пуста — можно взять любой билет, который хочется освежить.",
+    "journal.morning.start":         "Начать",
+    "journal.morning.yesterday":      "Вчера: {count} билетов, {mastered} легли в долговременную память.",
+
+    "journal.day.title":             "Сегодня",
+    "journal.day.empty":             "Пока ни одной попытки. Очередь ждёт.",
+    "journal.day.continue":          "Продолжить",
+    "journal.day.finish":            "Хватит на сегодня",
+    "journal.day.attempt_first":      "первый заход",
+    "journal.day.attempt_delta_up":  "+{delta}",
+    "journal.day.attempt_delta_down":"−{delta}",
+
+    "journal.evening.title":          "Итог дня",
+    "journal.evening.summary":        "Разобрал {count} билетов, {mastered} легли в долговременную память.",
+    "journal.evening.summary_simple": "Сегодня разобрано билетов: {count}.",
+    "journal.evening.best":           "Лучший момент: {ticket} — {score}%.",
+    "journal.evening.tomorrow":        "Завтра: {count} повторений, {new} новых.",
+    "journal.evening.close":          "До завтра, {name}.",
+    "journal.evening.empty":          "Сегодня ты не занимался. Бывает. Очередь подождёт до завтра.",
+    "journal.evening.reopen":         "Открыть дневник заново",
+
+    # Calibration
+    "calibration.prompt":             "Насколько ты уверен в ответе?",
+    "calibration.guess":              "Угадываю",
+    "calibration.idea":               "Есть идеи",
+    "calibration.sure":               "Точно знаю",
+    "calibration.reply.sure_ok":      "Ты был уверен — и оказался прав.",
+    "calibration.reply.sure_miss":    "Был уверен, а это {score}%. Калибровка важнее уверенности.",
+    "calibration.reply.idea_ok":      "Ты сомневался, а зря — знаешь лучше, чем думаешь.",
+    "calibration.reply.idea_miss":    "Ожидания совпали с реальностью. Это нормально — дай мозгу время.",
+    "calibration.reply.guess_ok":     "Неожиданный успех. Не записывай в «знаю» — повтори через день.",
+    "calibration.reply.guess_miss":   "Честная самооценка. Возвращайся к этому билету завтра.",
+    "calibration.required":           "Выбери уровень уверенности, прежде чем проверить ответ.",
+
+    # Skeleton marker
+    "skeleton.weak.tooltip":          "Эталонный план у этого билета короткий — сверяй смысл, не структуру.",
+    "skeleton.weak.warning":          "У этого билета эталонный скелет неточный — ориентируйся на смысл ответа, не на количество блоков.",
 }

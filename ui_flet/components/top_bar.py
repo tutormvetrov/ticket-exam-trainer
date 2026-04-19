@@ -26,6 +26,7 @@ from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
 
 # Ordered nav entries: (i18n_key, route, icon)
 _NAV_ITEMS = [
+    ("nav.journal", "/journal", ft.Icons.BOOK_OUTLINED),
     ("nav.tickets", "/tickets", ft.Icons.LIBRARY_BOOKS_OUTLINED),
     ("nav.training", "/training", ft.Icons.EDIT_NOTE_OUTLINED),
     ("nav.settings", "/settings", ft.Icons.SETTINGS_OUTLINED),
@@ -35,6 +36,8 @@ _NAV_ITEMS = [
 def _resolve_active_nav(route: str) -> str:
     """Match the current page.route against a nav root."""
     route = (route or "/").lower()
+    if route.startswith("/journal"):
+        return "/journal"
     if route.startswith("/training"):
         return "/training"
     if route.startswith("/settings"):
@@ -134,8 +137,28 @@ def build_top_bar(
         on_click=lambda _e: state.toggle_dark(),
     )
 
+    right_items: list[ft.Control] = []
+    profile = getattr(state, "user_profile", None)
+    if profile is not None:
+        profile_chip = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Text(profile.avatar_emoji, size=16),
+                    ft.Text(
+                        profile.name,
+                        style=text_style("caption", color=p["text_secondary"]),
+                    ),
+                ],
+                spacing=SPACE["xs"],
+                tight=True,
+            ),
+            padding=ft.padding.symmetric(horizontal=SPACE["sm"], vertical=SPACE["xs"]),
+        )
+        right_items.append(profile_chip)
+    right_items.extend([_load_ollama_badge(state), theme_btn])
+
     right_cluster = ft.Row(
-        [_load_ollama_badge(state), theme_btn],
+        right_items,
         spacing=SPACE["sm"],
         tight=True,
         alignment=ft.MainAxisAlignment.END,

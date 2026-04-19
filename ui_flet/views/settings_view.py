@@ -29,7 +29,7 @@ from pathlib import Path
 
 import flet as ft
 
-from application.pdf_export import generate_collection_pdf, generate_ticket_pdf
+from application.pdf_export import generate_collection_pdf
 from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
 from ui_flet.components.ollama_status_badge import OllamaStatusBadge
 from ui_flet.i18n.ru import TEXT
@@ -558,7 +558,10 @@ def _candidate_gemini_key_from_env() -> str:
 def _build_gemini_section(state: AppState, p: dict[str, str]) -> ft.Control:
     """API-ключ Google AI Studio с упрощённым сценарием настройки."""
     settings = _current_settings(state)
-    current_key = getattr(settings, "gemini_api_key", "") or _candidate_gemini_key_from_env()
+    stored_key = (getattr(settings, "gemini_api_key", "") or "").strip()
+    env_key = _candidate_gemini_key_from_env()
+    current_key = stored_key or env_key
+    env_auto_filled = not stored_key and bool(env_key)
     current_model = getattr(settings, "gemini_model", "gemini-2.5-flash") or "gemini-2.5-flash"
 
     key_field = ft.TextField(
@@ -579,7 +582,12 @@ def _build_gemini_section(state: AppState, p: dict[str, str]) -> ft.Control:
         focused_border_color=p["accent"],
         dense=True,
     )
-    status = ft.Text("", style=text_style("caption", color=p["text_muted"]))
+    # Initial status: guide the user to the next click. If we auto-filled the
+    # field from env, say so — otherwise leave blank so the three-step
+    # instruction above takes the spotlight.
+    initial_status = TEXT["settings.gemini.env_detected"] if env_auto_filled else ""
+    initial_color = p["success"] if env_auto_filled else p["text_muted"]
+    status = ft.Text(initial_status, style=text_style("caption", color=initial_color))
 
     def _set_status(message: str, *, color: str | None = None) -> None:
         status.value = message
@@ -646,27 +654,52 @@ def _build_gemini_section(state: AppState, p: dict[str, str]) -> ft.Control:
         else:
             _set_status(TEXT["settings.gemini.probe.fail"].format(err=err), color=p["danger"])
 
-    open_btn = ft.OutlinedButton(
-        text=TEXT["settings.gemini.open"],
-        icon=ft.Icons.OPEN_IN_NEW,
-        on_click=_on_open_portal,
-    )
-    autofill_btn = ft.OutlinedButton(
-        text=TEXT["settings.gemini.autofill"],
-        icon=ft.Icons.CONTENT_PASTE_GO,
-        on_click=_on_autofill,
-    )
-    probe_btn = ft.FilledButton(
-        text=TEXT["settings.gemini.setup"],
-        icon=ft.Icons.CABLE,
-        on_click=_on_probe,
-    )
+    # CTA emphasis depends on the current state:
+    # - no key anywhere: "Получить ключ" is the primary action
+    # - key in clipboard/env but not saved: "Вставить и проверить" is primary
+    # - key already working: "Сохранить и проверить" is primary
+    if not current_key:
+        open_btn = ft.FilledButton(
+            text=TEXT["settings.gemini.open"],
+            icon=ft.Icons.OPEN_IN_NEW,
+            on_click=_on_open_portal,
+        )
+        autofill_btn = ft.OutlinedButton(
+            text=TEXT["settings.gemini.autofill"],
+            icon=ft.Icons.CONTENT_PASTE_GO,
+            on_click=_on_autofill,
+        )
+        probe_btn = ft.OutlinedButton(
+            text=TEXT["settings.gemini.setup"],
+            icon=ft.Icons.CABLE,
+            on_click=_on_probe,
+        )
+    else:
+        open_btn = ft.OutlinedButton(
+            text=TEXT["settings.gemini.open"],
+            icon=ft.Icons.OPEN_IN_NEW,
+            on_click=_on_open_portal,
+        )
+        autofill_btn = ft.OutlinedButton(
+            text=TEXT["settings.gemini.autofill"],
+            icon=ft.Icons.CONTENT_PASTE_GO,
+            on_click=_on_autofill,
+        )
+        probe_btn = ft.FilledButton(
+            text=TEXT["settings.gemini.setup"],
+            icon=ft.Icons.CABLE,
+            on_click=_on_probe,
+        )
     save_btn = ft.TextButton(
         text=TEXT["settings.gemini.save"],
         icon=ft.Icons.SAVE_OUTLINED,
         on_click=_on_save,
     )
 
+    steps_line = ft.Text(
+        TEXT["settings.gemini.steps"],
+        style=text_style("caption", color=p["text_secondary"]),
+    )
     hint = ft.Text(
         TEXT["settings.gemini.hint"],
         style=text_style("caption", color=p["text_muted"]),
@@ -676,6 +709,7 @@ def _build_gemini_section(state: AppState, p: dict[str, str]) -> ft.Control:
         p,
         title=TEXT["settings.gemini.title"],
         children=[
+            steps_line,
             key_field,
             model_dropdown,
             ft.Row([open_btn, autofill_btn, probe_btn], spacing=SPACE["sm"], wrap=True),
@@ -1008,9 +1042,10 @@ def _save_settings_patch(state: AppState, **changes) -> None:
 
 def _save_profile_patch(state: AppState, **changes) -> None:
     """Apply a diff to the current UserProfile and persist via ProfileStore."""
-    from pathlib import Path as _Path
-    from application.user_profile import ProfileStore, UserProfile
     from dataclasses import replace as _replace
+    from pathlib import Path as _Path
+
+    from application.user_profile import ProfileStore
 
     profile = state.user_profile
     if profile is None:

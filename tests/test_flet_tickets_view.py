@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import flet as ft
 
 from ui_flet.components.ticket_card import _ticket_number
+from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import palette
 from ui_flet.views.tickets_view import _build_filters_block, build_tickets_view
@@ -28,7 +29,7 @@ def _make_state(*, breakpoint: str = "standard") -> AppState:
         execute=lambda *args, **kwargs: SimpleNamespace(fetchall=lambda: []),
     )
     facade = SimpleNamespace(
-        load_ticket_maps=lambda: [],
+        load_ticket_maps=lambda exam_id=None: [],
         load_mastery_breakdowns=lambda: {},
         load_training_snapshot=lambda tickets=None: SimpleNamespace(queue_items=[]),
         connection=connection,
@@ -37,6 +38,24 @@ def _make_state(*, breakpoint: str = "standard") -> AppState:
         queries=SimpleNamespace(load_ticket_map=lambda _ticket_id: None),
     )
     return AppState(page=_MockPage(), facade=facade, breakpoint=breakpoint)
+
+
+def _collect_texts(control: ft.Control | None) -> list[str]:
+    if control is None:
+        return []
+    values: list[str] = []
+    for attr in ("text", "value", "label", "hint_text", "tooltip"):
+        raw = getattr(control, attr, None)
+        if isinstance(raw, str) and raw:
+            values.append(raw)
+    content = getattr(control, "content", None)
+    if content is not None:
+        values.extend(_collect_texts(content))
+    controls = getattr(control, "controls", None)
+    if isinstance(controls, list):
+        for child in controls:
+            values.extend(_collect_texts(child))
+    return values
 
 
 def test_filters_stack_vertically_on_compact() -> None:
@@ -91,3 +110,13 @@ def test_tickets_view_registers_breakpoint_listener_once() -> None:
 def test_ticket_number_prefers_catalog_position_over_ticket_id_digits() -> None:
     assert _ticket_number("doc-demo-728037", 8) == "#008"
     assert _ticket_number("ticket-042", None) == "#042"
+
+
+def test_tickets_view_shows_error_state_when_ticket_load_fails() -> None:
+    state = _make_state()
+    state.facade.load_ticket_maps = lambda exam_id=None: (_ for _ in ()).throw(RuntimeError("db down"))
+
+    view = build_tickets_view(state)
+    text_blob = " ".join(_collect_texts(view))
+
+    assert TEXT["tickets.load_failed"] in text_blob

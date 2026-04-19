@@ -225,6 +225,7 @@ class DefenseService:
             except Exception as exc:  # noqa: BLE001
                 warnings.append(f"{path.name}: {exc}")
                 continue
+            warnings.extend(imported.warnings)
             imported_sources.append(
                 ThesisSource(
                     source_id=f"source-{uuid4().hex[:12]}",
@@ -441,9 +442,9 @@ class DefenseService:
     def _import_source(self, path: Path) -> ImportedDocumentText:
         suffix = path.suffix.lower()
         if suffix == ".docx":
-            return import_docx(str(path))
+            return import_docx(str(path), workspace_root=self.workspace_root)
         if suffix == ".pdf":
-            return import_pdf(str(path))
+            return import_pdf(str(path), workspace_root=self.workspace_root)
         if suffix == ".pptx":
             return import_pptx(str(path))
         if suffix in {".txt", ".md"}:

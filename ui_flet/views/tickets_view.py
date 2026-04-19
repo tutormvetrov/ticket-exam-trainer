@@ -25,17 +25,21 @@ reactive surface area tiny and predictable.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 import flet as ft
 
-from ui_flet.components.empty_state import build_empty_state
+from ui_flet.components.empty_state import build_empty_state, build_error_card, build_error_state
 from ui_flet.components.ticket_card import TicketCard
 from ui_flet.components.top_bar import build_top_bar
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
+
+
+_LOG = logging.getLogger(__name__)
 
 
 # Dispatch list for the training mode dropdown — order matters (reading first).
@@ -74,14 +78,31 @@ def _lecturer_from_description(description: str) -> str:
     return ""
 
 
-def _load_sections_map(state: AppState) -> dict[str, dict[str, str]]:
+def _load_sections_map(state: AppState) -> tuple[dict[str, dict[str, str]], Exception | None]:
     """section_id → {title, description, lecturer}. Tolerates missing table."""
     try:
-        rows = state.facade.connection.execute(
-            "SELECT section_id, title, description FROM sections"
-        ).fetchall()
-    except Exception:
-        return {}
+        exam_id = state.active_exam_id
+        if exam_id:
+            rows = state.facade.connection.execute(
+                """
+                SELECT section_id, title, description
+                FROM sections
+                WHERE exam_id = ?
+                ORDER BY order_index, section_id
+                """,
+                (exam_id,),
+            ).fetchall()
+        else:
+            rows = state.facade.connection.execute(
+                """
+                SELECT section_id, title, description
+                FROM sections
+                ORDER BY order_index, section_id
+                """
+            ).fetchall()
+    except Exception as exc:
+        _LOG.exception("Tickets: load sections failed exam_id=%s", state.active_exam_id)
+        return {}, exc
     out: dict[str, dict[str, str]] = {}
     for r in rows:
         desc = r["description"] or ""
@@ -90,16 +111,17 @@ def _load_sections_map(state: AppState) -> dict[str, dict[str, str]]:
             "description": desc,
             "lecturer": _lecturer_from_description(desc),
         }
-    return out
+    return out, None
 
 
-def _load_mastery_map(state: AppState) -> dict[str, float]:
+def _load_mastery_map(state: AppState) -> tuple[dict[str, float], Exception | None]:
     """ticket_id → overall mastery 0..1. Tolerates missing data."""
     try:
         breakdowns = state.facade.load_mastery_breakdowns()
-    except Exception:
-        return {}
-    return {tid: float(getattr(b, "confidence_score", 0.0) or 0.0) for tid, b in breakdowns.items()}
+    except Exception as exc:
+        _LOG.exception("Tickets: load mastery failed exam_id=%s", state.active_exam_id)
+        return {}, exc
+    return {tid: float(getattr(b, "confidence_score", 0.0) or 0.0) for tid, b in breakdowns.items()}, None
 
 
 def _ticket_has_warning(ticket: Any) -> bool:
@@ -145,6 +167,7 @@ def _build_filters_block(
     """
     search_field = ft.TextField(
         label=TEXT["tickets.search"],
+        hint_text=TEXT["tickets.search.hint"],
         value=search_value,
         on_change=on_search,
         prefix_icon=ft.Icons.SEARCH,
@@ -216,14 +239,22 @@ def _ensure_tickets_breakpoint_listener(state: AppState) -> None:
 def build_tickets_view(state: AppState) -> ft.Control:
     """Entry point — returns a full-page control for the /tickets route."""
     p = palette(state.is_dark)
+    retry_button = ft.OutlinedButton(
+        text=TEXT["action.retry"],
+        icon=ft.Icons.REFRESH,
+        on_click=lambda _e: state.refresh(),
+    )
 
     # ---- data ----
+    tickets_error = None
     try:
-        tickets = state.facade.load_ticket_maps()
-    except Exception:
+        tickets = state.facade.load_ticket_maps(exam_id=state.active_exam_id)
+    except Exception as exc:
+        _LOG.exception("Tickets: load tickets failed exam_id=%s", state.active_exam_id)
+        tickets_error = exc
         tickets = []
-    sections_by_id = _load_sections_map(state)
-    mastery_by_id = _load_mastery_map(state)
+    sections_by_id, sections_error = _load_sections_map(state)
+    mastery_by_id, mastery_error = _load_mastery_map(state)
     ticket_positions = {ticket.ticket_id: index for index, ticket in enumerate(tickets, start=1)}
 
     # Build unique section options (sorted by title)
@@ -519,7 +550,18 @@ def build_tickets_view(state: AppState) -> ft.Control:
             snapshot = state.facade.load_training_snapshot(tickets=tickets)
             queue_items = list(snapshot.queue_items)
         except Exception:
-            queue_items = []
+            _LOG.exception("Tickets: load training snapshot failed exam_id=%s", state.active_exam_id)
+            progress_container.content = build_error_card(
+                state,
+                title=TEXT["tickets.progress.failed"],
+                hint=TEXT["tickets.progress.failed.hint"],
+                action=retry_button,
+            )
+            progress_container.bgcolor = pp["bg_surface"]
+            progress_container.border = ft.border.only(left=ft.BorderSide(1, pp["border_soft"]))
+            if progress_container.page:
+                progress_container.update()
+            return
 
         header = ft.Text(
             TEXT["tickets.progress.title"],
@@ -701,6 +743,40 @@ def build_tickets_view(state: AppState) -> ft.Control:
     _refresh_progress()
 
     # ---- compose per breakpoint ----
+    top_bar = build_top_bar(state)
+    _ensure_tickets_breakpoint_listener(state)
+
+    if tickets_error is not None:
+        return ft.Container(
+            expand=True,
+            bgcolor=p["bg_base"],
+            content=ft.Column(
+                [
+                    top_bar,
+                    ft.Container(
+                        expand=True,
+                        padding=SPACE["xl"],
+                        content=build_error_state(
+                            state,
+                            title=TEXT["tickets.load_failed"],
+                            hint=TEXT["tickets.load_failed.hint"],
+                            action=retry_button,
+                        ),
+                    ),
+                ],
+                spacing=0,
+                expand=True,
+            ),
+        )
+
+    meta_warning = None
+    if sections_error is not None or mastery_error is not None:
+        meta_warning = build_error_card(
+            state,
+            title=TEXT["tickets.meta_failed"],
+            hint=TEXT["tickets.meta_failed.hint"],
+            action=retry_button,
+        )
 
     left_column = ft.Container(
         expand=True,
@@ -726,6 +802,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
                     spacing=0,
                     tight=True,
                 ),
+                *( [meta_warning] if meta_warning is not None else [] ),
                 filters_block,
                 counter_label,
                 ft.Container(content=list_container, expand=True, bgcolor=p["bg_base"]),
@@ -778,10 +855,6 @@ def build_tickets_view(state: AppState) -> ft.Control:
             expand=True,
             vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         )
-
-    top_bar = build_top_bar(state)
-
-    _ensure_tickets_breakpoint_listener(state)
 
     return ft.Container(
         expand=True,

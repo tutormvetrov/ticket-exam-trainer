@@ -131,6 +131,44 @@ def _build_facade(workspace_root: Path | None = None) -> tuple[AppFacade, Path]:
     return facade, database_path
 
 
+def _reset_state_to_cold_start(state: AppState, workspace_root: Path) -> None:
+    _LOG.info("Cold reset requested workspace=%s", workspace_root)
+    state.facade.reset_application_data()
+
+    facade, _ = _build_facade(workspace_root)
+    state.facade = facade
+    state.user_profile = ProfileStore(workspace_root / "app_data" / "profile.json").load()
+    state.selected_ticket_id = None
+    state.selected_mode = "reading"
+    state.day_closed_at = None
+    state.ollama_online = None
+    state.ticket_quality_cache = state.ticket_quality_cache.__class__()
+
+    try:
+        state.ticket_quality_cache.prime(
+            facade.load_ticket_maps(exam_id=state.active_exam_id)
+        )
+    except Exception:
+        _LOG.exception("Skeleton-quality priming failed after cold reset")
+
+    settings = getattr(facade, "settings", None)
+    saved_window_mode = getattr(settings, "window_mode", "fullscreen") or "fullscreen"
+    saved_window_width = int(getattr(settings, "window_width", 1440) or 1440)
+    saved_window_height = int(getattr(settings, "window_height", 900) or 900)
+    _apply_window_mode(state.page, saved_window_mode, saved_window_width, saved_window_height)
+
+    state.is_dark = getattr(settings, "theme_name", "light") == "dark"
+    from ui_flet.theme.tokens import set_active_family
+
+    set_active_family(getattr(settings, "theme_family", "warm") or "warm")
+    apply_theme(state.page, state.is_dark)
+    state.probe_ollama()
+
+    state.page.views.clear()
+    state.page.dialog = None
+    state.page.go("/onboarding")
+
+
 def _on_resize(state: AppState):
     def _handler(_event: ft.WindowEvent) -> None:
         width = state.page.window.width or state.page.width or 1280
@@ -147,6 +185,13 @@ def _configure_page(page: ft.Page) -> None:
     page.fonts = font_map()
     page.window.min_width = 1024
     page.window.min_height = 700
+    # Кастомная иконка окна (вместо стандартной Flet) — ар-деко brand-mark.
+    icon_path = REPO_ROOT / "assets" / "logo" / "tezis-deco.ico"
+    if icon_path.exists():
+        try:
+            page.window.icon = str(icon_path)
+        except Exception:
+            _LOG.exception("Failed to set window icon")
 
 
 def _apply_window_mode(page: ft.Page, mode: str, width: int, height: int) -> None:
@@ -252,6 +297,7 @@ def _main(page: ft.Page) -> None:
         _configure_page(page)
         facade, _ = _build_facade(workspace_root)
         state = AppState(page=page, facade=facade)
+        state.cold_reset_callback = lambda: _reset_state_to_cold_start(state, workspace_root)
 
         profile_store = ProfileStore(workspace_root / "app_data" / "profile.json")
         state.user_profile = profile_store.load()
@@ -262,7 +308,9 @@ def _main(page: ft.Page) -> None:
         )
 
         try:
-            state.ticket_quality_cache.prime(facade.load_ticket_maps())
+            state.ticket_quality_cache.prime(
+                facade.load_ticket_maps(exam_id=state.active_exam_id)
+            )
         except Exception:
             _LOG.exception("Skeleton-quality priming failed — markers will be cold-computed on demand")
 
@@ -274,6 +322,11 @@ def _main(page: ft.Page) -> None:
 
         theme_name = getattr(settings, "theme_name", "light") if settings else "light"
         state.is_dark = theme_name == "dark"
+
+        from ui_flet.theme.tokens import set_active_family
+        theme_family = getattr(settings, "theme_family", "warm") if settings else "warm"
+        set_active_family(theme_family)
+
         apply_theme(page, state.is_dark)
 
         state.probe_ollama()
@@ -298,9 +351,27 @@ def _main(page: ft.Page) -> None:
         if state.user_profile is None:
             initial_route = "/onboarding"
         else:
-            initial_route = page.route or "/journal"
+            initial_route = page.route or "/dashboard"
         _LOG.info("Flet initial navigation route=%s breakpoint=%s", initial_route, state.breakpoint)
         page.go(initial_route)
+
+        # Мягкое напоминание заниматься (если пользователь его включил
+        # и сегодня ещё не делал ни одной попытки).
+        try:
+            from application.reminders import should_remind_now, reminder_message
+            from ui_flet.components.feedback import show_snackbar
+            if should_remind_now(state.user_profile, facade.connection):
+                # Небольшая задержка, чтобы snackbar появился ПОСЛЕ
+                # отрисовки стартового экрана, а не вместе с ним.
+                import threading
+                def _delayed_reminder() -> None:
+                    try:
+                        show_snackbar(state, reminder_message(state.user_profile))
+                    except Exception:
+                        _LOG.exception("Reminder snackbar failed")
+                threading.Timer(1.2, _delayed_reminder).start()
+        except Exception:
+            _LOG.exception("Reminder trigger failed")
     except Exception as exc:
         _LOG.exception("Fatal Flet startup error")
         page.views.clear()

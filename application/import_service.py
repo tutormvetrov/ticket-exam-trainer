@@ -104,12 +104,14 @@ class DocumentImportService:
         ollama_service: OllamaService | None = None,
         llm_model: str = DEFAULT_OLLAMA_MODEL,
         enable_llm_structuring: bool = False,
+        workspace_root: Path | None = None,
     ) -> None:
         self.exercise_generator = ExerciseGenerator()
         self.answer_block_builder = AnswerBlockBuilder()
         self.ollama_service = ollama_service
         self.llm_model = llm_model
         self.enable_llm_structuring = enable_llm_structuring
+        self.workspace_root = workspace_root
 
     def import_document(
         self,
@@ -189,7 +191,7 @@ class DocumentImportService:
         chunks = self.chunk_text(normalized)
         self._report_progress(progress_callback, 26, "Поиск билетов", "Пытаемся выделить разделы и кандидаты в билеты")
         candidates = self.extract_ticket_candidates(normalized)
-        warnings: list[str] = []
+        warnings: list[str] = list(imported.warnings)
         if not candidates:
             warnings.append("Структура билетов распознана с низкой уверенностью. Использован fallback на единый chunk.")
             title = self.infer_title(normalized, imported.title)
@@ -273,9 +275,9 @@ class DocumentImportService:
         document_path = Path(path)
         suffix = document_path.suffix.lower()
         if suffix == ".docx":
-            return import_docx(str(document_path))
+            return import_docx(str(document_path), workspace_root=self.workspace_root)
         if suffix == ".pdf":
-            return import_pdf(str(document_path))
+            return import_pdf(str(document_path), workspace_root=self.workspace_root)
         raise ValueError(f"Unsupported document format: {document_path.suffix}")
 
     @staticmethod

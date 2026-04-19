@@ -20,6 +20,9 @@ def build_empty_state(
     hint: str = "",
     icon: str = "📄",
     action: ft.Control | None = None,
+    title_color: str | None = None,
+    hint_color: str | None = None,
+    expand: bool = True,
 ) -> ft.Control:
     """Build a centered empty-state placeholder.
 
@@ -37,7 +40,7 @@ def build_empty_state(
         ft.Text(icon, size=48, color=p["text_muted"], text_align=ft.TextAlign.CENTER),
         ft.Text(
             title,
-            style=text_style("h3", color=p["text_secondary"]),
+            style=text_style("h3", color=title_color or p["text_secondary"]),
             text_align=ft.TextAlign.CENTER,
         ),
     ]
@@ -45,7 +48,7 @@ def build_empty_state(
         parts.append(
             ft.Text(
                 hint,
-                style=text_style("caption", color=p["text_muted"]),
+                style=text_style("caption", color=hint_color or p["text_muted"]),
                 text_align=ft.TextAlign.CENTER,
                 max_lines=3,
             )
@@ -54,7 +57,7 @@ def build_empty_state(
         parts.append(ft.Container(content=action, padding=ft.padding.only(top=SPACE["sm"])))
 
     return ft.Container(
-        expand=True,
+        expand=expand,
         alignment=ft.alignment.center,
         padding=SPACE["xl"],
         content=ft.Column(
@@ -63,5 +66,49 @@ def build_empty_state(
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             tight=True,
+        ),
+    )
+
+
+def build_error_state(
+    state: AppState,
+    *,
+    title: str,
+    hint: str = "",
+    action: ft.Control | None = None,
+    expand: bool = True,
+) -> ft.Control:
+    p = palette(state.is_dark)
+    return build_empty_state(
+        state,
+        title=title,
+        hint=hint,
+        icon="⚠️",
+        action=action,
+        title_color=p["danger"],
+        hint_color=p["text_secondary"],
+        expand=expand,
+    )
+
+
+def build_error_card(
+    state: AppState,
+    *,
+    title: str,
+    hint: str = "",
+    action: ft.Control | None = None,
+) -> ft.Control:
+    p = palette(state.is_dark)
+    return ft.Container(
+        padding=SPACE["lg"],
+        bgcolor=p["bg_surface"],
+        border=ft.border.all(1, p["danger"]),
+        border_radius=16,
+        content=build_error_state(
+            state,
+            title=title,
+            hint=hint,
+            action=action,
+            expand=False,
         ),
     )

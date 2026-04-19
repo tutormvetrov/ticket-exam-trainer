@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import logging
 from pathlib import Path
+import shutil
 import sqlite3
 from typing import TypeVar
 from uuid import uuid4
@@ -43,7 +44,7 @@ from infrastructure.ollama.service import OllamaDiagnostics
 
 _USE_SETTINGS_TIMEOUT = object()
 _T = TypeVar("_T")
-_REVIEW_VERDICT_MODES = {"active-recall", "mini-exam", "state-exam-full", "review"}
+_REVIEW_VERDICT_MODES = {"active-recall", "state-exam-full", "review"}
 _LOG = logging.getLogger(__name__)
 
 
@@ -301,14 +302,44 @@ class AppFacade:
             self._refresh_review_queue()
         return deleted
 
+    def reset_application_data(self) -> None:
+        database_path = self.workspace_root / "exam_trainer.db"
+        app_data_dir = self.workspace_root / "app_data"
+        backups_dir = self.workspace_root / "backups"
+
+        try:
+            self.connection.close()
+        except Exception:
+            _LOG.exception("Failed to close DB connection before reset")
+
+        for suffix in ("", "-wal", "-shm"):
+            target = Path(f"{database_path}{suffix}")
+            if target.exists():
+                target.unlink()
+
+        if app_data_dir.exists():
+            for child in app_data_dir.iterdir():
+                if child.name.lower().endswith(".log"):
+                    continue
+                if child.is_dir():
+                    shutil.rmtree(child, ignore_errors=False)
+                else:
+                    child.unlink()
+
+        if backups_dir.exists():
+            shutil.rmtree(backups_dir, ignore_errors=False)
+
+        app_data_dir.mkdir(parents=True, exist_ok=True)
+        backups_dir.mkdir(parents=True, exist_ok=True)
+
     def load_subjects(self) -> list[SubjectData]:
         return self.queries.load_subjects()
 
     def load_sections_overview(self):
         return self.queries.load_sections_overview()
 
-    def load_ticket_maps(self):
-        return self.queries.load_ticket_maps()
+    def load_ticket_maps(self, exam_id: str | None = None):
+        return self.queries.load_ticket_maps(exam_id=exam_id)
 
     def load_profiles(self) -> dict[str, float]:
         return self.queries.load_profiles()
@@ -678,9 +709,12 @@ class AppFacade:
             review=session.result.review if session.result is not None else None,
         )
 
-    def load_readiness_score(self, tickets=None, mastery=None):
+    def load_readiness_score(self, tickets=None, mastery=None, exam_id: str | None = None):
         from application.ui_data import ReadinessScore
-        resolved_tickets = tickets if tickets is not None else self.load_ticket_maps()
+        resolved_tickets = (
+            tickets if tickets is not None
+            else self.load_ticket_maps(exam_id=exam_id)
+        )
         resolved_mastery = mastery if mastery is not None else self.load_mastery_breakdowns()
         return ReadinessService().calculate(resolved_tickets, resolved_mastery)
 
@@ -721,14 +755,21 @@ class AppFacade:
         progress_callback=None,
         *,
         generation_timeout_seconds: float | None | object = _USE_SETTINGS_TIMEOUT,
+        exam_id: str | None = None,
+        exam_title: str | None = None,
+        exam_description: str | None = None,
     ) -> ImportExecutionResult:
         document_path = Path(path)
         stem_title = normalize_import_title(document_path.stem)
         profile_code = self._normalize_answer_profile_code(answer_profile_code)
+        # Мульти-курс: явный exam_id/title — для импорта дополнительного курса
+        # рядом с существующим. Без явных значений — старая логика
+        # «локальная база билетов» (один курс на установку).
         exam = Exam(
-            exam_id="local-exam",
-            title="Локальная база билетов",
-            description="Автоматически созданный контейнер для импортированных материалов.",
+            exam_id=exam_id or "local-exam",
+            title=exam_title or "Локальная база билетов",
+            description=exam_description or
+                "Автоматически созданный контейнер для импортированных материалов.",
             total_tickets=0,
             subject_area="exam-training",
         )
@@ -738,6 +779,7 @@ class AppFacade:
             ollama_service=None,
             llm_model=self._settings.model,
             enable_llm_structuring=False,
+            workspace_root=self.workspace_root,
         )
         prepared = None
         try:
@@ -919,6 +961,7 @@ class AppFacade:
                 ollama_service=shared_ollama,
                 llm_model=self._settings.model,
                 enable_llm_structuring=True,
+                workspace_root=self.workspace_root,
             )
 
         for part_index, batch_rows in enumerate(row_batches, start=1):
@@ -1291,9 +1334,7 @@ class AppFacade:
             "reading": ExerciseType.ANSWER_SKELETON,
             "active-recall": ExerciseType.ATOM_RECALL,
             "cloze": ExerciseType.SEMANTIC_CLOZE,
-            "matching": ExerciseType.ODD_THESIS,
             "plan": ExerciseType.STRUCTURE_RECONSTRUCTION,
-            "mini-exam": ExerciseType.ORAL_FULL,
             "state-exam-full": ExerciseType.ORAL_FULL,
             "review": ExerciseType.ORAL_FULL,
         }
@@ -1537,6 +1578,7 @@ class AppFacade:
             ollama_service=self.build_import_ollama_service(),
             llm_model=self._settings.model,
             enable_llm_structuring=True,
+            workspace_root=self.workspace_root,
         )
         self.repository.save_import_queue(
             document_id,

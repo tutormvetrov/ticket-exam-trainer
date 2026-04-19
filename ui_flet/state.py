@@ -26,7 +26,7 @@ import flet as ft
 
 from application.facade import AppFacade
 from application.ticket_quality import TicketQualityCache
-from application.user_profile import UserProfile
+from application.user_profile import DEFAULT_EXAM_ID, UserProfile
 
 
 _LOG = logging.getLogger(__name__)
@@ -62,6 +62,16 @@ class AppState:
     theme_listeners: list[Callable[[], None]] = field(default_factory=list)
     breakpoint_listeners: list[Callable[[str], None]] = field(default_factory=list)
     ollama_listeners: list[Callable[[bool | None], None]] = field(default_factory=list)
+    cold_reset_callback: Callable[[], None] | None = None
+
+    # ---- active course (мульти-курс) ----
+    @property
+    def active_exam_id(self) -> str:
+        """Активный курс берём из user_profile; fallback на дефолт ГМУ."""
+        prof = self.user_profile
+        if prof is not None and getattr(prof, "active_exam_id", None):
+            return prof.active_exam_id
+        return DEFAULT_EXAM_ID
 
     # ---- theme ----
     def toggle_dark(self) -> None:
@@ -169,3 +179,8 @@ class AppState:
         self.selected_mode = mode
         _LOG.info("Open training ticket_id=%s mode=%s", ticket_id, mode)
         self.page.go(f"/training/{ticket_id}/{mode}")
+
+    def reset_to_cold_start(self) -> None:
+        if self.cold_reset_callback is None:
+            raise RuntimeError("Cold reset is not configured")
+        self.cold_reset_callback()

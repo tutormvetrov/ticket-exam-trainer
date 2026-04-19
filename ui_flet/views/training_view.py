@@ -11,13 +11,49 @@ The actual exercise UI is delegated to a workspace module keyed by mode.
 
 from __future__ import annotations
 
+import logging
+import re
 from typing import Callable, Dict
 
 import flet as ft
 
+from ui_flet.components.decorative import divider as decorative_divider
+from ui_flet.components.empty_state import build_error_card, build_error_state
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import palette, SPACE, RADIUS
+
+
+_LOG = logging.getLogger(__name__)
+
+
+def _section_meta(state: AppState, section_id: str) -> tuple[str, str]:
+    """(section_title, lecturer) для билета — читается напрямую из БД.
+
+    Преподаватель парсится из ``sections.description`` по конвенции импорта:
+    «Преподаватель: Иванов И.И. • ВШГА МГУ • Доцент».
+    """
+    if not section_id:
+        return "", ""
+    try:
+        row = state.facade.connection.execute(
+            "SELECT title, description FROM sections WHERE section_id = ?",
+            (section_id,),
+        ).fetchone()
+    except Exception:
+        _LOG.exception("Training: load section meta failed section_id=%s", section_id)
+        return "", ""
+    if not row:
+        return "", ""
+    title = row["title"] or ""
+    desc = row["description"] or ""
+    lecturer = ""
+    for part in re.split(r"[•|;]", desc):
+        part = part.strip()
+        if part.lower().startswith(("преподаватель", "лектор")):
+            lecturer = part.split(":", 1)[-1].strip()
+            break
+    return title, lecturer
 from ui_flet.workspaces.active_recall_workspace import build_workspace as _active_recall
 from ui_flet.workspaces.cloze_workspace import build_workspace as _cloze
 from ui_flet.workspaces.plan_workspace import build_workspace as _plan
@@ -105,9 +141,10 @@ def _ticket_number_text(ticket_title: str) -> tuple[str, str]:
 
 def _load_ticket(state: AppState, ticket_id: str):
     try:
-        return state.facade.queries.load_ticket_map(ticket_id)
-    except Exception:
-        return None
+        return state.facade.queries.load_ticket_map(ticket_id), None
+    except Exception as exc:
+        _LOG.exception("Training: load ticket failed ticket_id=%s", ticket_id)
+        return None, exc
 
 
 def _load_section_title(state: AppState, ticket) -> str:
@@ -118,6 +155,7 @@ def _load_section_title(state: AppState, ticket) -> str:
             # Section overview is keyed by title; ticket has section_id (slug)
             pass
     except Exception:
+        _LOG.exception("Training: load sections overview failed ticket_id=%s", getattr(ticket, "ticket_id", ""))
         return ticket.section_id or ""
     return ticket.section_id or ""
 
@@ -138,6 +176,7 @@ def _mastery_percent_for(state: AppState, ticket_id: str) -> int | None:
     try:
         breakdowns = state.facade.load_mastery_breakdowns() or {}
     except Exception:
+        _LOG.exception("Training: load mastery failed ticket_id=%s", ticket_id)
         return None
     breakdown = breakdowns.get(ticket_id)
     if breakdown is None:
@@ -226,7 +265,7 @@ def build_training_view(state: AppState, *, ticket_id: str, mode_key: str) -> ft
     state.selected_ticket_id = ticket_id
     state.selected_mode = mode
 
-    ticket = _load_ticket(state, ticket_id)
+    ticket, ticket_error = _load_ticket(state, ticket_id)
 
     back_link = ft.TextButton(
         text=TEXT["training.back_to_list"],
@@ -234,7 +273,7 @@ def build_training_view(state: AppState, *, ticket_id: str, mode_key: str) -> ft
         on_click=lambda _: state.go("/tickets"),
     )
 
-    # Header: number badge + title
+    # Header: number badge + title (+ section · lecturer meta-line)
     if ticket is not None:
         number_text, title_text = _ticket_number_text(ticket.title)
         header_controls: list[ft.Control] = []
@@ -257,11 +296,44 @@ def build_training_view(state: AppState, *, ticket_id: str, mode_key: str) -> ft
                 selectable=True,
             )
         )
-        header = ft.Row(
+        title_row = ft.Row(
             spacing=SPACE["sm"],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
             controls=header_controls,
         )
+        # Meta-строка: Раздел · Преподаватель.
+        section_title, lecturer = _section_meta(state, ticket.section_id)
+        meta_bits = [b for b in (section_title, lecturer) if b]
+        if meta_bits:
+            meta_row = ft.Text(
+                " · ".join(meta_bits),
+                size=12,
+                italic=True,
+                color=p["text_muted"],
+                selectable=True,
+            )
+            header = ft.Column(
+                spacing=SPACE["xs"],
+                controls=[
+                    title_row,
+                    meta_row,
+                    ft.Container(
+                        content=decorative_divider(state, width=240),
+                        padding=ft.padding.only(top=SPACE["xs"]),
+                    ),
+                ],
+            )
+        else:
+            header = ft.Column(
+                spacing=SPACE["xs"],
+                controls=[
+                    title_row,
+                    ft.Container(
+                        content=decorative_divider(state, width=240),
+                        padding=ft.padding.only(top=SPACE["xs"]),
+                    ),
+                ],
+            )
     else:
         header = ft.Text(
             TEXT["training.title"],
@@ -297,7 +369,18 @@ def build_training_view(state: AppState, *, ticket_id: str, mode_key: str) -> ft
     )
 
     # Workspace body
-    if ticket is None:
+    if ticket_error is not None:
+        workspace = build_error_state(
+            state,
+            title=TEXT["training.load_failed"],
+            hint=TEXT["training.load_failed.hint"],
+            action=ft.OutlinedButton(
+                text=TEXT["action.retry"],
+                icon=ft.Icons.REFRESH,
+                on_click=lambda _e: state.refresh(),
+            ),
+        )
+    elif ticket is None:
         workspace = _empty_body(state, ticket_id)
     else:
         builder = _WORKSPACE_BUILDERS.get(mode)
@@ -306,14 +389,21 @@ def build_training_view(state: AppState, *, ticket_id: str, mode_key: str) -> ft
         else:
             try:
                 workspace = builder(state, ticket)
-            except Exception as exc:  # noqa: BLE001
-                workspace = ft.Container(
-                    padding=SPACE["lg"],
-                    content=ft.Text(f"Ошибка рендера режима '{mode}': {exc}", color=p["danger"], selectable=True),
+            except Exception:  # noqa: BLE001
+                _LOG.exception("Training: workspace build failed ticket_id=%s mode=%s", ticket_id, mode)
+                workspace = build_error_card(
+                    state,
+                    title=TEXT["training.workspace_failed"],
+                    hint=TEXT["training.workspace_failed.hint"],
+                    action=ft.OutlinedButton(
+                        text=TEXT["action.retry"],
+                        icon=ft.Icons.REFRESH,
+                        on_click=lambda _e: state.refresh(),
+                    ),
                 )
 
     # Responsive body: ultrawide gets a right-side info panel
-    if state.breakpoint == "ultrawide" and ticket is not None:
+    if state.breakpoint == "ultrawide" and ticket is not None and ticket_error is None:
         body_row = ft.Row(
             spacing=SPACE["lg"],
             vertical_alignment=ft.CrossAxisAlignment.START,

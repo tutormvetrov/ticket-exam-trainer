@@ -12,6 +12,7 @@ class ImportedDocumentText:
     file_type: str
     raw_text: str
     unit_count: int
+    warnings: tuple[str, ...] = ()
 
 
 def normalize_import_title(stem: str) -> str:

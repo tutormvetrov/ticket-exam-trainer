@@ -21,16 +21,22 @@ share the same ``settings.json``.
 
 from __future__ import annotations
 
+import logging
+import os
+import re
 from dataclasses import replace
 from pathlib import Path
 
 import flet as ft
 
+from application.pdf_export import generate_collection_pdf, generate_ticket_pdf
 from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
 from ui_flet.components.ollama_status_badge import OllamaStatusBadge
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
+
+_LOG = logging.getLogger(__name__)
 
 
 _FONT_PRESET_OPTIONS: list[tuple[str, str]] = [
@@ -63,9 +69,14 @@ def build_settings_view(state: AppState) -> ft.Control:
 
     # ---- section builders ----
     theme_section = _build_theme_section(state, p)
+    style_section = _build_style_section(state, p)
+    prep_section = _build_preparation_section(state, p)
     window_section = _build_window_section(state, p)
     font_section = _build_font_section(state, p)
+    pdf_section = _build_pdf_export_section(state, p)
+    gemini_section = _build_gemini_section(state, p)
     ollama_section = _build_ollama_section(state, p, badge, badge_control)
+    reset_section = _build_reset_section(state, p)
     about_section = _build_about_section(state, p)
 
     header = ft.Text(
@@ -89,9 +100,14 @@ def build_settings_view(state: AppState) -> ft.Control:
                 ft.Row([back_link]),
                 header,
                 theme_section,
+                style_section,
+                prep_section,
                 window_section,
                 font_section,
+                pdf_section,
+                gemini_section,
                 ollama_section,
+                reset_section,
                 about_section,
             ],
         ),
@@ -134,6 +150,53 @@ def _build_theme_section(state: AppState, p: dict[str, str]) -> ft.Control:
         p,
         title=TEXT["settings.theme"],
         children=[segmented],
+    )
+
+
+# ============================================================================
+# Section: Style family (warm vs deco)
+# ============================================================================
+
+def _build_style_section(state: AppState, p: dict[str, str]) -> ft.Control:
+    from ui_flet.theme.tokens import get_active_family, set_active_family
+
+    def _handle_change(event: ft.ControlEvent) -> None:
+        selected = event.control.selected or set()
+        new_family = next(iter(selected)) if selected else get_active_family()
+        if new_family not in ("warm", "deco"):
+            return
+        if new_family == get_active_family():
+            return
+        set_active_family(new_family)
+        _save_settings_patch(state, theme_family=new_family)
+        # Тригерим тот же путь, что переключение light/dark — apply_theme
+        # перечитает палитру/типографику, state.refresh() переотрисует view.
+        for cb in list(state.theme_listeners):
+            try:
+                cb()
+            except Exception:
+                pass
+        state.page.update()
+
+    current = get_active_family()
+    segmented = ft.SegmentedButton(
+        segments=[
+            ft.Segment(value="warm", label=ft.Text(TEXT["settings.style.warm"])),
+            ft.Segment(value="deco", label=ft.Text(TEXT["settings.style.deco"])),
+        ],
+        selected={current},
+        allow_multiple_selection=False,
+        allow_empty_selection=False,
+        on_change=_handle_change,
+    )
+    hint = ft.Text(
+        TEXT["settings.style.hint"],
+        style=text_style("caption", color=p["text_muted"]),
+    )
+    return _section_card(
+        p,
+        title=TEXT["settings.style"],
+        children=[segmented, hint],
     )
 
 
@@ -224,6 +287,402 @@ def _build_font_section(state: AppState, p: dict[str, str]) -> ft.Control:
         p,
         title=TEXT["settings.font_size"],
         children=[dropdown],
+    )
+
+
+# ============================================================================
+# Section: Preparation (exam date + soft reminders)
+# ============================================================================
+
+def _build_preparation_section(state: AppState, p: dict[str, str]) -> ft.Control:
+    """Дата экзамена + мягкие напоминания (стиль Duolingo, но не агрессивно)."""
+    profile = state.user_profile
+    current_date = (profile.exam_date if profile and profile.exam_date else "") or ""
+    current_enabled = bool(profile.reminder_enabled) if profile else False
+    current_time = (profile.reminder_time if profile else "10:00") or "10:00"
+
+    date_field = ft.TextField(
+        label=TEXT["settings.prep.exam_date"],
+        hint_text="ГГГГ-ММ-ДД",
+        value=current_date,
+        border_color=p["border_medium"],
+        focused_border_color=p["accent"],
+        dense=True,
+        width=180,
+    )
+    date_status = ft.Text(
+        "",
+        style=text_style("caption", color=p["text_muted"]),
+    )
+
+    def _on_date_save(_e: ft.ControlEvent) -> None:
+        raw = (date_field.value or "").strip()
+        if not raw:
+            _save_profile_patch(state, exam_date=None)
+            date_status.value = TEXT["settings.prep.exam_date.cleared"]
+        else:
+            try:
+                from datetime import datetime as _dt
+                _dt.strptime(raw, "%Y-%m-%d")
+            except ValueError:
+                date_status.value = TEXT["settings.prep.exam_date.invalid"]
+                date_status.color = p["danger"]
+                date_status.update()
+                return
+            _save_profile_patch(state, exam_date=raw)
+            date_status.value = TEXT["settings.prep.exam_date.saved"]
+        date_status.color = p["text_muted"]
+        date_status.update()
+
+    date_save_btn = ft.OutlinedButton(
+        text=TEXT["settings.prep.save"],
+        icon=ft.Icons.CHECK,
+        on_click=_on_date_save,
+    )
+
+    reminder_switch = ft.Switch(
+        label=TEXT["settings.prep.reminder_enable"],
+        value=current_enabled,
+    )
+    reminder_time_field = ft.TextField(
+        label=TEXT["settings.prep.reminder_time"],
+        hint_text="ЧЧ:ММ",
+        value=current_time,
+        border_color=p["border_medium"],
+        focused_border_color=p["accent"],
+        dense=True,
+        width=120,
+        disabled=not current_enabled,
+    )
+    reminder_status = ft.Text(
+        "",
+        style=text_style("caption", color=p["text_muted"]),
+    )
+
+    def _on_reminder_change(_e: ft.ControlEvent) -> None:
+        enabled = bool(reminder_switch.value)
+        reminder_time_field.disabled = not enabled
+        reminder_time_field.update()
+
+    reminder_switch.on_change = _on_reminder_change
+
+    def _on_reminder_save(_e: ft.ControlEvent) -> None:
+        enabled = bool(reminder_switch.value)
+        time_raw = (reminder_time_field.value or "10:00").strip() or "10:00"
+        try:
+            from datetime import datetime as _dt
+            _dt.strptime(time_raw, "%H:%M")
+        except ValueError:
+            reminder_status.value = TEXT["settings.prep.reminder_time.invalid"]
+            reminder_status.color = p["danger"]
+            reminder_status.update()
+            return
+        _save_profile_patch(
+            state,
+            reminder_enabled=enabled,
+            reminder_time=time_raw,
+        )
+        reminder_status.value = (
+            TEXT["settings.prep.reminder.saved.on"]
+            if enabled
+            else TEXT["settings.prep.reminder.saved.off"]
+        )
+        reminder_status.color = p["text_muted"]
+        reminder_status.update()
+
+    reminder_save_btn = ft.OutlinedButton(
+        text=TEXT["settings.prep.save"],
+        icon=ft.Icons.CHECK,
+        on_click=_on_reminder_save,
+    )
+
+    hint = ft.Text(
+        TEXT["settings.prep.hint"],
+        style=text_style("caption", color=p["text_muted"]),
+    )
+
+    return _section_card(
+        p,
+        title=TEXT["settings.prep.title"],
+        children=[
+            ft.Row(
+                [date_field, date_save_btn],
+                spacing=SPACE["sm"],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            date_status,
+            ft.Container(height=SPACE["xs"]),
+            reminder_switch,
+            ft.Row(
+                [reminder_time_field, reminder_save_btn],
+                spacing=SPACE["sm"],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            reminder_status,
+            hint,
+        ],
+    )
+
+
+# ============================================================================
+# Section: PDF export
+# ============================================================================
+
+def _safe_filename(text: str, fallback: str = "export") -> str:
+    cleaned = re.sub(r"[\\/:*?\"<>|\r\n\t]", "", text or "").strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = cleaned[:80].strip()
+    return cleaned or fallback
+
+
+def _load_sections_map_for_pdf(state: AppState) -> dict[str, dict[str, str]]:
+    """section_id → {title, lecturer}, читая напрямую из БД."""
+    try:
+        exam_id = state.active_exam_id
+        if exam_id:
+            rows = state.facade.connection.execute(
+                """
+                SELECT section_id, title, description
+                FROM sections
+                WHERE exam_id = ?
+                ORDER BY order_index, section_id
+                """,
+                (exam_id,),
+            ).fetchall()
+        else:
+            rows = state.facade.connection.execute(
+                """
+                SELECT section_id, title, description
+                FROM sections
+                ORDER BY order_index, section_id
+                """
+            ).fetchall()
+    except Exception:
+        return {}
+    out: dict[str, dict[str, str]] = {}
+    for r in rows:
+        desc = r["description"] or ""
+        lecturer = ""
+        for part in re.split(r"[•|;]", desc):
+            part = part.strip()
+            if part.lower().startswith(("преподаватель", "лектор")):
+                lecturer = part.split(":", 1)[-1].strip()
+                break
+        out[r["section_id"]] = {"title": r["title"] or "", "lecturer": lecturer}
+    return out
+
+
+def _build_pdf_export_section(state: AppState, p: dict[str, str]) -> ft.Control:
+    def _on_save(e: ft.FilePickerResultEvent) -> None:
+        if not e.path:
+            return
+        out = Path(e.path)
+        if out.suffix.lower() != ".pdf":
+            out = out.with_suffix(".pdf")
+        try:
+            tickets = state.facade.load_ticket_maps(exam_id=state.active_exam_id)
+            secs = _load_sections_map_for_pdf(state)
+            generate_collection_pdf(tickets, out, sections_map=secs)
+            _toast_settings(state, TEXT["pdf.saved"].format(path=str(out)))
+        except Exception:
+            _LOG.exception("Failed to export collection PDF")
+            _toast_settings(state, TEXT["pdf.failed"], error=True)
+
+    file_picker = ft.FilePicker(on_result=_on_save)
+    state.page.overlay.append(file_picker)
+
+    default_name = "Тезис — Карманный конспект.pdf"
+
+    def _open_save_dialog(_e: ft.ControlEvent) -> None:
+        _toast_settings(state, TEXT["pdf.generating"])
+        file_picker.save_file(
+            dialog_title=TEXT["pdf.dialog_title.collection"],
+            file_name=default_name,
+            allowed_extensions=["pdf"],
+            initial_directory=str(Path.home() / "Downloads"),
+        )
+
+    button = ft.FilledButton(
+        text=TEXT["pdf.action.collection"],
+        icon=ft.Icons.PICTURE_AS_PDF,
+        on_click=_open_save_dialog,
+    )
+    hint = ft.Text(
+        TEXT["pdf.section.hint"],
+        style=text_style("caption", color=p["text_muted"]),
+    )
+    return _section_card(
+        p,
+        title=TEXT["pdf.section.title"],
+        children=[button, hint],
+    )
+
+
+def _toast_settings(state: AppState, message: str, *, error: bool = False) -> None:
+    p = palette(state.is_dark)
+    state.page.snack_bar = ft.SnackBar(
+        ft.Text(message, color=p["text_primary"]),
+        bgcolor=p["danger"] if error else p["bg_elevated"],
+        duration=4000,
+    )
+    state.page.snack_bar.open = True
+    try:
+        state.page.update()
+    except Exception:
+        pass
+
+
+# ============================================================================
+# Section: Gemini (Google AI Studio) — для «Спросить у эталона»
+# ============================================================================
+
+_GEMINI_MODEL_OPTIONS: list[tuple[str, str]] = [
+    ("gemini-2.5-flash", "gemini-2.5-flash · 250 RPD бесплатно, лучшая RU-цена/качество"),
+    ("gemini-2.5-pro",   "gemini-2.5-pro · 100 RPD, выше глубина рассуждений"),
+]
+
+
+def _looks_like_gemini_key(text: str) -> bool:
+    candidate = (text or "").strip()
+    return bool(candidate) and " " not in candidate and (candidate.startswith("AIza") or len(candidate) >= 32)
+
+
+def _candidate_gemini_key_from_env() -> str:
+    for env_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+        candidate = (os.environ.get(env_name, "") or "").strip()
+        if _looks_like_gemini_key(candidate):
+            return candidate
+    return ""
+
+
+def _build_gemini_section(state: AppState, p: dict[str, str]) -> ft.Control:
+    """API-ключ Google AI Studio с упрощённым сценарием настройки."""
+    settings = _current_settings(state)
+    current_key = getattr(settings, "gemini_api_key", "") or _candidate_gemini_key_from_env()
+    current_model = getattr(settings, "gemini_model", "gemini-2.5-flash") or "gemini-2.5-flash"
+
+    key_field = ft.TextField(
+        label=TEXT["settings.gemini.api_key"],
+        hint_text=TEXT["settings.gemini.api_key.hint"],
+        value=current_key,
+        password=True,
+        can_reveal_password=True,
+        border_color=p["border_medium"],
+        focused_border_color=p["accent"],
+        dense=True,
+    )
+    model_dropdown = ft.Dropdown(
+        label=TEXT["settings.gemini.model"],
+        value=current_model,
+        options=[ft.dropdown.Option(key=k, text=desc) for k, desc in _GEMINI_MODEL_OPTIONS],
+        border_color=p["border_medium"],
+        focused_border_color=p["accent"],
+        dense=True,
+    )
+    status = ft.Text("", style=text_style("caption", color=p["text_muted"]))
+
+    def _set_status(message: str, *, color: str | None = None) -> None:
+        status.value = message
+        status.color = color or p["text_muted"]
+        status.update()
+
+    def _resolve_gemini_key() -> str:
+        current_value = (key_field.value or "").strip()
+        if _looks_like_gemini_key(current_value):
+            return current_value
+
+        env_key = _candidate_gemini_key_from_env()
+        if env_key:
+            key_field.value = env_key
+            key_field.update()
+            return env_key
+
+        try:
+            clipboard_value = (state.page.get_clipboard() or "").strip()
+        except Exception:
+            clipboard_value = ""
+        if _looks_like_gemini_key(clipboard_value):
+            key_field.value = clipboard_value
+            key_field.update()
+            return clipboard_value
+        return ""
+
+    def _on_open_portal(_e: ft.ControlEvent) -> None:
+        try:
+            state.page.launch_url("https://aistudio.google.com/app/apikey")
+        except Exception:
+            _LOG.exception("Failed to launch Google AI Studio URL")
+
+    def _on_autofill(_e: ft.ControlEvent) -> None:
+        key = _resolve_gemini_key()
+        if not key:
+            _set_status(TEXT["settings.gemini.autofill.empty"], color=p["danger"])
+            return
+        _set_status(TEXT["settings.gemini.autofill.done"])
+
+    def _on_save(_e: ft.ControlEvent) -> None:
+        new_key = _resolve_gemini_key()
+        new_model = (model_dropdown.value or "gemini-2.5-flash").strip()
+        if not new_key:
+            _set_status(TEXT["settings.gemini.probe.no_key"], color=p["danger"])
+            return
+        _save_settings_patch(state, gemini_api_key=new_key, gemini_model=new_model)
+        _set_status(TEXT["settings.gemini.saved"])
+
+    def _on_probe(_e: ft.ControlEvent) -> None:
+        from infrastructure.gemini import GeminiService
+
+        new_key = _resolve_gemini_key()
+        new_model = (model_dropdown.value or "gemini-2.5-flash").strip()
+        if not new_key:
+            _set_status(TEXT["settings.gemini.probe.no_key"], color=p["danger"])
+            return
+        _save_settings_patch(state, gemini_api_key=new_key, gemini_model=new_model)
+        _set_status(TEXT["settings.gemini.probe.loading"])
+        svc = GeminiService(api_key=new_key, model=new_model)
+        ok, err = svc.probe()
+        if ok:
+            _set_status(TEXT["settings.gemini.setup.ok"], color=p["success"])
+        else:
+            _set_status(TEXT["settings.gemini.probe.fail"].format(err=err), color=p["danger"])
+
+    open_btn = ft.OutlinedButton(
+        text=TEXT["settings.gemini.open"],
+        icon=ft.Icons.OPEN_IN_NEW,
+        on_click=_on_open_portal,
+    )
+    autofill_btn = ft.OutlinedButton(
+        text=TEXT["settings.gemini.autofill"],
+        icon=ft.Icons.CONTENT_PASTE_GO,
+        on_click=_on_autofill,
+    )
+    probe_btn = ft.FilledButton(
+        text=TEXT["settings.gemini.setup"],
+        icon=ft.Icons.CABLE,
+        on_click=_on_probe,
+    )
+    save_btn = ft.TextButton(
+        text=TEXT["settings.gemini.save"],
+        icon=ft.Icons.SAVE_OUTLINED,
+        on_click=_on_save,
+    )
+
+    hint = ft.Text(
+        TEXT["settings.gemini.hint"],
+        style=text_style("caption", color=p["text_muted"]),
+    )
+
+    return _section_card(
+        p,
+        title=TEXT["settings.gemini.title"],
+        children=[
+            key_field,
+            model_dropdown,
+            ft.Row([open_btn, autofill_btn, probe_btn], spacing=SPACE["sm"], wrap=True),
+            ft.Row([save_btn], spacing=SPACE["sm"]),
+            status,
+            hint,
+        ],
     )
 
 
@@ -368,6 +827,69 @@ def _handle_test_connection(
 
 
 # ============================================================================
+# Section: Reset
+# ============================================================================
+
+def _build_reset_section(state: AppState, p: dict[str, str]) -> ft.Control:
+    def _close_dialog(_e: ft.ControlEvent | None = None) -> None:
+        dialog = getattr(state.page, "dialog", None)
+        if dialog is None:
+            return
+        dialog.open = False
+        try:
+            state.page.update()
+        except Exception:
+            _LOG.exception("Failed to close reset dialog")
+
+    def _confirm_reset(_e: ft.ControlEvent) -> None:
+        _close_dialog()
+        try:
+            state.reset_to_cold_start()
+            _show_snackbar(state, TEXT["settings.reset.done"])
+        except Exception:
+            _LOG.exception("Cold reset failed")
+            _toast_settings(state, TEXT["settings.reset.failed"], error=True)
+
+    def _open_dialog(_e: ft.ControlEvent) -> None:
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(TEXT["settings.reset.confirm.title"]),
+            content=ft.Text(TEXT["settings.reset.confirm.body"]),
+            actions=[
+                ft.TextButton(TEXT["action.close"], on_click=_close_dialog),
+                ft.FilledButton(
+                    text=TEXT["action.reset"],
+                    icon=ft.Icons.DELETE_FOREVER,
+                    on_click=_confirm_reset,
+                    style=ft.ButtonStyle(
+                        bgcolor=p["danger"],
+                        color=p["bg_surface"],
+                    ),
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        state.page.dialog = dialog
+        dialog.open = True
+        state.page.update()
+
+    button = ft.FilledTonalButton(
+        text=TEXT["settings.reset.action"],
+        icon=ft.Icons.DELETE_FOREVER,
+        on_click=_open_dialog,
+    )
+    hint = ft.Text(
+        TEXT["settings.reset.hint"],
+        style=text_style("caption", color=p["text_muted"]),
+    )
+    return _section_card(
+        p,
+        title=TEXT["settings.reset.title"],
+        children=[button, hint],
+    )
+
+
+# ============================================================================
 # Section: About
 # ============================================================================
 
@@ -401,7 +923,7 @@ def _collect_about_info(state: AppState) -> tuple[str, str, int]:
 
     # Ticket count — load_ticket_maps() is the canonical read path.
     try:
-        tickets = state.facade.load_ticket_maps()
+        tickets = state.facade.load_ticket_maps(exam_id=state.active_exam_id)
         tickets_count = len(tickets)
     except Exception:
         tickets_count = 0
@@ -482,6 +1004,25 @@ def _save_settings_patch(state: AppState, **changes) -> None:
         # Never let settings persistence crash the UI — log-less swallow is
         # acceptable here because the live controls already reflect intent.
         pass
+
+
+def _save_profile_patch(state: AppState, **changes) -> None:
+    """Apply a diff to the current UserProfile and persist via ProfileStore."""
+    from pathlib import Path as _Path
+    from application.user_profile import ProfileStore, UserProfile
+    from dataclasses import replace as _replace
+
+    profile = state.user_profile
+    if profile is None:
+        return
+    try:
+        updated = _replace(profile, **changes)
+        workspace_root = _Path(getattr(state.facade, "workspace_root", _Path(".")))
+        store = ProfileStore(workspace_root / "app_data" / "profile.json")
+        store.save(updated)
+        state.user_profile = updated
+    except Exception:
+        _LOG.exception("Profile save failed")
 
 
 def _show_snackbar(state: AppState, message: str) -> None:

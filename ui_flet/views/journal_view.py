@@ -228,13 +228,10 @@ def _build_during_day(state: AppState, digest: DailyDigest, p: dict) -> ft.Contr
         build_ornamental_divider(state),
     ]
     if attempt_controls:
-        controls.append(
-            ft.Column(
-                attempt_controls,
-                spacing=SPACE["sm"],
-                scroll=ft.ScrollMode.AUTO,
-            )
-        )
+        # Плоский список, без вложенного scroll-Column: внешняя карточка уже
+        # сама scrollable (см. _center_card с scroll=AUTO), а scroll внутри
+        # non-expand-chain Column в Flet схлопывает детей до 0 высоты.
+        controls.extend(attempt_controls)
     else:
         controls.append(
             ft.Text(
@@ -255,7 +252,7 @@ def _build_during_day(state: AppState, digest: DailyDigest, p: dict) -> ft.Contr
     column = ft.Column(
         controls,
         spacing=SPACE["md"],
-        horizontal_alignment=ft.CrossAxisAlignment.START,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
     )
     return _center_card(state, column, elevation_level="flat", wide=True)
 
@@ -440,9 +437,15 @@ def _center_card(
         width=720 if wide else 560,
         shadow=apply_elevation(elevation_level, state.is_dark),
     )
+    # scroll на внешнем Column позволяет прокручивать всю страницу, если
+    # attempt-карточек за день накопилось много. Не плодим вложенный
+    # scroll внутри карточки — это ломает layout в Flet 0.27.
     return ft.Container(
         expand=True,
-        alignment=ft.alignment.top_center,
-        padding=ft.padding.only(top=SPACE["2xl"]),
-        content=card,
+        padding=ft.padding.only(top=SPACE["2xl"], bottom=SPACE["2xl"]),
+        content=ft.Column(
+            [ft.Row([card], alignment=ft.MainAxisAlignment.CENTER)],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+        ),
     )

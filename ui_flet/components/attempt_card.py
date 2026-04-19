@@ -74,26 +74,17 @@ def build_attempt_card(state, attempt: DigestAttemptCard) -> ft.Control:
 
     meta_row = ft.Row(meta_parts, spacing=SPACE["sm"], tight=True)
 
-    accent_kromka = ft.Container(
-        width=3,
-        bgcolor=p["accent"] if is_mastered else p["border_medium"],
-        border_radius=RADIUS["sm"],
-    )
-
-    card_body = ft.Container(
-        content=ft.Column([header, meta_row], spacing=SPACE["xs"], tight=True, expand=True),
-        padding=ft.padding.symmetric(horizontal=SPACE["lg"], vertical=SPACE["md"]),
-        expand=True,
-    )
-
+    kromka_color = p["accent"] if is_mastered else p["border_medium"]
     return ft.Container(
-        content=ft.Row(
-            [accent_kromka, card_body],
-            spacing=0,
-            vertical_alignment=ft.CrossAxisAlignment.STRETCH,
-        ),
+        content=ft.Column([header, meta_row], spacing=SPACE["xs"], tight=True),
+        padding=ft.padding.symmetric(horizontal=SPACE["lg"], vertical=SPACE["md"]),
         bgcolor=p["bg_surface"],
-        border=ft.border.all(1, p["border_soft"]),
+        border=ft.border.only(
+            left=ft.BorderSide(3, kromka_color),
+            top=ft.BorderSide(1, p["border_soft"]),
+            right=ft.BorderSide(1, p["border_soft"]),
+            bottom=ft.BorderSide(1, p["border_soft"]),
+        ),
         border_radius=RADIUS["md"],
     )
 

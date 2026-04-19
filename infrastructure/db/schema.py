@@ -592,6 +592,12 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
     _ensure_column(connection, "defense_sessions", "persona_kind", "TEXT NOT NULL DEFAULT 'commission'")
     _ensure_column(connection, "defense_sessions", "timer_profile_sec", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(connection, "defense_sessions", "session_notes", "TEXT NOT NULL DEFAULT ''")
+    # FSRS scheduler state: идемпотентный ALTER на случай, если миграция ещё не
+    # прогонялась (например, на baseline-БД, где schema_version=6).
+    _ensure_column(connection, "ticket_mastery_profiles", "fsrs_state_json", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(connection, "ticket_mastery_profiles", "attempts_count", "INTEGER NOT NULL DEFAULT 0")
+    # Calibration: nullable — старые попытки остаются без значения.
+    _ensure_column(connection, "attempts", "confidence", "TEXT")
     connection.commit()
 
     # Прогоняем любые форвард-миграции, зарегистрированные в migrations.py.

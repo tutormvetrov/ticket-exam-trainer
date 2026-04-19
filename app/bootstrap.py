@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict
 import json
+import logging
 import os
 from pathlib import Path
 import sys
@@ -15,6 +16,7 @@ from application.facade import AppFacade
 from application.settings_store import SettingsStore
 from app.build_info import get_runtime_build_info
 from app.paths import get_workspace_root
+from app.runtime_logging import setup_runtime_logging
 from infrastructure.db import connect_initialized, get_database_path
 from ui.components.splash import BrandedSplash
 from ui.main_window import MainWindow
@@ -22,6 +24,7 @@ from ui.theme import app_font, set_app_theme
 
 
 _QLABEL_PLAIN_TEXT_INSTALLED = False
+_LOG = logging.getLogger(__name__)
 
 
 def _install_plain_text_default_for_qlabel() -> None:
@@ -93,10 +96,12 @@ def _emit_worker_event(event: str, **payload: object) -> None:
 
 def _run_import_worker(args: argparse.Namespace) -> int:
     workspace_root = Path(args.workspace_root).expanduser().resolve() if args.workspace_root else get_workspace_root()
+    setup_runtime_logging(workspace_root, component="qt-import-worker")
     database_path = get_database_path(workspace_root)
     connection = connect_initialized(database_path)
     settings_store = SettingsStore(workspace_root / "app_data" / "settings.json")
     facade = AppFacade(workspace_root, connection, settings_store)
+    _LOG.info("Import worker started workspace=%s database=%s", workspace_root, database_path)
 
     def _report_progress(percent: int, stage: str, detail: str = "") -> None:
         _emit_worker_event("progress", percent=int(percent), stage=stage, detail=detail)
@@ -122,6 +127,7 @@ def _run_import_worker(args: argparse.Namespace) -> int:
         _emit_worker_event("result", payload=asdict(result))
         return 0 if result.ok else 1
     except Exception as exc:  # noqa: BLE001
+        _LOG.exception("Import worker failed")
         _emit_worker_event("error", message=str(exc))
         return 1
     finally:
@@ -133,10 +139,12 @@ def run() -> int:
     if args.import_worker:
         return _run_import_worker(args)
     workspace_root = get_workspace_root()
+    setup_runtime_logging(workspace_root, component="qt")
     database_path = get_database_path(workspace_root)
     connection = connect_initialized(database_path)
     settings_store = SettingsStore(workspace_root / "app_data" / "settings.json")
     facade = AppFacade(workspace_root, connection, settings_store)
+    _LOG.info("Qt startup workspace=%s database=%s", workspace_root, database_path)
 
     effective_theme = args.theme or facade.settings.theme_name
     effective_view = args.view or facade.settings.startup_view
@@ -215,5 +223,6 @@ def run() -> int:
         os._exit(0)
 
     exit_code = app.exec()
+    _LOG.info("Qt exit code=%s", exit_code)
     connection.close()
     return exit_code

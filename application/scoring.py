@@ -24,6 +24,49 @@ from domain.knowledge import (
 WORD_PATTERN = re.compile(r"[A-Za-zА-Яа-яЁё0-9-]+")
 
 
+def extract_json_from_response(text: str) -> dict:
+    """Вытащить JSON-объект из "mixed" ответа LLM.
+
+    Новый ``review_prompt`` делает single-pass chain-of-thought: модель сначала
+    пишет рассуждение в ``<reasoning>…</reasoning>``, потом отдельный JSON.
+    Этот helper:
+
+    1. Если в тексте есть ``</reasoning>`` — берём всё, что после.
+    2. Пробуем распарсить напрямую. Если не получилось — вычленяем первый
+       ``{`` до последнего парного ``}`` и парсим его.
+    3. Если и это не сработало — бросаем ``json.JSONDecodeError``.
+
+    Возвращает ``dict``. Если парсинг вернул не-dict (список, число…) —
+    бросаем ``ValueError``: это формат, который не соответствует схеме
+    ``review_verdict``.
+    """
+    if not isinstance(text, str):
+        raise ValueError("extract_json_from_response expects a string input")
+    cleaned = text.strip()
+    if not cleaned:
+        raise json.JSONDecodeError("Empty response", "", 0)
+
+    reasoning_close = cleaned.rfind("</reasoning>")
+    if reasoning_close >= 0:
+        cleaned = cleaned[reasoning_close + len("</reasoning>"):].strip()
+
+    # Прямой парсинг.
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        parsed = json.loads(cleaned[start:end + 1])
+
+    if not isinstance(parsed, dict):
+        raise ValueError(
+            f"Review payload must be a JSON object, got {type(parsed).__name__}"
+        )
+    return parsed
+
+
 @dataclass(slots=True)
 class ScoringOutcome:
     attempt: AttemptRecord
@@ -191,6 +234,10 @@ class MicroSkillScoringService:
             confidence_score=profile.confidence_score,
             last_reviewed_at=datetime.now(),
             next_review_at=profile.next_review_at,
+            # Сохраняем FSRS-состояние: scoring только пересчитывает mastery,
+            # а расписание обновляет ``AdaptiveReviewService.record_attempt``.
+            fsrs_state_json=profile.fsrs_state_json,
+            attempts_count=profile.attempts_count,
         )
 
         for skill_code, score in skill_scores.items():
@@ -285,7 +332,12 @@ class MicroSkillScoringService:
                     ticket.title, reference_theses, answer_text, model,
                 )
                 if result.ok and result.content:
-                    parsed = json.loads(result.content)
+                    # ``ollama_service.review_answer`` сам валидирует JSON и
+                    # отдаёт cleaned-payload через json.dumps(...). Но для
+                    # защиты от случаев, когда OllamaService обновят и он
+                    # пробросит raw-ответ с <reasoning>…</reasoning>, парсим
+                    # через устойчивый экстрактор.
+                    parsed = extract_json_from_response(result.content)
                     return self._parse_review_verdict(parsed)
             except Exception:  # noqa: BLE001
                 pass

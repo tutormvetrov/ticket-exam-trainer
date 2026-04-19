@@ -1,0 +1,85 @@
+Bundled Fonts — Licenses
+==============================================================================
+
+This directory contains three variable TrueType fonts redistributed with the
+Tezis / Ticket Exam Trainer application. Each font is provided under its
+original open-source license; no modifications have been made to the font
+files themselves. The licenses below apply only to the respective font
+binaries and their embedded name/metadata tables — not to any other part of
+this application.
+
+
+------------------------------------------------------------------------------
+1. Lora  (Lora.ttf)
+------------------------------------------------------------------------------
+
+Copyright 2011 The Lora Project Authors
+(https://github.com/cyrealtype/Lora-Cyrillic)
+
+Licensed under the SIL Open Font License, Version 1.1.
+
+This font is free software: you can use, study, modify and redistribute it
+under the terms of the SIL OFL 1.1. In particular you MAY bundle, embed,
+redistribute and/or sell this font with any software, and you MAY modify
+it, provided that: (a) the original or derivative font is not sold by
+itself; (b) any derivative includes the OFL license and the Reserved Font
+Name "Lora" is not reused in a derivative; (c) the license and copyright
+notice are included with any redistribution.
+
+Full license text: https://openfontlicense.org/
+Source page:       https://fonts.google.com/specimen/Lora
+
+
+------------------------------------------------------------------------------
+2. Golos Text  (Golos_Text.ttf)
+------------------------------------------------------------------------------
+
+Copyright 2020 The Golos Text Project Authors
+(https://github.com/RTaras/Golos)
+
+Licensed under the SIL Open Font License, Version 1.1.
+
+Same terms as Lora above: free to use, embed, redistribute and modify
+under SIL OFL 1.1, provided the font is not sold standalone, the Reserved
+Font Name "Golos Text" is not reused in derivatives, and the license text
+travels with any redistribution.
+
+Full license text: https://openfontlicense.org/
+Source page:       https://fonts.google.com/specimen/Golos+Text
+
+
+------------------------------------------------------------------------------
+3. JetBrains Mono  (JetBrains_Mono.ttf)
+------------------------------------------------------------------------------
+
+Copyright 2020 The JetBrains Mono Project Authors
+(https://github.com/JetBrains/JetBrainsMono)
+
+Licensed under the Apache License, Version 2.0.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may
+not use this file except in compliance with the License. You may obtain a
+copy of the License at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations
+under the License.
+
+Full license text: https://www.apache.org/licenses/LICENSE-2.0
+Source page:       https://fonts.google.com/specimen/JetBrains+Mono
+
+
+==============================================================================
+Note on file naming
+==============================================================================
+
+Font files in this directory use underscores where the family name contains
+a space (e.g. "Golos Text" -> Golos_Text.ttf, "JetBrains Mono" ->
+JetBrains_Mono.ttf). This matches the loader convention in
+ui_flet/theme/fonts.py, which maps <stem>.replace("_", " ") to the Flet
+font-family name. Do not rename these files without also updating that
+loader.

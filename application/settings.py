@@ -66,6 +66,12 @@ class OllamaSettings:
     font_preset: str = DEFAULT_FONT_PRESET
     font_size: int = DEFAULT_FONT_SIZE
     auto_check_updates_on_start: bool = True
+    # Window mode is consumed by the Flet entry point; Qt ignores it but we
+    # persist through the same settings.json so both apps stay in sync if a
+    # user toggles later.
+    window_mode: str = "fullscreen"   # "fullscreen" | "windowed"
+    window_width: int = 1440
+    window_height: int = 900
 
 
 DEFAULT_OLLAMA_SETTINGS = OllamaSettings()

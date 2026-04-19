@@ -1,0 +1,162 @@
+name: Release
+
+# Триггер: пуш тега вида `v1.2.3` или `v1.2.3-rc1`. Workflow собирает
+# Windows exe и macOS .app, упаковывает в zip, заливает в GitHub Release.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Python deps
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Ensure bundled seed exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "data/state_exam_public_admin_demo.db")) {
+            Write-Error "Seed DB missing. Commit data/state_exam_public_admin_demo.db to git."
+            exit 1
+          }
+
+      - name: Build Windows exe
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File ./scripts/build_flet_exe.ps1
+
+      - name: Package Windows zip
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          $stagingDir = "release-staging-windows"
+          New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
+          Copy-Item -Recurse -Force "dist/*" -Destination $stagingDir
+          Copy-Item -Recurse -Force "scripts" -Destination $stagingDir
+          Copy-Item -Recurse -Force "data" -Destination $stagingDir
+          Copy-Item -Force "README_classmates.md" -Destination $stagingDir
+          $zipName = "Tezis-$version-windows.zip"
+          Compress-Archive -Path "$stagingDir/*" -DestinationPath $zipName -Force
+          Write-Host "Zipped: $zipName"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tezis-windows
+          path: Tezis-*-windows.zip
+          retention-days: 7
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Ensure bundled seed exists
+        run: |
+          if [ ! -f "data/state_exam_public_admin_demo.db" ]; then
+            echo "Seed DB missing — classmates won't have tickets"
+            exit 1
+          fi
+
+      - name: Build macOS app
+        run: |
+          chmod +x scripts/build_mac_app.sh
+          ./scripts/build_mac_app.sh python3 data/state_exam_public_admin_demo.db
+
+      - name: Package macOS zip
+        run: |
+          VERSION="${{ github.ref_name }}"
+          STAGING="release-staging-macos"
+          mkdir -p "$STAGING"
+          cp -R dist/*.app "$STAGING/" 2>/dev/null || cp -R dist/* "$STAGING/"
+          cp -R scripts "$STAGING/"
+          cp -R data "$STAGING/"
+          cp README_classmates.md "$STAGING/"
+          ZIP="Tezis-$VERSION-macos.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$STAGING" "$ZIP"
+          echo "Zipped: $ZIP"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tezis-macos
+          path: Tezis-*-macos.zip
+          retention-days: 7
+
+  publish-release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifact layout
+        run: |
+          mkdir -p release-files
+          find artifacts -type f -name "Tezis-*.zip" -exec cp {} release-files/ \;
+          ls -la release-files/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: |
+            release-files/*.zip
+          body: |
+            Автосборка: Windows exe + macOS .app.
+
+            **Windows:** распакуй zip, запусти `Tezis.exe`. SmartScreen при
+            первом запуске нажми «Подробнее» -> «Выполнить в любом случае»
+            (приложение не подписано сертификатом).
+
+            **macOS:** распакуй zip, перетащи `Tezis.app` в папку
+            Applications. Первый запуск: правый клик по приложению ->
+            «Открыть» (обход Gatekeeper для неподписанных приложений).
+
+            **Опциональный ИИ-рецензент (Ollama):** запусти
+            `scripts/install_ollama_wizard.ps1` (Windows) или
+            `scripts/setup_ollama_macos.sh` (mac). Без него приложение
+            работает в режиме проверки по ключевым словам.
+
+            Полная инструкция для однокурсников — в `README_classmates.md`
+            внутри архива.

@@ -284,6 +284,8 @@ class TicketMasteryProfile:
     confidence_score: float = 0.0
     last_reviewed_at: datetime | None = None
     next_review_at: datetime | None = None
+    fsrs_state_json: str = ""
+    attempts_count: int = 0
 
 
 @dataclass(slots=True)

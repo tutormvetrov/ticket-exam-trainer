@@ -132,7 +132,12 @@ def _build_facade(workspace_root: Path | None = None) -> tuple[AppFacade, Path]:
 
 def _reset_state_to_cold_start(state: AppState, workspace_root: Path) -> None:
     _LOG.info("Cold reset requested workspace=%s", workspace_root)
+    # Wipe on-disk state first. If this fails (e.g. a second running
+    # instance holds a Windows lock on exam_trainer.db), surface the
+    # failure rather than letting the caller show a silent "сброшено"
+    # snackbar on top of leftover data.
     state.facade.reset_application_data()
+    _LOG.info("Cold reset: disk wiped")
 
     facade, _ = _build_facade(workspace_root)
     state.facade = facade
@@ -142,6 +147,7 @@ def _reset_state_to_cold_start(state: AppState, workspace_root: Path) -> None:
     state.day_closed_at = None
     state.ollama_online = None
     state.ticket_quality_cache = state.ticket_quality_cache.__class__()
+    _LOG.info("Cold reset: state reset, profile=%s", state.user_profile is not None)
 
     try:
         state.ticket_quality_cache.prime(
@@ -163,9 +169,17 @@ def _reset_state_to_cold_start(state: AppState, workspace_root: Path) -> None:
     apply_theme(state.page, state.is_dark)
     state.probe_ollama()
 
+    # Force navigation to onboarding. views.clear() alone doesn't redraw;
+    # we bounce route to "/" first to invalidate the current view key, then
+    # go to /onboarding so the router sees a real transition.
     state.page.views.clear()
-    state.page.dialog = None
+    try:
+        state.page.update()
+    except Exception:
+        _LOG.exception("page.update() after views.clear() failed")
+    state.page.route = "/"
     state.page.go("/onboarding")
+    _LOG.info("Cold reset: navigated to /onboarding")
 
 
 def _on_resize(state: AppState):

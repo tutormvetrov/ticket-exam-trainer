@@ -887,9 +887,17 @@ def _build_reset_section(state: AppState, p: dict[str, str]) -> ft.Control:
         try:
             state.reset_to_cold_start()
             _show_snackbar(state, TEXT["settings.reset.done"])
-        except Exception:
+        except Exception as exc:
             _LOG.exception("Cold reset failed")
-            _toast_settings(state, TEXT["settings.reset.failed"], error=True)
+            # Put the real error message into the toast — a blanket
+            # "failed" line hides file-lock or permission issues from
+            # the user and makes the button look broken.
+            detail = f"{type(exc).__name__}: {exc}"
+            _toast_settings(
+                state,
+                f"{TEXT['settings.reset.failed']} — {detail}",
+                error=True,
+            )
 
     def _open_dialog(_e: ft.ControlEvent) -> None:
         dialog = ft.AlertDialog(

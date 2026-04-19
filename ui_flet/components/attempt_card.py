@@ -1,7 +1,10 @@
 """AttemptCard — карточка одной попытки в ленте Дневника.
 
-Показывает: title билета, режим, балл, дельту vs прошлая попытка,
-confidence-иконку (если задана). Рендерится только в Journal-view.
+Warm-minimal:
+  * Тонкая accent-kromка слева (3px), как в reading-workspace atom-card.
+  * Score ≥75 — rust-цвет + W_600; <75 — text_secondary, regular.
+  * Delta — стрелка ↑/↓ c иконкой в success/danger; `~` для `±0`.
+  * Padding md → lg, чтобы карточка дышала.
 """
 
 from __future__ import annotations
@@ -28,11 +31,19 @@ _CONFIDENCE_ICONS = {
     "sure": "💡",
 }
 
+_MASTERED_SCORE = 75
+
 
 def build_attempt_card(state, attempt: DigestAttemptCard) -> ft.Control:
     p = palette(state.is_dark)
     mode_key = _MODE_LABELS.get(attempt.mode_key)
     mode_label = TEXT.get(mode_key, attempt.mode_key) if mode_key else attempt.mode_key
+
+    is_mastered = attempt.score_percent >= _MASTERED_SCORE
+    score_color = p["accent"] if is_mastered else p["text_secondary"]
+    score_style = text_style("h3", color=score_color) if is_mastered else text_style(
+        "body_strong", color=score_color
+    )
 
     header = ft.Row(
         [
@@ -43,10 +54,7 @@ def build_attempt_card(state, attempt: DigestAttemptCard) -> ft.Control:
                 max_lines=1,
                 overflow=ft.TextOverflow.ELLIPSIS,
             ),
-            ft.Text(
-                f"{attempt.score_percent}%",
-                style=text_style("h3", color=_score_color(attempt.score_percent, p)),
-            ),
+            ft.Text(f"{attempt.score_percent}%", style=score_style),
         ],
         spacing=SPACE["sm"],
         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -56,17 +64,9 @@ def build_attempt_card(state, attempt: DigestAttemptCard) -> ft.Control:
     meta_parts: list[ft.Control] = [
         ft.Text(mode_label, style=text_style("caption", color=p["text_muted"])),
     ]
-    delta_label = _delta_label(attempt)
-    if delta_label:
-        meta_parts.append(
-            ft.Text(
-                delta_label,
-                style=text_style(
-                    "caption",
-                    color=_delta_color(attempt.delta_percent, p),
-                ),
-            )
-        )
+    delta_control = _delta_control(p, attempt)
+    if delta_control is not None:
+        meta_parts.append(delta_control)
     if attempt.confidence:
         icon = _CONFIDENCE_ICONS.get(attempt.confidence, "")
         if icon:
@@ -74,38 +74,47 @@ def build_attempt_card(state, attempt: DigestAttemptCard) -> ft.Control:
 
     meta_row = ft.Row(meta_parts, spacing=SPACE["sm"], tight=True)
 
+    accent_kromka = ft.Container(
+        width=3,
+        bgcolor=p["accent"] if is_mastered else p["border_medium"],
+        border_radius=RADIUS["sm"],
+    )
+
+    card_body = ft.Container(
+        content=ft.Column([header, meta_row], spacing=SPACE["xs"], tight=True, expand=True),
+        padding=ft.padding.symmetric(horizontal=SPACE["lg"], vertical=SPACE["md"]),
+        expand=True,
+    )
+
     return ft.Container(
-        content=ft.Column([header, meta_row], spacing=SPACE["xs"], tight=True),
-        padding=ft.padding.symmetric(horizontal=SPACE["md"], vertical=SPACE["sm"]),
+        content=ft.Row(
+            [accent_kromka, card_body],
+            spacing=0,
+            vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+        ),
         bgcolor=p["bg_surface"],
         border=ft.border.all(1, p["border_soft"]),
         border_radius=RADIUS["md"],
     )
 
 
-def _score_color(score_percent: int, p: dict) -> str:
-    if score_percent >= 75:
-        return p["success"]
-    if score_percent >= 50:
-        return p["warning"]
-    return p["danger"]
-
-
-def _delta_label(attempt: DigestAttemptCard) -> str | None:
+def _delta_control(p: dict, attempt: DigestAttemptCard) -> ft.Control | None:
     if attempt.delta_percent is None:
-        return TEXT["journal.day.attempt_first"]
-    if attempt.delta_percent > 0:
-        return TEXT["journal.day.attempt_delta_up"].format(delta=attempt.delta_percent)
-    if attempt.delta_percent < 0:
-        return TEXT["journal.day.attempt_delta_down"].format(delta=-attempt.delta_percent)
-    return "±0"
-
-
-def _delta_color(delta: int | None, p: dict) -> str:
-    if delta is None:
-        return p["text_muted"]
-    if delta > 0:
-        return p["success"]
-    if delta < 0:
-        return p["danger"]
-    return p["text_muted"]
+        return ft.Text(
+            TEXT["journal.day.attempt_first"],
+            style=text_style("caption", color=p["text_muted"]),
+        )
+    if attempt.delta_percent == 0:
+        return ft.Text("~", style=text_style("caption", color=p["text_muted"]))
+    is_up = attempt.delta_percent > 0
+    color = p["success"] if is_up else p["danger"]
+    icon = ft.Icons.ARROW_UPWARD if is_up else ft.Icons.ARROW_DOWNWARD
+    magnitude = abs(attempt.delta_percent)
+    return ft.Row(
+        [
+            ft.Icon(icon, size=12, color=color),
+            ft.Text(f"{magnitude}", style=text_style("caption", color=color)),
+        ],
+        spacing=SPACE["xs"],
+        tight=True,
+    )

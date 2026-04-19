@@ -1,8 +1,25 @@
 """Onboarding view — первый запуск, создание локального профиля.
 
-Одноэкранный flow: имя + 12 emoji-аватаров + кнопка «Начнём».
+Макет (display-first, warm-minimal):
+    ┌───────────────────────────────┐
+    │        Тезис (display)        │   brand-mark
+    │ caption muted subtitle        │
+    │           • • •               │   ornamental divider
+    │ Привет. Давай познакомимся.   │   welcome (display)
+    │ body subtitle                 │
+    │                               │
+    │ [ Как к тебе обращаться? __ ] │   name field
+    │                               │
+    │ Выбери аватар (h3)            │
+    │ caption muted hint            │
+    │ 🦉 🐺 🦊 🐻 🦁 🐢             │   12 avatars 2×6
+    │ 🦅 🐉 🌲 🌊 🔥 ⚡              │
+    │                               │
+    │         [ Начнём ]            │   primary button
+    └───────────────────────────────┘
 
-После успешного сохранения профиля происходит редирект на `/journal`.
+Card: bg_surface на bg_base, raised elevation, padding-2xl, width=560.
+Fade-in 200ms если не compact breakpoint.
 """
 
 from __future__ import annotations
@@ -18,8 +35,11 @@ from application.user_profile import (
     build_profile,
     validate_name,
 )
+from ui_flet.components.ornamental_divider import build_ornamental_divider
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
+from ui_flet.theme.buttons import primary_button
+from ui_flet.theme.elevation import apply_elevation
 from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
 
 
@@ -42,7 +62,10 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         hint_text=TEXT["onboarding.name_hint"],
         autofocus=True,
         border_radius=RADIUS["md"],
-        width=420,
+        border_color=p["border_medium"],
+        focused_border_color=p["accent"],
+        text_size=14,
+        width=460,
     )
 
     error_text = ft.Text(
@@ -51,32 +74,29 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         visible=False,
     )
 
-    avatar_buttons: list[ft.Control] = []
-
-    def _rebuild_avatar_row() -> None:
-        """Ручная пере-отрисовка — `IconButton` selected-state в Flet капризен."""
-        avatar_buttons.clear()
-        for avatar in AVATAR_CHOICES:
-            selected = picked_avatar["value"] == avatar
-            avatar_buttons.append(_avatar_button(avatar, selected, _on_pick_avatar, p))
-        avatar_row.controls = avatar_buttons
-        avatar_row.update()
-
-    def _on_pick_avatar(avatar: str) -> None:
-        picked_avatar["value"] = avatar
-        _rebuild_avatar_row()
-        if error_text.visible and "аватар" in error_text.value.lower():
-            error_text.visible = False
-            error_text.update()
-
     avatar_row = ft.Row(
         [],
         spacing=SPACE["sm"],
         wrap=True,
-        alignment=ft.MainAxisAlignment.START,
+        alignment=ft.MainAxisAlignment.CENTER,
     )
-    for avatar in AVATAR_CHOICES:
-        avatar_row.controls.append(_avatar_button(avatar, False, _on_pick_avatar, p))
+
+    def _rebuild_avatars() -> None:
+        avatar_row.controls = [
+            _avatar_button(avatar, picked_avatar["value"] == avatar, _on_pick_avatar, p)
+            for avatar in AVATAR_CHOICES
+        ]
+        if avatar_row.page:
+            avatar_row.update()
+
+    def _on_pick_avatar(avatar: str) -> None:
+        picked_avatar["value"] = avatar
+        _rebuild_avatars()
+        if error_text.visible and "аватар" in (error_text.value or "").lower():
+            error_text.visible = False
+            error_text.update()
+
+    _rebuild_avatars()
 
     def _on_start(_evt: ft.ControlEvent) -> None:
         raw_name = name_field.value or ""
@@ -106,21 +126,33 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         state.user_profile = profile
         state.go("/journal")
 
-    start_button = ft.ElevatedButton(
-        text=TEXT["onboarding.start"],
-        on_click=_on_start,
-        style=ft.ButtonStyle(
-            padding=ft.padding.symmetric(horizontal=SPACE["xl"], vertical=SPACE["md"]),
-            shape=ft.RoundedRectangleBorder(radius=RADIUS["md"]),
-        ),
+    # ---------- sections ----------
+    brand_title = ft.Text(
+        TEXT["app_title"],
+        style=text_style("display", color=p["text_primary"]),
+        text_align=ft.TextAlign.CENTER,
+    )
+    brand_subtitle = ft.Text(
+        TEXT["app_subtitle"],
+        style=text_style("caption", color=p["text_muted"]),
+        text_align=ft.TextAlign.CENTER,
+    )
+    brand_block = ft.Column(
+        [brand_title, brand_subtitle],
+        spacing=SPACE["xs"],
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
     )
 
-    welcome = ft.Text(TEXT["onboarding.welcome"], style=text_style("h1", color=p["text_primary"]))
+    welcome = ft.Text(
+        TEXT["onboarding.welcome"],
+        style=text_style("display", color=p["text_primary"]),
+    )
     subtitle = ft.Text(
         TEXT["onboarding.subtitle"],
         style=text_style("body", color=p["text_secondary"]),
         max_lines=3,
     )
+
     avatar_label = ft.Text(
         TEXT["onboarding.avatar_label"],
         style=text_style("h3", color=p["text_primary"]),
@@ -130,41 +162,79 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         style=text_style("caption", color=p["text_muted"]),
     )
 
+    start_button = ft.ElevatedButton(
+        text=TEXT["onboarding.start"],
+        on_click=_on_start,
+        style=primary_button(state.is_dark),
+    )
+    action_row = ft.Row(
+        [start_button],
+        alignment=ft.MainAxisAlignment.CENTER,
+    )
+
     content = ft.Column(
         [
+            brand_block,
+            build_ornamental_divider(state),
             welcome,
             subtitle,
             ft.Container(height=SPACE["lg"]),
-            name_field,
+            ft.Row([name_field], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=SPACE["md"]),
             avatar_label,
             avatar_hint,
             ft.Container(height=SPACE["sm"]),
             avatar_row,
-            ft.Container(height=SPACE["lg"]),
+            ft.Container(height=SPACE["xl"]),
             error_text,
-            start_button,
+            action_row,
         ],
         spacing=SPACE["sm"],
         alignment=ft.MainAxisAlignment.CENTER,
-        horizontal_alignment=ft.CrossAxisAlignment.START,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
     )
 
     card = ft.Container(
         content=content,
-        padding=ft.padding.all(SPACE["xl"]),
+        padding=ft.padding.all(SPACE["2xl"]),
         bgcolor=p["bg_surface"],
-        border=ft.border.all(1, p["border_soft"]),
         border_radius=RADIUS["lg"],
         width=560,
+        shadow=apply_elevation("raised", state.is_dark),
     )
 
-    return ft.Container(
+    animate_fade = state.breakpoint != "compact"
+    wrapper = ft.Container(
         expand=True,
         bgcolor=p["bg_base"],
         alignment=ft.alignment.center,
         content=card,
+        opacity=0 if animate_fade else 1,
+        animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_OUT) if animate_fade else None,
     )
+
+    if animate_fade:
+        def _fade_in(_evt: ft.ControlEvent) -> None:
+            wrapper.opacity = 1
+            wrapper.update()
+        wrapper.on_animation_end = None  # сброс, если был
+        # Fire-after-mount: ставим opacity=1 сразу после page.update() в router.
+        # Flet отыграет 200ms animation-curve, потому что opacity уже прикручен
+        # к `animate_opacity`. Триггерим через page-level микротаск.
+        def _trigger_fade() -> None:
+            wrapper.opacity = 1
+            try:
+                wrapper.update()
+            except Exception:
+                pass
+        # Ставим в state.page for-each-render хук — но простейший рабочий
+        # способ: через did_mount fill. У Container'а нет on_mount в Flet,
+        # поэтому используем page.run_task (coroutine) или page.set_timer.
+        # Простейший вариант — запустить после коротких 1ms через Thread.
+        import threading
+        threading.Timer(0.02, _trigger_fade).start()
+
+    return wrapper
 
 
 def _avatar_button(
@@ -173,18 +243,17 @@ def _avatar_button(
     on_pick,
     p: dict,
 ) -> ft.Control:
-    size = 56
+    size = 64
     return ft.Container(
-        content=ft.Text(avatar, size=28, text_align=ft.TextAlign.CENTER),
+        content=ft.Text(avatar, size=32, text_align=ft.TextAlign.CENTER),
         width=size,
         height=size,
         alignment=ft.alignment.center,
         border_radius=RADIUS["md"],
         bgcolor=p["accent_soft"] if selected else p["bg_elevated"],
         border=ft.border.all(
-            2 if selected else 1,
+            3 if selected else 1,
             p["accent"] if selected else p["border_soft"],
         ),
         on_click=lambda _e, a=avatar: on_pick(a),
-        tooltip=avatar,
     )

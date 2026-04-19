@@ -8,12 +8,36 @@ area, and a footer row with action buttons. All visual tokens come from
 
 from __future__ import annotations
 
+import logging
 from typing import Iterable
 
 import flet as ft
 
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import palette, SPACE, RADIUS
+
+
+_LOG = logging.getLogger(__name__)
+
+
+def safe_update(control: ft.Control | None) -> None:
+    """Безопасный ``control.update()``.
+
+    Flet 0.27 кидает ``AssertionError('Column Control must be added to the
+    page first')`` на ``.update()`` если control ещё не смонтирован или уже
+    отсоединён (race при быстрых кликах или навигации между кликом и
+    возвратом evaluate_answer). Это не критическая ошибка — следующий
+    page-render всё синхронизирует. Молча логируем и идём дальше, чтобы
+    не всплывало в Future-exceptions и str(exc) не утекал в UI.
+    """
+    if control is None:
+        return
+    try:
+        control.update()
+    except AssertionError:
+        _LOG.debug("safe_update: control not mounted, skipping")
+    except Exception:
+        _LOG.exception("safe_update: unexpected error")
 
 
 def build_workspace_frame(

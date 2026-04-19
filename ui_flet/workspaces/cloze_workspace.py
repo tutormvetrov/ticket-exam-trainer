@@ -19,7 +19,12 @@ from typing import List
 
 import flet as ft
 
-from ui_flet.components.training_workspace_base import build_workspace_frame
+import logging
+
+from ui_flet.components.training_workspace_base import build_workspace_frame, safe_update
+
+
+_LOG = logging.getLogger(__name__)
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import palette, SPACE, RADIUS
@@ -215,7 +220,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                 field.border_color = p["success"]
             else:
                 field.border_color = p["danger"]
-            field.update()
+            safe_update(field)
 
         total = max(1, len(all_expected))
         percent = int(round(hits / total * 100))
@@ -225,9 +230,10 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
             result = state.facade.evaluate_answer(ticket.ticket_id, "cloze", joined)
             facade_score = getattr(result, "score_percent", percent)
             feedback = getattr(result, "feedback", "") or ""
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
+            _LOG.exception("evaluate_answer failed mode=cloze ticket=%s", ticket.ticket_id)
             facade_score = percent
-            feedback = str(exc)
+            feedback = TEXT["result.failed"]
 
         result_box.controls = [
             ft.Text(
@@ -244,7 +250,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
             *([ft.Text(feedback, size=13, color=p["text_secondary"], selectable=True)] if feedback else []),
         ]
         result_box.visible = True
-        result_box.update()
+        safe_update(result_box)
 
     body = ft.Column(
         spacing=SPACE["md"],

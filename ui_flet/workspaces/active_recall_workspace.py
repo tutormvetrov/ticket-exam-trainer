@@ -11,15 +11,20 @@ when the facade returns a `review` payload.
 
 from __future__ import annotations
 
+import logging
+
 import flet as ft
 
 from ui_flet.components.calibration_chips import CalibrationChips
 from ui_flet.components.review_verdict_widget import build_review_verdict
 from ui_flet.components.timer_widget import TimerWidget
-from ui_flet.components.training_workspace_base import build_workspace_frame
+from ui_flet.components.training_workspace_base import build_workspace_frame, safe_update
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import palette, SPACE, RADIUS
+
+
+_LOG = logging.getLogger(__name__)
 
 
 def build_workspace(state: AppState, ticket) -> ft.Control:
@@ -43,16 +48,21 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         color=p["danger"],
         visible=False,
     )
+    # Guard от двойного клика / race при быстрых повторах «Проверить».
+    in_flight = {"value": False}
 
     def _on_check(_evt) -> None:
+        if in_flight["value"]:
+            return
         if not calibration.is_picked():
             calibration_warning.visible = True
-            calibration_warning.update()
+            safe_update(calibration_warning)
             return
         calibration_warning.visible = False
-        calibration_warning.update()
+        safe_update(calibration_warning)
         text = (answer_field.value or "").strip()
         skip_llm = not state.is_ollama_available()
+        in_flight["value"] = True
         try:
             result = state.facade.evaluate_answer(
                 ticket.ticket_id,
@@ -61,10 +71,12 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                 skip_llm=skip_llm,
                 confidence=calibration.value,
             )
-        except Exception as exc:  # noqa: BLE001
-            result_box.controls = [ft.Text(str(exc), color=p["danger"])]
+        except Exception:  # noqa: BLE001
+            _LOG.exception("evaluate_answer failed mode=active-recall ticket=%s", ticket.ticket_id)
+            result_box.controls = [ft.Text(TEXT["result.failed"], color=p["danger"])]
             result_box.visible = True
-            result_box.update()
+            safe_update(result_box)
+            in_flight["value"] = False
             return
 
         timer.pause()
@@ -154,7 +166,8 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
 
         result_box.controls = controls
         result_box.visible = True
-        result_box.update()
+        safe_update(result_box)
+        in_flight["value"] = False
 
     body = ft.Column(
         spacing=SPACE["md"],

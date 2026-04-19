@@ -17,7 +17,12 @@ from typing import List
 
 import flet as ft
 
-from ui_flet.components.training_workspace_base import build_workspace_frame
+import logging
+
+from ui_flet.components.training_workspace_base import build_workspace_frame, safe_update
+
+
+_LOG = logging.getLogger(__name__)
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import palette, SPACE, RADIUS
@@ -85,14 +90,14 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
             return
         order[idx - 1], order[idx] = order[idx], order[idx - 1]
         _render_rows()
-        list_column.update()
+        safe_update(list_column)
 
     def _move_down(idx: int) -> None:
         if idx >= len(order) - 1:
             return
         order[idx + 1], order[idx] = order[idx], order[idx + 1]
         _render_rows()
-        list_column.update()
+        safe_update(list_column)
 
     _move_handlers = {"up": _move_up, "down": _move_down}
 
@@ -101,12 +106,13 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         answer_text = "\n".join(order)
         try:
             result = state.facade.evaluate_answer(ticket.ticket_id, "plan", answer_text)
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
+            _LOG.exception("evaluate_answer failed mode=plan ticket=%s", ticket.ticket_id)
             result_box.controls = [
-                ft.Text(str(exc), color=p["danger"]),
+                ft.Text(TEXT["result.failed"], color=p["danger"]),
             ]
             result_box.visible = True
-            result_box.update()
+            safe_update(result_box)
             return
 
         score_percent = getattr(result, "score_percent", 0)
@@ -139,7 +145,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
             ),
         ]
         result_box.visible = True
-        result_box.update()
+        safe_update(result_box)
 
     _render_rows()
 

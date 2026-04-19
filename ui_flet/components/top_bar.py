@@ -19,6 +19,7 @@ from typing import Callable
 import flet as ft
 
 from ui_flet.components.chip import Chip
+from ui_flet.components.feedback import show_snackbar
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.tokens import RADIUS, SPACE, palette, text_style
@@ -83,16 +84,18 @@ def build_top_bar(
     def _navigate(route: str) -> None:
         if on_nav is not None:
             on_nav(route)
-        else:
-            # Training tab without a selected ticket shouldn't dead-end — send
-            # the user to the catalog so they can pick one first.
-            if route == "/training" and not state.selected_ticket_id:
-                state.go("/tickets")
-                return
-            if route == "/training" and state.selected_ticket_id:
-                state.open_training(state.selected_ticket_id, state.selected_mode or "reading")
-                return
-            state.go(route)
+            return
+        # Training tab без выбранного билета ведёт в каталог и тихо
+        # подсказывает «сначала выбери билет», чтобы клик чувствовался
+        # намеренным и дружелюбным, а не молчаливым.
+        if route == "/training" and not state.selected_ticket_id:
+            show_snackbar(state, TEXT["nav.training.needs_ticket"])
+            state.go("/tickets")
+            return
+        if route == "/training" and state.selected_ticket_id:
+            state.open_training(state.selected_ticket_id, state.selected_mode or "reading")
+            return
+        state.go(route)
 
     # Brand
     brand_title = ft.Text(

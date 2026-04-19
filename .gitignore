@@ -16,6 +16,7 @@ audit/screens/
 *.db-shm
 *.db-wal
 app_data/
+/Tezis.spec
 /tmp-inspect-model/
 /tmp-measure-contract*/
 tmp_qt_smoke/

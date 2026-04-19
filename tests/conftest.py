@@ -26,10 +26,11 @@ def pytest_addoption(parser):
 def pytest_collection_modifyitems(config, items):
     if config.getoption("--run-live-ollama"):
         return
-    skip_live = pytest.mark.skip(reason="requires live local Ollama, use --run-live-ollama")
-    for item in items:
-        if "live_ollama" in item.keywords:
-            item.add_marker(skip_live)
+    live_items = [item for item in items if "live_ollama" in item.keywords]
+    if not live_items:
+        return
+    config.hook.pytest_deselected(items=live_items)
+    items[:] = [item for item in items if "live_ollama" not in item.keywords]
 
 
 @pytest.fixture(scope="session", autouse=True)

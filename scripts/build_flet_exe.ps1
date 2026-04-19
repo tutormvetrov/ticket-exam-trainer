@@ -154,7 +154,6 @@ try {
   $sizeMb = [math]::Round((Get-Item $finalExePath).Length / 1MB, 1)
   Write-Host ""
   Write-Host ("+ Built: {0} ({1} MB)" -f $finalExePath, $sizeMb) -ForegroundColor Green
-  exit 0
 } finally {
   if (Test-Path -LiteralPath $stagingOutputDir) {
     try {

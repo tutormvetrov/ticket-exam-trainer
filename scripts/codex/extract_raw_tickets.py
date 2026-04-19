@@ -119,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     lengths = sorted(t["char_length"] for t in tickets)
     print(f"  Content length — min: {lengths[0]}, median: {lengths[len(lengths)//2]}, max: {lengths[-1]}")
     print(f"  Garbage (< {GARBAGE_THRESHOLD_CHARS} chars): {garbage_count}/{len(rows)}")
-    print(f"  Substantive (≥ 500): {sum(1 for l in lengths if l >= 500)}/{len(rows)}")
+    print(f"  Substantive (≥ 500): {sum(1 for ln in lengths if ln >= 500)}/{len(rows)}")
 
     output = {
         "document": document,

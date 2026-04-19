@@ -18,7 +18,6 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any
 
 if sys.stdout.encoding.lower() != "utf-8":
     import io

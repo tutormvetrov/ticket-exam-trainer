@@ -23,7 +23,6 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from infrastructure.ollama.service import OllamaService  # noqa: E402
 
-
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures" / "review_validation"
 OUT_PATH = REPO_ROOT / "docs" / "superpowers" / "specs" / "2026-04-18-model-selection-raw.json"
 
@@ -94,7 +93,7 @@ def main() -> int:
     for model in MODELS:
         print(f"\n=== Testing {model} ===")
         results[model] = []
-        for i, (ticket, answer) in enumerate(zip(tickets, answers), start=1):
+        for i, (ticket, answer) in enumerate(zip(tickets, answers, strict=False), start=1):
             print(f"  [{i}/5] {ticket['title'][:70]}")
             r = run_one(svc, model, ticket, answer)
             results[model].append({

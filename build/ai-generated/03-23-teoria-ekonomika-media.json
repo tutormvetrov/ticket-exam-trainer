@@ -1,0 +1,274 @@
+[
+  {
+    "discipline_code": "3.23",
+    "discipline_title": "Теория и экономика медиа",
+    "discipline_lecturer": "Вихрова Ольга Юрьевна, ВШГА МГУ, доцент",
+    "ticket_num": 1,
+    "title": "Развитие теории массовой коммуникации и практика их применения",
+    "canonical_answer_summary": "Эволюция теории массовой коммуникации: magic bullet (1920s), limited effects (Lazarsfeld 1940s), cultivation theory (Gerbner 1970s), agenda-setting (McCombs&Shaw 1972), spiral of silence (Noelle-Neumann 1974), network society (Castells 1996). Применение в PR, журналистике, политической коммуникации.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Теория массовой коммуникации прошла более века развития — от наивных моделей прямого воздействия до современных concepts о сетевом обществе и алгоритмической медиа-реальности. Для магистра ГМУ в цифровых коммуникациях знание этой эволюции — методологический фундамент понимания медиа. Актуальность — цифровизация медиа радикально меняет применимость классических теорий. Цель ответа — раскрыть эволюцию теорий и их практическое применение."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Этапы развития теории массовой коммуникации: 1) Hypodermic Needle/Magic Bullet (1920-30-е, Lasswell) — прямое сильное воздействие медиа на пассивную аудиторию; 2) Limited Effects (Lazarsfeld 1940-е, People's Choice 1944) — two-step flow модель, opinion leaders как посредники; 3) Uses and Gratifications (Blumler&Katz 1970-е) — active audience выбирает медиа под свои потребности; 4) Agenda-Setting (McCombs&Shaw 1972) — медиа говорят, О ЧЁМ думать; 5) Framing (Entman 1993) — КАК рамки восприятия; 6) Cultivation Theory (Gerbner 1970-е) — long-term эффект кумулятивного просмотра; 7) Spiral of Silence (Noelle-Neumann 1974) — готовность высказываться зависит от perceived mainstream; 8) Network Society (Castells 1996) — структура определяется сетями; 9) Networked Individualism (Rainie&Wellman); 10) Platform society (van Dijck 2018) — platforms как новый тип общественных структур. Русская традиция: школа МГУ (Вартанова, Засурский), Фонд «Общественное мнение»."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Применение теорий в РФ: 1) agenda-setting — координация повестки УОС АП, АНО «Диалог»; 2) framing — медиа-тренинги для госспикеров; 3) spiral of silence — анализ allow социологов ФОМ/ВЦИОМ; 4) cultivation theory — понимание влияния федеральных каналов на долгосрочные установки; 5) network society — стратегии работы в соцмедиа. Практический кейс: исследование эффектов пропаганды ЗОЖ Минздравом — применение cultivation theory показало, что long-term regular просмотр antitobacco контента снижает интерес к курению у молодёжи. Обоснование: теория не абстракция, а практический инструмент для проектирования медиа-кампаний."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки применения теории: диагностика медиа-ситуации через ТМК-теории (какая теория лучше описывает происходящее), выбор коммуникационной стратегии на основе теоретической модели, критическая оценка эффектов медиа. Работа с источниками: Scopus/Web of Science для международных статей, eLibrary для российских. Владение терминологией: magic bullet theory, two-step flow, opinion leader, uses and gratifications, agenda-setting (1st/2nd/3rd level), framing, priming, cultivation theory, spiral of silence, networked public sphere, platform society."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, теория массовой коммуникации — динамично развивающаяся дисциплина, накопившая богатый инструментарий для анализа медиа-ситуаций. Классические теории (agenda-setting, framing, cultivation) остаются актуальными, но требуют адаптации для цифровых медиа и алгоритмической реальности. Перспективы: computational theory of mass communication (моделирование с ML), theories of algorithmic media (van Dijck, Noble), post-digital media theory."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ школ: американская (Lazarsfeld, McCombs — эмпирическая), европейская (Habermas, Castells — критическая), британская (Stuart Hall — cultural studies), российская (школа МГУ). Междисциплинарные связи: социология, психология (cognitive, social), политология, культурология, лингвистика (discourse analysis). Визуализация: timeline развития теорий МК; agenda-setting 3 levels с examples."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.23",
+    "discipline_title": "Теория и экономика медиа",
+    "discipline_lecturer": "Вихрова Ольга Юрьевна, ВШГА МГУ, доцент",
+    "ticket_num": 2,
+    "title": "Теория и практика выбора медиаконтента аудиторией",
+    "canonical_answer_summary": "Uses and Gratifications Theory (Blumler&Katz 1970s) — аудитория активно выбирает медиа под свои потребности: информационные, личностные, социальные, развлекательные. В цифровую эпоху усиливается через алгоритмическую персонализацию (filter bubbles, Pariser 2011) и attention economy.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Теория и практика выбора медиаконтента — центральный вопрос современной медиа-индустрии: как аудитория выбирает из бесконечного potok контента? В цифровую эпоху выбор определяется и собственными предпочтениями, и алгоритмическими рекомендациями. Для магистра ГМУ понимание этих механизмов критично для дизайна коммуникационных кампаний. Цель — раскрыть теории и современные практики выбора медиаконтента."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Uses and Gratifications Theory (U&G, Blumler&Katz 1973) — аудитория активно выбирает медиа под свои потребности, а не пассивно воспринимает навязанное. 5 категорий потребностей (McQuail): 1) Information (новости, обучение); 2) Personal Identity (самоутверждение, подкрепление ценностей); 3) Integration & Social Interaction (social connection); 4) Entertainment (развлечение); 5) Escape (уход от реальности). Selective Exposure Theory — предпочтение информации, совпадающей с existing убеждениями. Cognitive Dissonance (Festinger 1957) — избегание противоречащего мнения. Современные adaptations для цифровой среды: 1) Filter Bubbles (Eli Pariser 2011) — алгоритмическая персонализация создаёт echo chambers; 2) Attention Economy (Goldhaber 1997) — внимание как самый дефицитный ресурс; 3) Content Discoverability — роль рекомендательных систем. Measurement methods: media diaries, passive tracking (browser extensions, app usage), panel-based studies (Mediascope), platform analytics."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Медиапотребление россиян (Mediascope) — телевидение ~3 часа/день, интернет-контент ~3 часа, соцмедиа ~2 часа; 2) Алгоритмы Яндекс Дзена, VK персонализируют контент; 3) Рекомендательные системы Okko, Иви оптимизируют retention; 4) Telegram-каналы — user-curated потребление, подписки по интересам. Практический кейс: медиа-кампания Минздрава по vaccination (2021-2022) — применён targeted content approach: разные форматы (видео-истории для соцмедиа, подробная инфографика для Дзена, короткие советы для Telegram) для разных потребностей аудитории; CTR на 40% выше, чем у generic campaign. Обоснование: понимание потребностей аудитории — основа эффективного media placement."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки работы с аудиторным выбором: построение персон (personas) с их медиа-предпочтениями, картирование Customer Journey по каналам, A/B-тестирование контента. Работа с Mediascope data, Brand Analytics для медиа-мониторинга. Владение терминологией: Uses and Gratifications, selective exposure, cognitive dissonance, filter bubble, echo chamber, attention economy, recommendation system, engagement metrics, dwell time, consumption patterns."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, выбор медиаконтента — активный процесс, в котором аудитория balance свои потребности с доступными опциями. В цифровую эпоху выбор во многом опосредован алгоритмами, что создаёт новые challenges (filter bubbles, polarization). В РФ medias-потребление переживает значимую трансформацию с отечественными платформами во главе. Перспективы: AI-powered personalization нового уровня, transparent recommendation algorithms (explainable AI), конкуренция за attention в условиях множества платформ."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ потребления: РФ (ТВ+интернет, Telegram-доминирование), США (streaming+social media), Китай (WeChat/Douyin как мини-платформы для всего). Сравнение исследовательских систем: Mediascope (РФ, TV+web), Nielsen (США), KantarMedia (глобальная). Междисциплинарные связи: психология (cognitive biases), маркетинг, алгоритмические исследования. Визуализация: 5 категорий потребностей McQuail; воронка медиа-выбора от awareness до consumption."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.23",
+    "discipline_title": "Теория и экономика медиа",
+    "discipline_lecturer": "Вихрова Ольга Юрьевна, ВШГА МГУ, доцент",
+    "ticket_num": 3,
+    "title": "Психология восприятия информации",
+    "canonical_answer_summary": "Психология восприятия информации: cognitive biases (Kahneman Fast/Slow), attention (selective, sustained), memory (working, long-term), emotion-cognition interaction. Ключевые феномены: confirmation bias, primacy/recency effects, framing effects, availability heuristic.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Психология восприятия информации — междисциплинарная область на стыке cognitive science и коммуникативистики, критическая для понимания эффективности медиа-сообщений. Для магистра ГМУ в цифровых коммуникациях знание механизмов восприятия позволяет создавать более резонирующие сообщения. Цель ответа — раскрыть ключевые механизмы и практические следствия."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Основные механизмы восприятия информации: 1) Attention — selective (фильтрация релевантного), sustained (концентрация во времени), divided (одновременные потоки); ограниченные cognitive resources. 2) Perception — интерпретация сенсорных данных (Gestalt principles — proximity, similarity, closure, continuity). 3) Memory — working memory (Miller's 7±2), long-term (declarative vs procedural). 4) Dual-process theory (Kahneman 2011 «Thinking Fast and Slow») — System 1 (fast, intuitive, эмоциональное) vs System 2 (slow, analytical, rational); большинство информации обрабатывается System 1. Cognitive biases и heuristics: 1) Confirmation bias — поиск подтверждения existing beliefs; 2) Availability heuristic — переоценка легко вспоминаемого; 3) Framing effects — влияние способа подачи (Kahneman&Tversky); 4) Anchoring — влияние первого числа; 5) Primacy/Recency — лучше запоминается начало и конец; 6) Halo effect — общее впечатление влияет на частные; 7) Negativity bias — негативная информация воспринимается сильнее. Эмоции в восприятии: arousal (intensity) и valence (positive/negative) влияют на запоминание и отношение."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практическое применение в медиа: 1) использование цветов (red — attention, negative), изображений (лица людей повышают attention); 2) структура заголовков (Fall + гипербола); 3) использование эмоциональных триггеров (fear, awe, anger); 4) применение story structure вместо dry facts. В ГМУ РФ: 1) медиа-тренинги для пресс-спикеров с учётом cognitive biases; 2) дизайн кампаний социальной рекламы (Минздрав, АНО «Диалог»); 3) Framing analysis медиа-покрытия госорганов. Практический кейс: антитабачная кампания 2010-х — переход от rational appeals (статистика смертности) к emotional (образы больных, семьи); эффективность выросла согласно исследованиям НИИ Социальной и Судебной Психиатрии. Обоснование: понимание cognitive mechanics — основа эффективной коммуникации."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки применения психологии восприятия: дизайн медиа-сообщений с учётом attention-grabbing (первые 3 секунды), emotional resonance, memorable storytelling. Учёт biases при создании корпоративной коммуникации — minimize overly technical content для general audience (System 1 vs System 2). Владение терминологией: selective attention, divided attention, working memory, dual-process theory, System 1/System 2, cognitive bias, heuristic, framing, anchoring, primacy/recency, halo effect, negativity bias, cognitive load, emotional arousal, valence."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, психология восприятия информации — методологическая основа создания эффективных медиа-сообщений. Знание механизмов attention, memory, cognitive biases позволяет делать сообщения, которые реально воздействуют на аудиторию, а не просто проходят мимо. Перспективы: применение biometric research (eye-tracking, EEG) в media research, AI-powered оптимизация сообщений под cognitive patterns, ethical questions «нейромаркетинга» и манипуляций."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ подходов: behaviorism (bpавняя реакция на стимул), cognitive psychology (mental models и processes), neuroscience (биологическая основа), evolutionary psychology (адаптивные biases). Классики: Kahneman&Tversky (heuristics and biases), Thaler&Sunstein (Nudge), Cialdini (Influence — 6 принципов убеждения). Междисциплинарные связи: психология (cognitive, social), нейронаука, поведенческая экономика, дизайн. Визуализация: System 1 vs System 2 (свойства); список топ-10 cognitive biases с примерами."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.23",
+    "discipline_title": "Теория и экономика медиа",
+    "discipline_lecturer": "Вихрова Ольга Юрьевна, ВШГА МГУ, доцент",
+    "ticket_num": 4,
+    "title": "Влияние СМИ на формирование мнений. СМИ и выборы",
+    "canonical_answer_summary": "Влияние СМИ на формирование мнений: agenda-setting, framing, priming, cultivation. СМИ и выборы: media effects on voter behavior (реальные — ограниченные, но существенные), campaign coverage, debate effects. В РФ — регулирование предвыборной агитации (ФЗ-67).",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Влияние СМИ на формирование общественного мнения — центральный вопрос медиа-исследований и политической науки. Особенно актуально влияние в контексте выборов, где медиа-покрытие может значимо влиять на результаты. Для магистра ГМУ в цифровых коммуникациях эта тема — на стыке теории и практики. Цель — раскрыть механизмы влияния СМИ и их роль в избирательных процессах."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Механизмы влияния СМИ на мнения: 1) Agenda-setting — смещение приоритетов важности в сознании аудитории; 2) Framing — задание угла восприятия проблемы; 3) Priming — активизация критериев оценки; 4) Cultivation — длительное воздействие формирует mental models. Эволюция представлений об эффектах СМИ: 1) Sterk effects era (1920-30-е); 2) Limited effects (Lazarsfeld «People's Choice» 1944 — медиа reinforce rather than change); 3) Moderate effects (agenda-setting, cultivation); 4) New effects era (1970+) — cumulative, indirect effects. СМИ и выборы: 1) Media agenda влияет на public agenda, public agenda — на policy agenda (rarely vice versa); 2) Debate effects — direct debates могут смещать 2-5% голосов; 3) Priming перед голосованием — что важно (экономика vs безопасность vs другое) определяет выбор; 4) Campaign coverage — дисбаланс между кандидатами влияет. Регулирование в РФ: ФЗ № 67-ФЗ «Об основных гарантиях избирательных прав» — равные условия для кандидатов в СМИ; ЦИК РФ следит за балансом; регулирование политической рекламы; запрет на публикацию опросов за 5 дней до выборов."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) ЦИК РФ мониторит медиа-освещение избирательных кампаний; 2) Роскомнадзор следит за соблюдением ФЗ-67 в СМИ; 3) дебаты кандидатов — обязательны на федеральных телеканалах; 4) Медиа-мониторинг (Медиалогия) агрегирует упоминания кандидатов. Практический кейс: Президентская кампания 2024 — сбалансированное освещение согласно ФЗ-67, дебаты на федеральных каналах для парламентских партий, активная digital-кампания (Telegram, VK). Международные примеры: Obama 2008 — первая «digital campaign» с активным использованием соцмедиа; Trump 2016 — Twitter-dominant; Brexit 2016 — вопрос влияния target-рекламы Cambridge Analytica. Обоснование: СМИ влияют на выборы опосредованно, через agenda-setting и framing, что требует регулирования для обеспечения fair competition."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки анализа медиа-влияния: медиа-мониторинг и контент-анализ (Crimson Hexagon, Медиалогия), частотный анализ упоминаний, framing analysis, расчёт share of voice. Понимание ФЗ-67 и этических норм освещения. Владение терминологией: agenda-setting, framing, priming, media effects (direct, indirect, cumulative), media logic, pseudo-event, horse race journalism, narrative media coverage, campaign coverage, political advertising."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, СМИ оказывают значимое, хотя и непрямое влияние на формирование общественного мнения и результаты выборов через механизмы agenda-setting, framing, priming и cultivation. В РФ избирательное законодательство стремится обеспечить баланс в медиа-освещении. Перспективы: рост значения цифровых платформ в предвыборных кампаниях, регулирование micro-targeting, AI-генерация политического контента как новый вызов."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ регулирования медиа в выборах: РФ (ФЗ-67, жёсткий баланс), США (First Amendment, минимум ограничений), ЕС (DSA 2024, ограничения target-рекламы), Великобритания (Ofcom, ограничения платного ТВ). Междисциплинарные связи: политология (электоральное поведение), социология СМИ, психология убеждения (Cialdini), коммуникативистика. Визуализация: иерархия agenda-setting (media → public → policy); сравнение предвыборных кампаний в digital и традиционных СМИ."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.23",
+    "discipline_title": "Теория и экономика медиа",
+    "discipline_lecturer": "Вихрова Ольга Юрьевна, ВШГА МГУ, доцент",
+    "ticket_num": 5,
+    "title": "Практика применения основных исследований в области медиаэффектов",
+    "canonical_answer_summary": "Практика применения медиаэффектов: agenda-setting в политических кампаниях, framing в коммерческой рекламе, cultivation в social marketing, priming в crisis communication. Исследования эффективности медиа-кампаний — A/B-тестирование, tracking studies, brand lift studies.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Теоретические исследования медиаэффектов имеют широкое практическое применение в области рекламы, политических кампаний, social marketing, PR. Переход от теории к практике — ключевая компетенция специалиста по медиакоммуникациям. Для магистра ГМУ в цифровых коммуникациях — основа профессиональной работы. Цель — раскрыть, как классические теории медиаэффектов применяются на практике и как исследуется эффективность."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Применение ключевых теорий на практике: 1) Agenda-setting — политтехнологи и PR-профессионалы используют для формирования повестки, «отвлечения» от неблагоприятных тем через запуск новых; 2) Framing — коммерческая реклама представляет продукты в выгодном свете (framing losses vs gains — Kahneman); 3) Priming — перед важными решениями активизируют нужные критерии; 4) Cultivation — долгосрочные кампании social marketing (ЗОЖ, ПДД); 5) Uses&Gratifications — контент-стратегия под разные потребности аудитории. Методы исследования эффективности медиа-кампаний: 1) Pre/Post studies — замер до и после кампании; 2) A/B testing — сравнение двух версий; 3) Brand Lift Studies (Google, YouTube, Яндекс Директ) — мониторинг awareness/consideration/favorability; 4) Tracking studies — непрерывный мониторинг метрик во времени; 5) Media Mix Modeling (MMM) — эконометрическое моделирование вклада каждого канала; 6) Multi-Touch Attribution (MTA) — digital атрибуция клиентского пути. Метрики: reach, frequency, GRP (Gross Rating Point), CTR, VTR (View-Through Rate), CPM, Brand Lift."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Mediascope Brand Lift Studies — оценка эффектов ТВ и digital-кампаний; 2) ВЦИОМ, ФОМ — tracking studies для госкоммуникаций; 3) Яндекс Директ, VK Реклама — встроенные инструменты Brand Lift; 4) Национальная реклама ФОИВ (Минздрав, Минцифры) — pre/post исследования через ВЦИОМ. Примеры применения: антитабачная кампания Минздрава — применение fear appeal (framing); «Добровольчество» АНО «Россия — страна возможностей» — cultivation через long-term коммуникацию; «Цифровой диктант» Минцифры — awareness campaign на основе priming. Практический кейс: цифровая трансформация Сбербанка — коммуникационный трек использовал все техники (agenda-setting — «цифровой банк будущего», framing — «tech company», cultivation — регулярный контент), измеримые brand lift метрики за 5 лет показали значимый рост associations с «технологичность», «инновации»."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки применения теории медиаэффектов: выбор техники под задачу (awareness/consideration/action), дизайн исследования эффективности (A/B, tracking), интерпретация metrics в контексте бизнес-целей. Работа с brand lift-инструментами (Mediascope, Google Brand Lift). Владение терминологией: brand lift study, reach, frequency, GRP, TRP (Target Rating Point), CPM, CPV (Cost-Per-View), CPC, CTR, VTR, unaided vs aided awareness, consideration, purchase intent, favorability, Net Promoter Score (NPS), Media Mix Modeling, attribution modeling."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, практика применения теорий медиаэффектов опирается на rich toolbox — от agenda-setting в политике до cultivation в social marketing. Эффективность кампаний измеряется через сочетание классических (tracking, pre/post) и новых (digital Brand Lift, MMM) методов. Перспективы: AI-assisted оптимизация кампаний в режиме реального времени, incrementality testing как gold standard measurement, integration traditional и digital measurement на единую платформу."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ методов измерения: traditional (tracking, post-buy analysis — после кампании), digital (real-time dashboards, Brand Lift), econometric (MMM, время-ряды многолетней истории). Сравнение отраслей по зрелости measurement: FMCG (высокая, MMM стандарт), digital services (A/B + MTA), социальные кампании ГМУ (pre/post, emerging). Междисциплинарные связи: маркетинг-метрики, media planning, эконометрика, маркетинг-research. Визуализация: воронка метрик (awareness → consideration → action); сравнительная схема методов measurement."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.23",
+    "discipline_title": "Теория и экономика медиа",
+    "discipline_lecturer": "Вихрова Ольга Юрьевна, ВШГА МГУ, доцент",
+    "ticket_num": 6,
+    "title": "Экономическая история мировых СМИ. История становления и развития медиарынков",
+    "canonical_answer_summary": "История медиарынков: penny press (1833), yellow journalism (1890s), mass press (1920s-50s), telekommunikacija (1950s+), cable & satellite (1980s), internet era (1990s+), social media (2004+), streaming (2007+), platform economy (2010+). Две революции — индустриальная (massовое тираж) и цифровая.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Экономическая история СМИ — 200-летняя эволюция от первых газет с массовыми тиражами до современных цифровых платформ с миллиардами пользователей. Понимание этой истории помогает осмыслить текущие тенденции и предвидеть будущее. Для магистра ГМУ в цифровых коммуникациях — ценный контекст. Цель — раскрыть ключевые этапы и движущие силы развития медиарынков."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Этапы развития мировых медиарынков: 1) Ранние СМИ (XVII-XVIII вв.) — первые газеты, political pamphlets (Tatler, Spectator); ограниченная аудитория элиты; 2) Penny Press (1833 US, New York Sun) — массовые доступные газеты, финансируемые рекламой; модель «reader as product, advertiser as customer»; 3) Yellow Journalism (1890s, Pulitzer, Hearst) — сенсационность для максимизации тиражей; 4) Mass Press era (1900-1950s) — рост печатных тиражей, radio (1920s), кинематограф; 5) Television era (1950s+) — доминирование ТВ в домашнем медиа-потреблении; 6) Cable & Satellite (1980s) — фрагментация аудиторий, нишевые каналы; 7) Internet (1990s) — новая платформа, начало disruption; 8) Social media (2004+) — Facebook, Twitter, YouTube (2005) меняют создание и distribution контента; 9) Streaming (Netflix streaming 2007+) — disruption традиционного ТВ; 10) Platform economy (2010+) — Google, Meta, Amazon как новые gatekeeper'ы; 11) Creator economy (2015+) — monetization индивидуальных creators. В РФ: советская система до 1991, 1990-е — хаотичный рынок, 2000-е — консолидация, 2010-е — государственное доминирование TV, 2022+ — уход западных платформ, консолидация отечественных."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Ключевые трансформации: 1) Декомпозиция Advertising (рынок рекламы $750 млрд+ мировой) с сдвигом от traditional в digital (доля digital >70%); 2) Fragmentation of audiences — вместо 3 ТВ-каналов тысячи каналов и платформ; 3) Disintermediation — creators напрямую к аудитории; 4) Data as currency — таргетированная реклама. В РФ: 1) рынок рекламы ~700 млрд руб. (2023), >60% digital; 2) VK экосистема — крупнейшая национальная; 3) Яндекс — digital advertising лидер; 4) Мегамаркет, Wildberries, Ozon — новые медиа-players. Международный кейс: падение print media — New York Times 2000-2010s потерял >$1 млрд capital value, восстановил через digital subscription (2023: 10+ млн subscribers); модель transform от ad-funded к reader-funded. Практический кейс РФ: консолидация российского медиарынка после 2022 — уход Meta (Facebook/Instagram запрещены), Google (Google Ads), рост VK, Яндекса; Telegram — неожиданный бенефициар. Обоснование: понимание долгосрочной динамики помогает прогнозировать будущее."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки анализа медиарынка: понимание его структуры (владельцы, каналы, сегменты), value chain (production → distribution → consumption → monetization), business models (ad-supported, subscription, commerce, donation). Работа с industry reports (eMarketer, Statista, Mediascope). Владение терминологией: penny press, yellow journalism, mass media, niche media, disintermediation, disruption, fragmentation, platform economy, creator economy, advertising-supported, subscription, freemium, churn rate, LTV (lifetime value), ARPU (Average Revenue Per User)."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, история медиарынков — постоянный цикл технологических революций и экономических трансформаций. Каждая новая технология (пресса, радио, ТВ, интернет, AI) создавала новых лидеров и вытесняла старых. В РФ после 2022 начался уникальный период консолидации национальных платформ. Перспективы: AI-generated контент как новая революция, metaverse как потенциально новая платформа, возврат к subscription model (decline ad revenue из-за privacy regulation)."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ медиа-revolution по К. Christensen'у (disruption theory): ТВ disrupted radio, cable disrupted broadcast, internet disrupted cable, streaming disrupted cable+broadcast, AI-generated контент может disrupt creators. Сравнение рынков: США ($300B+, ad-dominated), Китай ($100B+, e-commerce integrated), РФ (~$10B, государственное + Яндекс), Индия (fastest growing). Междисциплинарные связи: экономика, история техники, теория инноваций, маркетинг. Визуализация: timeline медиа-revolution; value chain medienindustrie."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.23",
+    "discipline_title": "Теория и экономика медиа",
+    "discipline_lecturer": "Вихрова Ольга Юрьевна, ВШГА МГУ, доцент",
+    "ticket_num": 7,
+    "title": "Движущие силы развития медиабизнеса",
+    "canonical_answer_summary": "Движущие силы медиабизнеса: технологические (digital, AI, 5G), экономические (advertising spend, subscription economy), социальные (generational shifts, attention economy), регуляторные (privacy laws, platform regulation). В РФ — рост digital, национализация экосистемы, регуляторное укрепление.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Движущие силы развития медиабизнеса — комплекс технологических, экономических, социальных и регуляторных факторов, определяющих направление отрасли. Для магистра ГМУ в цифровых коммуникациях понимание этих сил важно как для стратегического планирования, так и для анализа отрасли. Цель ответа — систематизировать ключевые движущие силы медиабизнеса."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Категории движущих сил медиабизнеса (PESTEL-анализ): 1) Technological — новые платформы (TikTok, Telegram), AI-generated content (LLM, Midjourney, Sora), 5G, AR/VR, blockchain; 2) Economic — trends в advertising spend, subscription economy ($250B+ global), commerce media, creator economy; 3) Social — generational shifts (Gen Z отличные паттерны потребления), cultural fragmentation, attention economy (Goldhaber); 4) Environmental/Sustainability — ESG trends, пресс на sustainability reporting медиа; 5) Legal/Regulatory — GDPR, CCPA, Digital Services Act (ЕС 2024), иноагенты (РФ), data localization laws; 6) Political — медиа-консолидация, state control (различия между странами). Порос пять сил Porter'а applied to media: supplier power (content creators, journalists), buyer power (advertisers, subscribers), new entrants (low barriers для digital), substitutes (other entertainment), rivalry (intense). Бизнес-модели медиа: advertising-supported, subscription, freemium, transactional (pay-per-view), commerce, donation/grants (public service media), hybrid. Disruption drivers (Christensen): new technology reduces cost/improves access для новых сегментов аудитории."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Technology — внедрение AI в медиа (GigaChat, YandexGPT используются для генерации контента); 2) Economic — digital advertising достиг 70%+ рынка; 3) Social — Gen Z делает выбор в пользу Telegram, TikTok (был) over ТВ; 4) Regulatory — ФЗ-270 о госпабликах, запрет Meta/Facebook/Instagram; 5) Political — консолидация государственных медиа (VGTRK, МИА «Россия сегодня»); 6) National sovereign digital ecosystem after 2022. Практический кейс: рост VK Видео после 2022 — бенефициар ухода YouTube alternatives, контентные инвестиции $500M+ привели к удвоению аудитории; сочетание technology investments (рекомендательные алгоритмы), regulatory tailwinds и economic incentives. Обоснование: успех медиа-бизнеса зависит от чтения и response на multiple forces одновременно."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки анализа медиабизнеса: PESTEL-анализ рынка, Porter's 5 Forces applied к конкретной нише, построение business model canvas для медиа-проекта, финансовое моделирование (CAC, LTV, ARPU, churn). Отслеживание trends через отраслевые источники (eMarketer, Statista, Mediascope, PwC Global Entertainment and Media Outlook). Владение терминологией: PESTEL, Porter's 5 Forces, business model canvas, disruption, attention economy, subscription economy, creator economy, platform economy, walled garden, open web, data monetization."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, развитие медиабизнеса определяется сложной комбинацией технологических, экономических, социальных и регуляторных сил. В РФ после 2022 эти силы сложились в уникальный паттерн: ускоренная национализация digital-экосистемы. Перспективы: AI будет следующей доминирующей силой (GenAI content, AI-powered personalization, AI-curated experiences), metaverse как потенциально transformative платформа, sustainability reporting как новый стандарт."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ медиа-моделей: 4 модели Hallin-Mancini (liberal, democratic corporatist, polarized pluralist, state-oriented). Инвестиционный ландшафт: глобальные M&A в медиа ($100B+ annually), венчурные инвестиции в media-tech, gov-backed инициативы. Междисциплинарные связи: экономика (industrial organization), стратегический менеджмент, политэкономия коммуникаций, теория инноваций (Schumpeter, Christensen). Визуализация: PESTEL-диаграмма для медиа; Porter's 5 Forces; business model canvas пример."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.23",
+    "discipline_title": "Теория и экономика медиа",
+    "discipline_lecturer": "Вихрова Ольга Юрьевна, ВШГА МГУ, доцент",
+    "ticket_num": 8,
+    "title": "СМИ как отрасль современной экономики",
+    "canonical_answer_summary": "СМИ как отрасль: $2-3 трлн global revenue, $10B+ в РФ, включает print, broadcast, digital, entertainment, advertising, marketing services. Структура стоимости: content production, distribution, aggregation, monetization. Экономические особенности: network effects, economies of scale, low marginal cost (digital), двусторонние рынки (Rochet-Tirole).",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "СМИ как отрасль современной экономики — важнейший сектор глобального ВВП, демонстрирующий уникальные экономические характеристики (network effects, двусторонние рынки, низкие marginal costs). Понимание медиа как индустрии с её специфическими законами — компетенция магистра ГМУ в цифровых коммуникациях. Завершающий билет по теории и экономике медиа. Цель — раскрыть отрасль СМИ как экономическую систему."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "СМИ как отрасль — совокупность экономических акторов, производящих, распространяющих и монетизирующих медиа-контент. Глобальный рынок: $2-3 трлн (PwC Outlook 2024), включает: printed press, broadcast TV, cable TV, radio, cinema, music, video games, internet advertising, streaming, publishing, marketing services. Структура value chain: 1) Content production (создание контента — studios, newsrooms, creators); 2) Aggregation (сборка в product — platforms, channels, publications); 3) Distribution (доставка к аудитории — networks, platforms, infrastructure); 4) Consumption (потребление — devices, interfaces); 5) Monetization (монетизация — advertising, subscriptions, commerce, donations). Экономические особенности медиа: 1) Network effects — ценность растёт с числом пользователей (соцсети, маркетплейсы); 2) Economies of scale — high fixed costs, low marginal costs (особенно digital); 3) Two-sided markets (Rochet-Tirole) — платформы соединяют producers и consumers; 4) Information asymmetry — aud. не знает quality до потребления (experience goods); 5) Network externalities (Metcalfe's law); 6) Long tail distributions (Anderson — niche контент накопленно = mainstream). Российский рынок: ~1 трлн руб. (2024), доминирование digital (70%+), крупнейшие media-компании — ВГТРК, Первый канал, Яндекс, VK, Сбер.Медиа, Газпром Медиа, Russia Today."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика российского медиа-рынка: 1) Крупнейшие холдинги: ВГТРК (государственный), Газпром Медиа Холдинг (Rutube, НТВ, ТНТ, Матч), Национальная Медиа Группа (СТС, Домашний, РЕН, Карусель), ЮТВ, ЦПЛТ; 2) Digital-лидеры: Яндекс (рекламный доход $3-4B), VK ($1.5B), Ozon Media (растущий рекламный бизнес); 3) Печатные СМИ — consolidation, но сохранение на специализированных рынках (Ведомости, Коммерсантъ, РБК); 4) Radio — профиль Газпром Медиа (Авторадио, Дорожное Радио). Практический кейс: Яндекс Дзен как self-sustaining платформа с >5 млн creators и $500M+ revenue (до выделения из Яндекса в 2024) — экосистема с встроенной рекламой, subscription, commerce. Обоснование: успешное медиа-предприятие сегодня чаще строится как платформа с network effects, чем классический newsroom."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки работы с отраслью медиа: понимание её структуры, чтение industry reports (Mediascope, PwC, Deloitte), финансовое моделирование (CAC, LTV, unit economics), strategic analysis компаний (Porter's 5 Forces, SWOT). Владение терминологией: media industry, media value chain, content aggregation, distribution, two-sided market (Rochet-Tirole), network effects, economies of scale, ARPU, churn, lifetime value, take rate (% commission платформы), walled garden, open web, creator economy."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, СМИ как отрасль современной экономики — крупный сектор со специфической экономической логикой (network effects, two-sided markets, low marginal costs). В РФ отрасль после 2022 прошла трансформацию с усилением национальных игроков (VK, Яндекс, Сбер.Медиа) и ослаблением западных. Перспективы: AI-driven media businesses (контент, персонализация, оптимизация), metaverse как новая платформа, дальнейшая консолидация around нескольких крупных экосистем."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ медиа-рынков: США ($800B+, fragmented), Китай ($200B+, dual system), ЕС ($200B+, fragmented), РФ ($10B+, consolidating), Индия (fastest growing). Классика теории медиа-экономики: Robert Picard «Media Economics» (учебник), Eli Noam «Media Ownership and Concentration», Albarran «Management of Electronic and Digital Media». Междисциплинарные связи: экономика (industrial organization — Tirole, платформы — Rochet), media studies, менеджмент. Визуализация: value chain медиа-отрасли; сравнительная таблица бизнес-моделей (ad-supported vs subscription vs commerce) с примерами."
+      }
+    }
+  }
+]

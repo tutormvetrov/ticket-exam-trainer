@@ -1,0 +1,274 @@
+[
+  {
+    "discipline_code": "3.26",
+    "discipline_title": "Прикладное моделирование и системы искусственного интеллекта",
+    "discipline_lecturer": "Мендель Анна Владимировна, кандидат экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 1,
+    "title": "Основные понятия и инструменты искусственного интеллекта (ИИ)",
+    "canonical_answer_summary": "ИИ — область CS, создающая системы имитирующие человеческий интеллект. Уровни: narrow AI (текущий), AGI, ASI. Инструменты: ML frameworks (TensorFlow, PyTorch, JAX), ML-платформы (Yandex DataSphere, SberCloud MLSpace), pre-trained models (HuggingFace). История: Turing 1950, Dartmouth 1956, deep learning revolution 2012+.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Искусственный интеллект — фундаментальная область компьютерных наук, которая переживает 3-ю волну развития (deep learning+foundation models, 2012+). Понимание базовых понятий и инструментов — точка входа в прикладное моделирование. Для магистра ГМУ в ИИ освоение этой базы — профессиональная основа. Цель ответа — раскрыть ключевые понятия, уровни AI и современный инструментарий."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "ИИ — область CS, создающая системы, способные выполнять задачи, традиционно требующие человеческого интеллекта. Уровни: 1) Narrow AI (ANI) — решает конкретные задачи (сегодняшняя реальность — все существующие AI); 2) AGI (Artificial General Intelligence) — человеческий уровень во всех задачах (target); 3) ASI (Superintelligence) — превосходящий человека. Подобласти: ML (Machine Learning), DL (Deep Learning), NLP, Computer Vision, Robotics, Expert Systems. История: 1) Turing Test 1950; 2) Dartmouth Workshop 1956 (рождение AI); 3) AI Winters 1970s, 1980s (падение ожиданий); 4) Expert systems 1980s; 5) ML renaissance 1990-2000s; 6) Deep learning revolution 2012 (AlexNet); 7) Transformer 2017; 8) LLM era 2018+ (GPT, BERT); 9) Generative AI 2022+ (ChatGPT, Stable Diffusion). Современные инструменты: 1) ML frameworks — TensorFlow, PyTorch (dominant), JAX; 2) Cloud ML platforms — AWS SageMaker, Google Vertex AI, Azure ML, Yandex DataSphere (РФ), SberCloud MLSpace (РФ); 3) Model repositories — Hugging Face (open-source hub); 4) LLM APIs — OpenAI, Anthropic, Google, GigaChat (РФ), YandexGPT (РФ); 5) AutoML — DataRobot, H2O.ai, AutoGluon (упрощают ML)."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Отечественные ML-платформы Yandex DataSphere, SberCloud MLSpace позволяют работать на российской инфраструктуре; 2) Hugging Face активно используется для доступа к pre-trained models; 3) отечественные модели — GigaChat (Сбер), YandexGPT (Яндекс), Saiga (MTS), rubert (DeepPavlov); 4) ML-сообщества в РФ — ODS (Open Data Science) 50+ тыс. участников, Kaggle сообщества. Международные разработки: OpenAI o1 (reasoning model), Anthropic Claude 3.5/4 Sonnet/Opus, Google Gemini 2.5 Pro, Meta Llama 3. Практический кейс: AutoML стал стандартом для non-experts — Yandex AutoML может быстро решить типовую задачу классификации без deep expertise в ML, что радикально снижает порог входа. Обоснование: AI democratized — не только для ML-инженеров, но для широкого круга пользователей."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Базовые навыки: Python как lingua franca ML, работа с pandas/scikit-learn, понимание основных алгоритмов (linear regression, decision trees, neural networks), умение использовать pre-trained models через Hugging Face. Владение терминологией: artificial intelligence (AI), machine learning (ML), deep learning (DL), artificial neural network (ANN), supervised/unsupervised learning, reinforcement learning (RL), foundation model, pre-trained model, fine-tuning, transfer learning, AutoML, no-code AI."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, AI — фундаментальная область с богатой историей и развитой экосистемой современных инструментов. В РФ сформирована собственная ML-экосистема (Yandex DataSphere, SberCloud, отечественные LLM). Перспективы: foundation models как универсальная платформа, dominance multimodal AI, development AGI (оценочно 2028-2035), democratization AI через low-code/no-code."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ подходов: symbolic AI (rule-based, knowledge graphs) vs connectionist AI (neural networks, dominant), neurosymbolic (гибрид). Сравнение frameworks: TensorFlow (Google, production-ориентированный), PyTorch (Meta, research-ориентированный, now dominant), JAX (Google Research, emerging). Междисциплинарные связи: computer science, math (linear algebra, calculus, probability), statistics, cognitive science. Визуализация: timeline AI history; ML stack — frameworks → models → applications."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.26",
+    "discipline_title": "Прикладное моделирование и системы искусственного интеллекта",
+    "discipline_lecturer": "Мендель Анна Владимировна, кандидат экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 2,
+    "title": "Прикладное моделирование и предиктивная аналитика",
+    "canonical_answer_summary": "Прикладное моделирование — создание математических моделей реальных систем для анализа и прогнозирования. Predictive analytics — ML для прогноза будущих событий. Методы: regression, time series, classification. Process: data → features → model → deploy → monitor.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Прикладное моделирование и предиктивная аналитика — центральная методология применения математики и ML к решению реальных business-задач. От прогноза спроса до риск-скоринга в банках, от предсказания оттока клиентов до прогноза загрузки инфраструктуры — predictive analytics широко применяется. Для магистра ГМУ — прикладной инструмент. Цель — раскрыть основы предиктивной аналитики."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Предиктивная аналитика (predictive analytics) — использование статистических и ML-моделей для прогнозирования будущих событий на основе исторических данных. Типы задач: 1) Classification — предсказание категории (спам/не спам, churn/no churn); 2) Regression — предсказание числа (цена, спрос, температура); 3) Time series forecasting — прогноз временных рядов (продажи, инфляция); 4) Survival analysis — предсказание времени до события (отказ оборудования). Classical algorithms: linear/logistic regression, decision trees, random forest, gradient boosting (XGBoost, CatBoost, LightGBM), SVM, k-NN. Deep learning for прогноза: RNN, LSTM, GRU для временных рядов, Transformers для sequence. ML Process (CRISP-DM): 1) Business understanding; 2) Data understanding; 3) Data preparation (cleaning, feature engineering); 4) Modeling (train multiple models); 5) Evaluation (metrics, validation); 6) Deployment (production). Метрики: classification (accuracy, precision, recall, F1, AUC-ROC), regression (MAE, RMSE, R²), time series (MAPE, sMAPE). Challenges: data quality, feature engineering, overfitting, concept drift (data distribution changes over time)."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Сбер Fraud Detection — predictive модели детектируют fraud в real-time; 2) ФНС АСК-НДС-2 — predictive анализ налоговых разрывов; 3) Яндекс Такси — ML для прогноза спроса, оптимизации supply; 4) Газпром нефть — прогноз добычи нефти; 5) Северсталь — прогноз качества стали; 6) ДИТ Москвы — прогноз пассажиропотока. Инструменты: CatBoost (Яндекс, open-source), LightGBM (Microsoft), H2O.ai, DataRobot. Практический кейс: X5 Retail — ML-модель прогноза спроса на 1000+ товаров в 20 000+ магазинах; повышение accuracy приводит к снижению waste на 5% (сотни миллионов руб/год). Обоснование: правильно построенная predictive модель даёт измеримый business value."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки predictive modeling: feature engineering (извлечение informative features из данных), model selection (выбор алгоритма под задачу), hyperparameter tuning (GridSearch, RandomSearch, Bayesian optimization — Optuna), cross-validation. Работа в Python (pandas, scikit-learn, XGBoost/LightGBM/CatBoost), Jupyter notebooks, MLflow для experiment tracking. Владение терминологией: predictive analytics, feature engineering, overfitting, regularization, cross-validation, hyperparameter tuning, gradient boosting, ensemble methods, concept drift, model monitoring, MLOps."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, прикладное моделирование и predictive analytics — зрелая методология с огромной практической ценностью. В РФ активно применяется в финансах, ритейле, промышленности, государственном секторе (ФНС). Перспективы: AutoML democratizes predictive modeling, foundation models as feature extractors, causal ML (от predictions к intervention effects), real-time prediction serving."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ подходов: classical ML (interpretable, works on tabular data), deep learning (better for unstructured — images/text/audio, hard to interpret), hybrid (feature extraction DL + tabular ML). Российские отечественные библиотеки: CatBoost (Яндекс), ClearML (ClearML.AI), PIX.ML. Междисциплинарные связи: statistics, math, data science, specific domain expertise. Визуализация: CRISP-DM process; ML workflow от data до deploy."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.26",
+    "discipline_title": "Прикладное моделирование и системы искусственного интеллекта",
+    "discipline_lecturer": "Мендель Анна Владимировна, кандидат экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 3,
+    "title": "Машинное обучение и нейронные сети",
+    "canonical_answer_summary": "ML — подраздел AI, изучающий алгоритмы, обучающиеся из данных. Нейронные сети — класс ML моделей, inspired биологическими нейронами. Виды: feedforward, CNN (изображения), RNN (последовательности), Transformer (современный SOTA). Обучение: backpropagation + gradient descent.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Машинное обучение и нейронные сети — основа современного AI. Нейронные сети после 2012 (AlexNet) стали доминирующим подходом в ML, а с 2017 (Transformer) революционизировали NLP и мультимодальные задачи. Для магистра ГМУ в ИИ необходимо базовое понимание этой технологии. Цель — раскрыть концепции ML, нейронных сетей и их обучения."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Machine Learning (Tom Mitchell 1997) — «программа обучается из опыта E для задачи T с метрикой P если её производительность на T, измеряемая P, улучшается с E». Парадигмы: supervised (размеченные данные), unsupervised (без разметки), reinforcement (обучение через reward), self-supervised (основа современных LLM). Нейронные сети (Artificial Neural Networks, ANN) — computational models, inspired биологическими нейронами. Perceptron (Rosenblatt 1958) — simplest ANN. Multi-Layer Perceptron (MLP) — универсальный аппроксиматор (Cybenko 1989). Архитектуры: 1) Feedforward (MLP) — data flows one direction; 2) CNN (Convolutional, LeCun 1989) — свёртки для локальных паттернов (зрение); 3) RNN (Recurrent) — loops для sequence (Elman 1990, LSTM Hochreiter&Schmidhuber 1997); 4) Transformer (Vaswani et al. 2017) — self-attention, revolutionary для NLP; 5) Diffusion models (Ho et al. 2020) — generation. Обучение: 1) Forward pass — вычисление предсказания; 2) Loss function — оценка ошибки (MSE, CrossEntropy); 3) Backpropagation (Rumelhart 1986) — вычисление градиентов; 4) Gradient descent (SGD, Adam, AdamW) — обновление весов. Регуляризация: dropout, batch normalization, weight decay. Компоненты successful training: data (миллионы-миллиарды examples), compute (GPUs/TPUs), architecture, optimization."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика: 1) CNN — Facerecognition (Moscow transport, биометрия); 2) LSTM — прогнозы временных рядов (ФНС, Роспатент); 3) Transformer — GigaChat, YandexGPT, ruBERT для NLP; 4) Diffusion — Kandinsky (Сбер) для generation изображений; 5) RNN/GRU — Speech Recognition (Яндекс СпитКит). Обучение моделей в РФ: 1) Сбер AI Factory обучает модели на миллионах transactions; 2) Яндекс обучает YandexGPT, AutoML; 3) MTS обучает Saiga; 4) open-source — DeepPavlov, ruBERT от ruBERT Team. Практический кейс: обучение GigaChat Сбером — миллиарды параметров, петабайты данных, тысячи GPU; проект сопоставимый с OpenAI GPT-3 масштабами; результат — production-grade LLM для russian language. Обоснование: нейронные сети — main enabler современного AI breakthrough, владение базой необходимо."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки работы с ML/NN: Python + PyTorch или TensorFlow, понимание backpropagation intuitively, training loops, использование pre-trained models через Hugging Face. Compute требования (GPU/TPU). Владение терминологией: artificial neural network (ANN), perceptron, multi-layer perceptron (MLP), activation function (ReLU, sigmoid, GELU), convolutional neural network (CNN), recurrent neural network (RNN), LSTM, Transformer, self-attention, backpropagation, gradient descent, Adam optimizer, dropout, batch normalization."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, ML и нейронные сети — foundation современного AI. Transformers доминируют в language и мультимодальных задачах, CNN остаются стандартом в computer vision. В РФ развивается собственная экосистема обучения нейросетевых моделей. Перспективы: state space models (Mamba, RWKV) как альтернатива Transformer, neurosymbolic AI, quantum-inspired neural networks, world models (Yann LeCun's vision)."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ архитектур: MLP (общая, но требует feature engineering), CNN (локальность, для изображений), RNN/LSTM (sequential, vanishing gradients), Transformer (attention, current SOTA, O(n²) complexity). Размеры моделей: от простых MLP (тысячи параметров) до GPT-4 (триллионы). Междисциплинарные связи: neuroscience (биологическое inspiration), math (linear algebra, calculus), CS (distributed systems для training). Визуализация: эволюция архитектур NN; diagram Transformer attention mechanism."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.26",
+    "discipline_title": "Прикладное моделирование и системы искусственного интеллекта",
+    "discipline_lecturer": "Мендель Анна Владимировна, кандидат экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 4,
+    "title": "Глубокое обучение и компьютерное зрение",
+    "canonical_answer_summary": "Deep Learning (DL) — ML с many-layer нейронными сетями. Революция с 2012 (AlexNet). Computer Vision (CV) — distinct область: image classification, object detection, segmentation, video analysis. Архитектуры: CNN (LeNet → AlexNet → ResNet → EfficientNet), Vision Transformer (ViT).",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Глубокое обучение (deep learning) и computer vision — области, которые определили современный AI-boom. С 2012 (AlexNet Triumph на ImageNet) CV стало крылом DL-революции. Для магистра ГМУ в ИИ понимание DL и CV — профессиональная база. Цель ответа — раскрыть концепции глубокого обучения и компьютерного зрения, их применение."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Deep Learning (DL) — подраздел ML, использующий нейронные сети с многими слоями (deep). Отличия от классического ML: 1) feature learning (сеть сама learns features) vs feature engineering (вручную); 2) scale (миллионы-миллиарды параметров); 3) data hungry (требует больше данных). Ключевые концепции: representation learning, hierarchical features, end-to-end training. Computer Vision (CV) — область об обучении компьютеров «видеть». Задачи: 1) Image Classification — категория (Cat/Dog); 2) Object Detection — bounding boxes + classes (YOLO, Faster R-CNN); 3) Semantic Segmentation — pixel-level classes (U-Net, Mask R-CNN); 4) Instance Segmentation — отдельные объекты; 5) Keypoint Detection — скелеты, лица (MediaPipe); 6) Image Generation — GAN, diffusion (Stable Diffusion, Kandinsky); 7) Video Analysis — tracking, action recognition. CNN архитектуры: LeNet (1989, цифры), AlexNet (2012, ImageNet breakthrough), VGG (2014, simple), ResNet (2015, skip connections), EfficientNet (2019, scaling). Vision Transformer (ViT, 2020) — Transformer для изображений, challenges CNN dominance. Инструменты: PyTorch, TensorFlow, OpenCV (classical CV), MediaPipe (Google), Detectron2 (Meta)."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Facerecognition в московском метро (240 млн проходов/год, CNN-based); 2) «Безопасный город» — 170 тыс. камер с CV-анализом (распознавание инцидентов); 3) ГИБДД — автоматическая фиксация нарушений; 4) Северсталь — CV контроль качества стали; 5) Газпром нефть — CV для мониторинга буровых; 6) Kandinsky (Сбер) — AI-генерация изображений в стиле DALL-E; 7) ViTech Russia — медицинская визуализация с AI. Практический кейс: Visionlabs — российский пионер facial recognition; биометрическая система используется в банках, транспорте, access control; российский лидер в области. Обоснование: CV — одна из самых зрелых application областей DL, с много practical wins."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки CV/DL: работа с PyTorch (torch, torchvision), использование pre-trained models (ResNet, EfficientNet, ViT), fine-tuning на custom dataset, использование Stable Diffusion для generation. Classical CV — OpenCV для предобработки. Владение терминологией: deep learning, convolutional neural network (CNN), pooling, stride, padding, feature map, transfer learning, ImageNet, COCO (benchmark для object detection), IoU (Intersection over Union), mAP (mean Average Precision), generative adversarial network (GAN), diffusion model."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, DL и CV — зрелые, high-impact области AI с множеством practical applications. В РФ развивается сильная компетенция в CV (Visionlabs, Kandinsky). Перспективы: multimodal foundation models (GPT-4V, Claude 3 Sonnet с vision), video LLM, 3D generation (NeRF, Gaussian Splatting), AI-powered medical diagnostics, autonomous driving progress."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ CV архитектур: CNN (локальные свёртки), ViT (attention, global), hybrids (ConvNeXt). Benchmarks: ImageNet (классика), COCO (detection/segmentation), ADE20K (scene parsing). Международные лидеры: OpenAI CLIP, Google Gemini Vision, Meta Segment Anything. Междисциплинарные связи: neuroscience (visual cortex), computer graphics, image processing, photography. Визуализация: hierarchy CV tasks (classification → detection → segmentation → generation); timeline CV breakthroughs."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.26",
+    "discipline_title": "Прикладное моделирование и системы искусственного интеллекта",
+    "discipline_lecturer": "Мендель Анна Владимировна, кандидат экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 5,
+    "title": "Обработка естественного языка (NLP) и экспертные системы",
+    "canonical_answer_summary": "NLP — обработка human language компьютером. Задачи: classification, NER, MT, QA, summarization, generation. Эволюция: rule-based → statistical → neural → Transformer (BERT, GPT) → LLM. Экспертные системы — rule-based AI, доминировали 1980s; replace by ML.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Обработка естественного языка (NLP) — область, в которой AI достиг впечатляющих успехов. От простого rule-based классификации до Large Language Models, способных пройти Turing Test-like оценки. Экспертные системы — исторически важный класс AI — постепенно замещаются ML-approach. Для магистра ГМУ в ИИ NLP — самая прикладная область. Цель — раскрыть NLP и роль экспертных систем."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "NLP (Natural Language Processing) — обработка естественного языка компьютером. Задачи: 1) Text Classification (спам, sentiment); 2) Named Entity Recognition (NER — извлечение имён, мест); 3) Part-of-Speech Tagging; 4) Parsing (syntax trees); 5) Machine Translation (MT); 6) Question Answering (QA); 7) Summarization; 8) Text Generation (LLM); 9) Dialogue Systems (чат-боты); 10) Sentiment Analysis. Эволюция NLP: 1) Rule-based (1950-60s, ELIZA 1966); 2) Statistical (1990s, HMM, CRF); 3) Word embeddings (word2vec 2013, GloVe); 4) Recurrent (LSTM, GRU 2010s); 5) Attention (2014, Bahdanau); 6) Transformer (Vaswani 2017); 7) Pre-trained language models (BERT 2018, GPT 2018); 8) LLM era (GPT-3 2020, ChatGPT 2022). Экспертные системы (ES) — symbolic AI с rule-based knowledge base (MYCIN 1970s — медицинская диагностика, DENDRAL — химия). Структура ES: knowledge base (rules) + inference engine + user interface. Золотой век: 1980s. Ограничения: knowledge acquisition bottleneck, brittleness, отсутствие learning. Замещение: современный ML self-learns из данных; ES как paradigm в основном replaced."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика NLP в РФ: 1) ruBERT (DeepPavlov) — российский BERT, используется сотнями компаний; 2) GigaChat (Сбер), YandexGPT (Яндекс), Saiga (MTS) — LLM; 3) natasha (NLP для русского); 4) pymorphy3 — морфологический анализ; 5) МВД — auto-classification обращений граждан; 6) ФНС — NLP на judicial decisions; 7) Minzdrav — NER на медицинских текстах; 8) Госуслуги.Ассистент — LLM-ассистент для вопросов по госуслугам. Экспертные системы в РФ — исторически были (НИИ АН), сейчас — нишевые применения (медицинская диагностика, юридические consulting). Практический кейс: GigaChat Mono — enterprise-LLM от Сбера для госклиентов; позволяет обрабатывать нормативные документы, генерировать drafts, отвечать на вопросы по базе знаний; 50+ госорганизаций используют в 2024. Обоснование: переход от rule-based к LLM радикально расширил применимость NLP в госуправлении."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Практические навыки: работа с LLM через API (GigaChat, YandexGPT, Claude), prompt engineering, fine-tuning open-source LLM (LLaMA, Mistral), построение RAG-системы (Retrieval-Augmented Generation). Классические NLP — Hugging Face, natasha, pymorphy3. Владение терминологией: NLP, tokenization, word embedding, BERT, GPT, Transformer, attention mechanism, pre-training, fine-tuning, LLM (Large Language Model), prompt engineering, RAG (Retrieval-Augmented Generation), hallucination, context window, emergence."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, NLP пережил радикальную трансформацию с Transformer и LLM — от нишевой академической области к мэйнстрим-технологии. Экспертные системы в основном unified через ML-approach, но принципы (structured knowledge) возвращаются в neurosymbolic AI. В РФ активно развивается LLM-экосистема для русского. Перспективы: multilingual LLM, domain-specific models (legal, medical), agentic AI (LLM + tools), RAG как стандарт enterprise AI."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ эволюции NLP: rule-based (narrow, brittle), statistical (scalable, limited), neural (flexible, lots of data), LLM (emergent capabilities). Сравнение русских LLM: GigaChat (Сбер, сильная economics/госsector), YandexGPT (Яндекс, сильная в поиске), Saiga (MTS, open-source). Междисциплинарные связи: linguistics (formal grammars, semantics), cognitive science, corpus linguistics. Визуализация: timeline NLP breakthroughs; сравнение rule-based vs statistical vs neural подходов."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.26",
+    "discipline_title": "Прикладное моделирование и системы искусственного интеллекта",
+    "discipline_lecturer": "Мендель Анна Владимировна, кандидат экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 6,
+    "title": "Системы ИИ в социально-экономическом моделировании и принятии решений",
+    "canonical_answer_summary": "AI в социально-экономическом моделировании: расширяет classical эконометрику ML-методами. Применения: macroeconomic forecasting, policy evaluation (causal ML), agent-based modeling усиленный AI, simulation models. В РФ — применяется в ЦБ, Минэке, академических центрах.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Системы ИИ всё активнее применяются в социально-экономическом моделировании — от прогнозов макропоказателей до оценки эффектов мер господдержки. ML расширяет classical эконометрику новыми методами (causal ML, non-parametric inference), а agent-based modeling усиливается AI-агентами. Для магистра ГМУ это область на пересечении экономики и AI. Цель — раскрыть применение AI в социально-экономическом моделировании."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Применение AI в social-economic modeling: 1) Macroeconomic forecasting — ML для прогнозов ВВП, инфляции, безработицы (Sbank ML-модели vs VAR); 2) Policy evaluation — causal ML (DoWhy by Microsoft, EconML, doubleML) для оценки эффектов мер политики (minimum wage → employment, таксы → розничные цены); 3) Agent-Based Modeling (ABM) enhanced by AI — агенты с ML-моделями поведения вместо fixed rules; 4) Simulation models — AI-simulated consumer behavior, markets; 5) Text-based analysis of economic documents (policy papers, central bank statements) через LLM; 6) Labor market analytics — matching workers and jobs, skill forecasting. Классика: эконометрика Heckman (selection bias), Angrist&Imbens (IV, natural experiments, Nobel 2021). ML-enhancements: 1) double/debiased ML (Chernozhukov) — ML для estimation causal effects; 2) heterogeneous treatment effects — учёт различий эффектов по группам; 3) policy optimization — meta-learners (X-learner, R-learner). Теоретические основы: Judea Pearl causality ladder (association → intervention → counterfactual), do-calculus."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Банк России — ML-модели inflationary forecasting (на добавление к DSGE), economic sentiment analysis на news; 2) Минэкономразвития — ML в макропрогнозах; 3) ЦСР (Центр стратегических разработок) — применение AI для анализа стратегий; 4) НИФИ Минфина — модели пенсионной системы, бюджетный прогноз; 5) HSE Lab Quantitative Economics — передовые методы causal ML. Международные примеры: OECD использует ML в analysis policies; IMF — в surveillance economies. Практический кейс: оценка эффектов мер господдержки МСП через causal ML (RF vs matched controls) — НИУ ВШЭ исследование показало heterogeneous effects: наибольший impact в IT-секторе, наименьший в традиционной retail. Обоснование: AI в социально-экономическом моделировании даёт более точные и actionable insights, чем classical эконометрика."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки AI в economic modeling: работа с causal ML libraries (DoWhy, EconML, doubleML), проведение policy evaluation (DiD, IV, RDD with ML-enhancement), сonstruction of ABM с ML-agents. Python — econml, statsmodels, pandas, pymc (bayesian). Владение терминологией: causal ML, double/debiased ML, heterogeneous treatment effects (HTE), conditional average treatment effect (CATE), meta-learners (T/S/X-learner), propensity score, doubly robust estimation, DSGE model, VAR model."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, AI интегрируется в социально-экономическое моделирование, расширяя classical approaches ML-методами и causal inference. В РФ применяется в ЦБ, Минэке, академических центрах, но более широко применение — впереди. Перспективы: foundation models для economics (econ-GPT как concept), integration causal ML в государственную политику, real-time policy simulation, AI-powered digital twin of national economy."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ подходов: classical econometrics (limited flexibility, strong identification), ML-enhanced (flexible, weaker identification), causal ML (combines both). Ключевые tools: DoWhy (Microsoft), EconML (Microsoft), doubleML (Chernozhukov et al.), CausalML (Uber). Междисциплинарные связи: economics, statistics, causal inference (Pearl), policy evaluation. Визуализация: Pearl causality ladder; workflow causal ML analysis."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.26",
+    "discipline_title": "Прикладное моделирование и системы искусственного интеллекта",
+    "discipline_lecturer": "Мендель Анна Владимировна, кандидат экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 7,
+    "title": "Анализ больших данных в прогнозировании социально-экономических тенденций в государственном управлении",
+    "canonical_answer_summary": "Big Data в прогнозировании соц-эк тенденций: combination admin data + web data + soc media + IoT для richer insights. Применения: раннее detection кризисов, прогнозы рынков, monitoring социальных настроений. В РФ — ГАС «Управление», ФНС АСК, Росстат Big Data pilots.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Анализ больших данных для прогнозирования социально-экономических тенденций — горящее направление современного ГМУ. Государство получает доступ к массивам данных невозможных раньше (транзакции, соцсети, IoT, search queries), что позволяет делать early detection проблем и более точные прогнозы. Для магистра ГМУ в ИИ — прикладная компетенция. Цель — раскрыть применение big data в социально-экономическом прогнозировании."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Big Data для прогнозирования — использование больших объёмов, скоростей и разнообразия data для forecasting социально-экономических тенденций. Источники: 1) Administrative data — налоговые, пенсионные, регистр организаций (ФНС, ПФР); 2) Transactional data — банковские, retail-транзакции (Сбер, X5); 3) Web scraping — цены, объявления, news (for real-time inflation, sentiment); 4) Social media data — VK, Telegram для sentiment; 5) IoT data — геолокации, городские sensors; 6) Search data — Google Trends, Яндекс Wordstat для real-time interest indicators; 7) Satellite imagery — sentinel, для оценки экономической активности (ночное освещение); 8) Mobile location data — анонимизированные данные о перемещениях. Методы: 1) Nowcasting — real-time оценка текущего состояния экономики; 2) Early warning indicators (EWI); 3) High-frequency data integration (daily/weekly vs quarterly); 4) Alternative data для прогноза traditional indicators (например, search queries предсказывают безработицу). Теоретические основы: Einav&Levin «The data revolution and economic analysis» (2014), IMF Working Paper on Big Data in economic forecasting."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) ФНС АСК-НДС-2 — real-time анализ всех транзакций на Big Data; 2) ЦБ РФ — nowcasting инфляции через alternative data (retail price tracking, search queries); 3) Росстат — pilot проекты на Big Data (геоаналитика, транзакции); 4) ГАС «Управление» — агрегация multiple data sources для мониторинга нацпроектов; 5) Москва ДИТ — integrated data для городского управления. Международные примеры: 1) Billion Prices Project (MIT) — альтернативная инфляция через web scraping; 2) Google Flu Trends (отзывной из-за точности, но идея); 3) ECB использует credit card spending data для nowcasting. Практический кейс: использование credit card transaction data Сбера для real-time consumption tracking — позволяет отслеживать потребление в недельном режиме, а не квартальном (как Росстат); даёт Банку России faster view на economic conditions. Обоснование: Big Data позволяет видеть экономику в real-time, что радикально улучшает government responsiveness."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки Big Data в economics: работа с большими dataset (Spark, ClickHouse, Greenplum), web scraping (BeautifulSoup, Scrapy), integration multiple data sources, time series methods (ARIMA, VAR, ML-based). Понимание preservation anonymity (differential privacy, federated learning). Владение терминологией: big data, nowcasting, high-frequency data, alternative data, web scraping, geo-analytics, mobile location data, anonymization, differential privacy, federated learning, pseudo-panel."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, Big Data радикально меняет социально-экономический прогноз — от quarterly Росстат-отчётов к real-time economic dashboards. В РФ прогресс в этой области значителен, хотя есть и challenges (data sharing, privacy, coordination ведомств). Перспективы: AI-generated economic forecasts from unstructured data (news, reports), digital twin национальной экономики на живых данных, integration satellite data для monitoring activity, federated analytics для cross-institution analysis без data sharing."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ источников: traditional data (официальная статистика — slow, reliable), admin data (timely, comprehensive), alternative data (real-time, noisy). Подходы в разных странах: США (FRED alternative data, NBER pilots), ЕС (Eurostat experimental statistics), Китай (government access to all digital), РФ (ГАС «Управление», ФНС AI). Междисциплинарные связи: economics, statistics, data science, public policy. Визуализация: pyramid data sources — official → admin → alternative; nowcasting workflow."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.26",
+    "discipline_title": "Прикладное моделирование и системы искусственного интеллекта",
+    "discipline_lecturer": "Мендель Анна Владимировна, кандидат экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 8,
+    "title": "Системы ИИ и цифровая трансформация государственного сектора",
+    "canonical_answer_summary": "AI в цифровой трансформации госсектора: automation рутинных процессов, personalization госуслуг, data-driven decisions, predictive governance. Архитектура: platform (ГосТех) + AI-services + data + people. В РФ — ГосТех+GigaChat, ФНС АСК, проактивные услуги. Ключевые challenges: ethics, compliance, skills.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Системы ИИ становятся ядром цифровой трансформации государственного сектора. От автоматизации routine tasks до algorithmic decision-making и проактивных услуг — AI меняет правила игры государственного управления. Завершающий билет курса и дисциплины 3.26. Для магистра ГМУ в ИИ это интегральная перспектива профессии. Цель — синтезировать применение AI в цифровой трансформации госсектора."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Цифровая трансформация госсектора (ЦТ) с AI — следующий этап после digitization (перевод процессов в digital) и digitalization (оптимизация процессов). AI-driven ЦТ включает: 1) Process automation — RPA + AI для routine government tasks; 2) Decision support — AI-assistants для management decisions; 3) Predictive governance — forecasting needs, risks, outcomes; 4) Personalized services — персонализация госуслуг на основе profile граждан; 5) Proactive services — сервис приходит к гражданину автоматически (при детекции события); 6) Algorithmic regulation — правила как code; 7) Intelligent infrastructure — smart cities с AI-оптимизацией. Архитектура AI-enabled government: Platform layer (ГосТех) + Data layer (lakes, warehouses) + AI/ML services layer + Applications layer + Governance layer (ethics, compliance, oversight). Frameworks: OECD AI Readiness Index, Oxford Government AI Readiness Index. НПА РФ: Национальная стратегия развития ИИ до 2030 (обновлена 2024), федпроект «Искусственный интеллект» (в рамках Цифровой экономики), Указ № 490 (2019) о развитии ИИ в РФ."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика AI в госсекторе РФ: 1) ГосТех + GigaChat Mono — enterprise LLM для ФОИВ; 2) ФНС АСК-НДС-2 — AI-driven налоговое администрирование; 3) Москва — 170 тыс. камер с AI-распознаванием; 4) Сбер × Правительство РФ — партнёрство в AI-развитии; 5) Росатом — AI в АЭС, atomics; 6) Роспатент — AI в patents; 7) Минздрав — AI в radiology, screening; 8) Госуслуги.Ассистент — GenAI помощник. Инициативы: 1) «AI Russia 2030» стратегия; 2) Белая книга ИИ (Минэкономразвития); 3) ГОСТ Р 59276-2020 и серия стандартов по AI. Практический кейс: внедрение AI-ассистента на Госуслугах (конец 2023) — LLM-помощник отвечает на вопросы граждан 24/7, решает 40%+ вопросов без эскалации; сервис 15 млн раз в первый месяц использования. Обоснование: AI — ключевой rычаг трансформации госсектора к 2030 году; требует синхронного развития технологий, процессов, кадров, этики."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Итоговые навыки специалиста ГМУ в области ИИ: стратегическое видение AI в госсекторе, применение AI к своим задачам (prompt engineering, AutoML, выбор инструментов), управление AI-проектами, compliance и этика AI, data literacy и связь с AI-командами. Владение терминологией: AI-enabled government, algorithmic regulation, proactive government, digital twin of government, AI readiness, responsible AI, AI governance, AI ethics committee, national AI strategy, public sector AI."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, системы ИИ — центральная технология цифровой трансформации государственного сектора. В РФ стратегический курс на AI-enabled government через национальную стратегию 2030, платформу ГосТех, отечественные LLM. Для магистра ГМУ в ИИ — широкая карьерная перспектива в госсекторе, бизнесе, академии. Перспективы: AGI impact на госуправление (при достижении), интеграция AI в каждый процесс, regulatory catch-up, развитие AI-компетенций массы госслужащих. Успех цифровой трансформации определится не только технологиями, но и способностью общества и государства адаптироваться."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ AI-strategies: США (private-sector driven, Executive Orders), Китай (Made in China 2025 + national AI strategy), ЕС (EU AI Act + EU AI Factory), Сингапур (Smart Nation AI roadmap), РФ (Национальная стратегия AI до 2030). Oxford Government AI Readiness Index рейтинг: Сингапур, США, Финляндия — топ; РФ в топ-30. Международные примеры AI в госе: Estonia X-Road + AI, UK AI in government guidance, US federal AI strategy. Междисциплинарные связи: все дисциплины программы — AI интегрируется с экономикой, правом, коммуникациями, стратегическим управлением, безопасностью. Визуализация: AI-enabled government architecture (layers); maturity model от AI-aware до AI-transformative; mindmap всех application ИИ в ГМУ."
+      }
+    }
+  }
+]

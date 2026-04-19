@@ -1,0 +1,240 @@
+[
+  {
+    "discipline_code": "3.22",
+    "discipline_title": "Стратегическое лидерство",
+    "discipline_lecturer": "Новикова Ирина Викторовна, доктор экономических наук, доцент ВШГАдм МГУ",
+    "ticket_num": 2,
+    "title": "Основы стратегического лидерства",
+    "canonical_answer_summary": "Стратегическое лидерство — способность влиять на организацию через видение, адаптивность, отношения, этику, ориентацию на результат. Модели: transformational (Burns, Bass), authentic (George), servant (Greenleaf), Level 5 (Collins).",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Стратегическое лидерство — качественное состояние руководителя, выходящее за рамки операционного менеджмента: способность формировать видение будущего, вдохновлять команду, принимать непростые решения с long-term horizon. Для магистра ГМУ в цифровых коммуникациях развитие strategic-leadership-компетенций — приоритет карьерного роста. Актуальность — требования VUCA-среды, цифровой трансформации ФОИВ. Цель — раскрыть понятие и компоненты стратегического лидерства."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Стратегическое лидерство (Hitt&Ireland): «способность предвидеть, представлять, сохранять гибкость и поощрять других к созданию стратегических изменений». Отличие от операционного менеджмента: strategic leadership — направление (where), operational — эффективность (how well). Основные компоненты: 1) Visionary leadership — формирование видения будущего; 2) Adaptive leadership (Heifetz) — способность адаптировать организацию к изменениям; 3) Relational leadership — отношения, эмоциональный интеллект; 4) Ethical leadership — следование ценностям; 5) Results-oriented — ответственность за результат. Модели: 1) Transformational (Burns 1978, Bass 1985) — 4 I's: Idealized Influence, Inspirational Motivation, Intellectual Stimulation, Individualized Consideration; 2) Authentic (Bill George) — self-awareness, transparent; 3) Servant (Greenleaf 1970) — лидер как служитель команде; 4) Situational (Hersey-Blanchard) — адаптация стиля к зрелости команды; 5) Level 5 Leadership (Collins «Good to Great») — personal humility + professional will."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Программа «Лидеры России» (с 2017) — крупнейший управленческий конкурс, 200+ тыс. участников ежегодно; 2) Мастерская управления «Сенеж» — обучение губернаторского резерва, мэров; 3) Высшая школа государственного управления РАНХиГС — программы для руководителей ГМУ; 4) Корпоративные университеты — Сбербанк Корпоративный Университет, РЖД Корпоративный Университет; 5) MBA программы Сколково, МГИМО. Практический кейс: развитие команды молодых губернаторов через «Школу губернаторов» РАНХиГС — современные форматы (стратегические сессии, коучинг, международные стажировки); к 2024 г. 60% действующих губернаторов — выпускники программы. Обоснование: стратегическое лидерство не даётся от рождения, а системно формируется через обучение и практику."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки стратегического лидера: формулирование vision и key messages для команды, системное мышление, stakeholder management (mapping + engagement), change management (Коттер 8 шагов, ADKAR), emotional intelligence. Владение инструментами: стратегические сессии (фасилитация), коучинг команды, GROW model для development-бесед. Владение терминологией: strategic leadership, transformational leadership, authentic leadership, servant leadership, adaptive leadership, Level 5 Leadership, emotional intelligence, stakeholder engagement, change management, GROW model."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, стратегическое лидерство — многоаспектная компетенция, сочетающая видение, адаптивность, эмоциональный интеллект, этику и ориентацию на результат. В РФ сформирована инфраструктура развития стратегических лидеров. Перспективы: интеграция AI в обучение лидерству, развитие компетенций в digital leadership (управление распределёнными командами, data-driven решения), этический фокус (leadership в эпоху deepfake и fake news)."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ моделей: transformational (inspire change), transactional (reward/punish), servant (team-first), authentic (values-based). Сравнение систем развития лидеров: РФ (Лидеры России, Сенеж, РАНХиГС), США (Kellogg Executive, Harvard Business School), Сингапур (Civil Service College), Китай (CELAP Shanghai). Междисциплинарные связи: психология лидерства, менеджмент, поведенческая наука, коучинг, политология. Визуализация: пирамида компетенций стратегического лидера; спектр стилей Hersey-Blanchard."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.22",
+    "discipline_title": "Стратегическое лидерство",
+    "discipline_lecturer": "Новикова Ирина Викторовна, доктор экономических наук, доцент ВШГАдм МГУ",
+    "ticket_num": 3,
+    "title": "Основы стратегического мышления",
+    "canonical_answer_summary": "Стратегическое мышление — способ мышления с фокусом на долгосрочной перспективе, системности, альтернативности, неопределённости. Компоненты: видение, системное мышление, критическое мышление, креативность, работа со сценариями. Техники: Blue Ocean, Design Thinking, Scenario Planning.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Стратегическое мышление — качество ума, отличающее стратегического лидера от оперативного менеджера. Это способность видеть картину целиком, оперировать long-term horizons, учитывать неопределённость, находить нестандартные решения. Для магистра ГМУ развитие стратегического мышления — приоритет профессионального роста. Цель — раскрыть компоненты и техники стратегического мышления."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Стратегическое мышление (strategic thinking) — многоаспектный когнитивный процесс, включающий: 1) Видение будущего — способность представить long-term перспективу; 2) Системное мышление (systems thinking, Senge «Fifth Discipline») — видение взаимосвязей, обратных связей, эмерджентности; 3) Критическое мышление — проверка предположений; 4) Креативность — генерация нестандартных решений; 5) Работа с неопределённостью — scenario thinking. Автор концепции как отдельной дисциплины — Генри Минцберг (1994 «The Rise and Fall of Strategic Planning»). Отличие от strategic planning: planning — процесс, thinking — способность. Техники: 1) Scenario Planning (Shell, Pierre Wack); 2) Blue Ocean Strategy (Kim&Mauborgne — поиск незанятых рыночных пространств); 3) Design Thinking (IDEO); 4) First Principles Thinking (Musk); 5) Pre-mortem analysis (Gary Klein); 6) Red Team analysis."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Программы MBA (Сколково, РАНХиГС, МГИМО) включают курсы стратегического мышления; 2) Мастерская «Сенеж» — форматы с использованием сценарного мышления и design thinking; 3) «Лидеры России» — задачи на стратегическое мышление на финальных этапах; 4) корпоративные Strategy Days в Сбере, Газпром нефти, РЖД. Практический кейс: использование Scenario Planning при разработке Стратегии развития РФ до 2030 — построение 3 базовых сценариев (оптимистичный, базовый, стрессовый) для каждого ключевого блока (экономика, демография, технологии); позволило сформировать robust план. Обоснование: стратегическое мышление — тренируемая способность; практика в различных техниках развивает её."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки: проведение сценарных сессий (2×2 scenario matrix по ключевым uncertainties), применение Blue Ocean Strategy Canvas (четыре действия: eliminate, reduce, raise, create), использование First Principles для сложных задач. Работа с инструментами: Miro, Mural для визуальной фасилитации, Climate Interactive симуляторы. Владение терминологией: strategic thinking vs strategic planning, systems thinking, scenario planning, Blue Ocean Strategy, Red Ocean, Strategy Canvas, Four Actions Framework, Design Thinking, First Principles, pre-mortem, Red Team."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, стратегическое мышление — развиваемая компетенция, критически важная для современного государственного управленца. В эпоху ускоренных изменений стратегическое мышление становится вопросом профессионального выживания. Перспективы: AI-assisted стратегическое мышление (LLM как sparring partner для генерации сценариев), обучение через виртуальные симуляторы, кросс-дисциплинарные программы."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ техник: scenario planning (неопределённость), Blue Ocean (новые рынки), Design Thinking (человек в центре), First Principles (прорывные инновации). Соотношение со смежными: creativity (Amabile), critical thinking (Paul&Elder), systems thinking (Meadows, Senge). Междисциплинарные связи: когнитивная психология, философия, design studies, futures studies. Визуализация: 2×2 scenario matrix; Blue Ocean Strategy Canvas с 4 actions framework."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.22",
+    "discipline_title": "Стратегическое лидерство",
+    "discipline_lecturer": "Новикова Ирина Викторовна, доктор экономических наук, доцент ВШГАдм МГУ",
+    "ticket_num": 4,
+    "title": "Личностные аспекты стратегического лидера",
+    "canonical_answer_summary": "Личностные аспекты: характер (integrity, resilience, courage), мотивация, ценности, self-awareness, life-long learning. Модели: Big Five (OCEAN), Authentic Leadership (George), Level 5 (Collins). Развитие: self-reflection, coaching, mentoring, 360° feedback.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Стратегическое лидерство — не только набор навыков, но и глубокая личностная характеристика. Характер, ценности, мотивация, эмоциональная устойчивость определяют способность руководителя вдохновлять команду и принимать сложные решения. Для магистра ГМУ работа над собственной личностью как лидером — непрерывный процесс. Цель — раскрыть личностные аспекты стратегического лидерства."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Качества стратегического лидера: 1) Integrity (честность) — основа доверия; 2) Resilience (устойчивость) — восстановление после неудач; 3) Courage (смелость) — принятие непростых решений; 4) Self-awareness (самосознание) — понимание своих сильных и слабых сторон; 5) Curiosity — открытость новому; 6) Humility — готовность учиться; 7) Accountability — признание ошибок. Психологические модели: 1) Big Five (OCEAN: Openness, Conscientiousness, Extraversion, Agreeableness, Neuroticism); 2) Authentic Leadership (Bill George — 5 dimensions: purpose, values, relationships, self-discipline, heart); 3) Level 5 Leadership (Jim Collins) — personal humility + professional will. Развитие: 1) Self-reflection (дневники, медитация); 2) 360° feedback; 3) Coaching (ICF стандарты); 4) Mentoring; 5) Life-long learning; 6) Stretch assignments — выход из зоны комфорта."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) «Лидеры России» — оценочные сессии проверяют личностные качества через кейсы; 2) «Сенеж» — работа с ценностями и мотивами; 3) Executive coaching для высшего руководства (сильный рынок — 50+ сертифицированных ICF-коучей в РФ); 4) 360° feedback в госкорпорациях (Сбер, Росатом, Газпром); 5) Московская школа управления СКОЛКОВО — менторские программы. Практический кейс: трансформация корпоративной культуры Сбера под руководством Германа Грефа (2007-2023) — личный пример лидера: постоянное обучение (MBA INSEAD), открытость, long-term perspective; превратил Сбер из традиционного банка в технологическую экосистему. Обоснование: личностные аспекты лидера — основной ресурс изменений, без личной трансформации невозможна трансформация организации."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки работы над личностью: self-reflection (журналинг, Stoic meditation), работа с персональным коучем (1-2 сессии в месяц), получение 360°-feedback (ежегодно), чтение классиков лидерства (Collins, Kouzes&Posner, Goleman), развитие физической выносливости как основы resilience. Владение терминологией: Big Five personality model, authentic leadership, psychological safety, growth mindset (Dweck) vs fixed mindset, self-awareness, emotional agility, resilience, executive presence."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, личностные аспекты — основа стратегического лидерства. Integrity, resilience, courage, self-awareness — качества, развиваемые через систематическую работу. В РФ формируется инфраструктура развития лидеров (программы, коучи). Перспективы: интеграция нейронаук (neurofeedback, biohacking для resilience), AI-powered персонализированное development, фокус на well-being руководителей (burnout prevention)."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ моделей личности: MBTI (популярная, но низкая валидность), Big Five (научный стандарт), CliftonStrengths, Hogan Assessment. Философские основания: стоицизм (Marcus Aurelius, Seneca), буддизм (mindfulness), восточно-христианское наследие. Междисциплинарные связи: психология личности, поведенческая психология, философия, нейронаука. Визуализация: Big Five profile; колесо self-development."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.22",
+    "discipline_title": "Стратегическое лидерство",
+    "discipline_lecturer": "Новикова Ирина Викторовна, доктор экономических наук, доцент ВШГАдм МГУ",
+    "ticket_num": 5,
+    "title": "Основы эмоционального интеллекта",
+    "canonical_answer_summary": "Эмоциональный интеллект (EI/EQ) — способность распознавать, понимать и управлять своими и чужими эмоциями. 5 компонентов (Goleman): self-awareness, self-regulation, motivation, empathy, social skills. EQ > IQ для лидерства.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Эмоциональный интеллект (EI/EQ) — одна из важнейших компетенций современного лидера, часто превосходящая по значимости классический IQ для успешного руководства людьми. Для магистра ГМУ, работающего с командами, общественностью, стейкхолдерами, развитие EQ — практически прикладная необходимость. Цель ответа — раскрыть концепцию EQ, компоненты, развитие."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Emotional Intelligence — термин популяризировал Daniel Goleman в «Emotional Intelligence: Why It Can Matter More Than IQ» (1995). Теоретическая основа — Salovey&Mayer (1990). Модель Goleman 5 компонентов: 1) Self-Awareness — осознание своих эмоций, причин, влияния на поведение; 2) Self-Regulation — управление своими эмоциями, impulse control; 3) Motivation — внутренняя motivation к достижениям beyond external rewards; 4) Empathy — понимание эмоций других; 5) Social Skills — эффективное взаимодействие, influence, conflict management. Альтернативные модели: Mayer-Salovey-Caruso MSCEIT (ability model), Bar-On EQ-i (trait model). Исследования: EQ объясняет 58% variance в успехе лидеров (Goleman); EQ можно развивать (mindfulness, therapy, coaching). Критика: концепция часто vague, пересекается с Big Five."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) EQ-тестирование внедряется в корпоративных оценках (Сбер, Норникель, ВТБ); 2) «Сенеж» — тренинги по EQ; 3) Executive coaching работает с EQ; 4) Руководители уровня ТОП-100 проходят EQ-ассессмент перед назначением. Международный кейс: Google Project Aristotle — psychological safety (основанная на EQ) — ключевой фактор эффективности команд. Практический кейс: программа «Эмоциональное лидерство» МТС — обучение 5000+ руководителей принципам Goleman; через 2 года engagement index вырос на 15 баллов. Обоснование: в эпоху знаний, где продукт создаётся командами, EQ руководителя прямо определяет производительность команды."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Практика развития EQ: mindfulness meditation (10 минут ежедневно — Search Inside Yourself Google), journal о эмоциях и reactions, active listening, empathy mapping, conflict de-escalation. Инструменты оценки: MSCEIT, EQ-i 2.0, TEIQue. Владение терминологией: Emotional Intelligence, Emotional Quotient (EQ), self-awareness, self-regulation, affective empathy vs cognitive empathy, mirror neurons, emotional contagion, active listening, non-violent communication (Rosenberg), psychological safety (Edmondson)."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, эмоциональный интеллект — критически важная компетенция современного лидера, превосходящая по значимости технические навыки в ролях, требующих управления людьми. В РФ развивается инфраструктура обучения EQ. Перспективы: AI-assisted EQ development (wearable биосенсоры), integration EQ в HR-решения, нейрофидбек для тренировки self-regulation."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ моделей: Goleman (5 components), Salovey-Mayer (ability-based), Bar-On (trait-based). Критика: Adam Grant — EQ overlaps with Big Five. Междисциплинарные связи: психология (affective science, Damasio), нейронаука (mirror neurons Rizzolatti), менеджмент, коучинг. Визуализация: модель Goleman из 5 компонентов; спектр empathy (affective ↔ cognitive)."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.22",
+    "discipline_title": "Стратегическое лидерство",
+    "discipline_lecturer": "Новикова Ирина Викторовна, доктор экономических наук, доцент ВШГАдм МГУ",
+    "ticket_num": 6,
+    "title": "Управление деятельностью команды",
+    "canonical_answer_summary": "Управление командой: формирование (5 стадий Tuckman), распределение ролей (Belbin 9 ролей), постановка целей (SMART, OKR), coaching, делегирование, мотивация. High-performance teams (Hackman, Lencioni 5 dysfunctions).",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Управление деятельностью команды — центральная функция любого руководителя, особенно в современной среде, где сложные задачи решаются через коллективную работу. Для магистра ГМУ, работающего в многоуровневых системах со стейкхолдерами, team management — прикладная ежедневная дисциплина. Цель — раскрыть принципы и техники управления командой."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Команда (team) — малая группа людей с взаимодополняющими навыками, работающих для общей цели, за которую они вместе несут ответственность (Katzenbach&Smith). Стадии формирования (Tuckman 1965, дополнено 1977): 1) Forming; 2) Storming; 3) Norming; 4) Performing; 5) Adjourning. Роли (Belbin 1981, 9 ролей): Plant (идеолог), Resource Investigator, Coordinator, Shaper, Monitor-Evaluator, Teamworker, Implementer, Completer-Finisher, Specialist. Постановка целей: 1) SMART; 2) OKR (Intel → Google, Doerr); 3) Balanced Scorecard cascade. High-performance teams (Hackman «Leading Teams»): real team, compelling direction, enabling structure, supportive context, expert coaching. 5 Dysfunctions of Team (Lencioni): absence of trust → fear of conflict → lack of commitment → avoidance of accountability → inattention to results. Коучинг команды и делегирование — передача ответственности."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) OKR в Яндексе, Mail.ru, Тинькофф; 2) Регулярные weekly 1:1 meetings и team retrospectives; 3) Agile/Scrum в ИТ-секторе; 4) 360° feedback для членов команд; 5) Team-building программы (offsite, VR-квесты). Практический кейс: внедрение OKR в ДИТ Москвы (2021-2023) — переход от ведомственных KPI к cross-functional OKR, фокус на совместных задачах (суперсервисы); результаты: ускорение time-to-market новых сервисов на 30%. Обоснование: команда — единица стратегической работы; без навыков управления ею руководитель превращается в micro-manager одиночек."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки team management: 1:1 meetings, установка командных норм (working agreements), диагностика стадии по Tuckman, назначение ролей по Belbin, фасилитация retrospectives (4Ls, Sailboat retrospective). Делегирование по 7 levels (Morten Hansen). Работа с конфликтами (Thomas-Kilmann: 5 стилей). Владение терминологией: team formation, Tuckman stages, Belbin roles, SMART goals, OKR, Balanced Scorecard, psychological safety, 5 Dysfunctions of a Team, retrospective, 1:1 meetings, team charter."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, управление деятельностью команды — ключевая операционная компетенция стратегического лидера, опирающаяся на богатую теорию (Tuckman, Belbin, Lencioni, Hackman, Doerr). В РФ распространяются современные практики командного управления. Перспективы: AI-assisted team analytics, distributed teams management (remote work), culture-first подход."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ: traditional hierarchical vs Agile vs holacracy (Zappos). Сравнение систем целеполагания: SMART (индивидуальная), OKR (амбициозные, квартальные), BSC (4 perspectives). Междисциплинарные связи: organizational behavior, социальная психология (group dynamics — Lewin), agile-methodology, coaching. Визуализация: Tuckman stages; pyramid 5 Dysfunctions Lencioni."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.22",
+    "discipline_title": "Стратегическое лидерство",
+    "discipline_lecturer": "Новикова Ирина Викторовна, доктор экономических наук, доцент ВШГАдм МГУ",
+    "ticket_num": 7,
+    "title": "Стратегическая мотивация",
+    "canonical_answer_summary": "Стратегическая мотивация — long-term motivation, связывающая личные цели сотрудника со стратегическими целями организации. Теории: Maslow, Herzberg, McClelland, SDT (Deci&Ryan — autonomy, competence, relatedness). Drive (Pink) — autonomy, mastery, purpose.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Стратегическая мотивация — мотивация long-term horizon, связывающая личные устремления сотрудника с большой целью организации. В эпоху knowledge-work, где сотрудник имеет большой выбор и работает удалённо, классические инструменты (зарплата) недостаточны. Для магистра ГМУ понимание motivation — основа работы с командой. Цель — раскрыть теории и практики стратегической мотивации."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Теории мотивации: 1) Иерархия потребностей Маслоу (1943); 2) Two-Factor (Herzberg 1959) — hygiene factors vs motivators; 3) Three Needs (McClelland) — achievement, affiliation, power; 4) Self-Determination Theory (SDT, Deci&Ryan 1985) — autonomy, competence, relatedness — intrinsic motivation; 5) Drive (Daniel Pink 2009) — autonomy, mastery, purpose. Операционная vs стратегическая: операционная — за конкретные задачи (бонус); стратегическая — за приверженность миссии (опционы, identity). Инструменты: 1) Meaningful work (связь с purpose); 2) Growth opportunities (career paths, mentoring); 3) Recognition (публичная); 4) Autonomy (доверие); 5) Community (культура); 6) Long-term incentives (ESOP)."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Госкорпорации — долгосрочные премии за 5+ летние результаты (Росатом, Сбер); 2) ESOP в частном секторе (Яндекс, Rambler); 3) Purpose-driven организации — Минздрав (спасти жизни), Минобразование (будущее страны); 4) «Лидеры России» — stretch opportunities. Международный кейс: Google — 20% time (autonomy), OKR (mastery), mission «organize world information» (purpose). Практический кейс: культурная трансформация Сбера 2012-2023 — система long-term motivation (ESOP, значимые проекты, Corporate University, agile-среда); удержание top-talent выросло. Обоснование: классические бонусы дают short-term результаты; стратегическая мотивация создаёт устойчивую приверженность."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки мотиватора: выявление индивидуальных drivers через 1:1, связывание личных целей с mission, создание growth opportunities. Применение SDT — дать autonomy (самостоятельность в «как»), обеспечить mastery (обучение, стретч-цели), показать purpose. Владение терминологией: intrinsic vs extrinsic motivation, Maslow's hierarchy, Herzberg's two-factor, Self-Determination Theory, Drive (Pink), growth mindset, purpose-driven organization, employee engagement, ESOP."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, стратегическая мотивация — ключ к long-term вовлечённости команды. Современные теории (SDT, Drive) указывают: знанию-интенсивная работа motivated через autonomy, mastery, purpose. В РФ формируется практика strategic motivation в крупных организациях. Перспективы: персонализированные планы развития на основе AI-аналитики, gamification долгосрочного engagement, metaverse-based team-building."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ теорий: Maslow (универсальная пирамида), Herzberg (hygiene vs motivators), SDT (научно обоснованная), Drive (популяризация SDT). Сравнение практик: Силиконовая долина (ESOP, 20% time, mission), РФ (ESOP в крупных IT, долгосрочные премии), Япония (lifetime employment). Междисциплинарные связи: психология мотивации, organizational behavior, behavioral economics (Dan Ariely). Визуализация: Drive Pink model (3 components); SDT (autonomy-competence-relatedness)."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.22",
+    "discipline_title": "Стратегическое лидерство",
+    "discipline_lecturer": "Новикова Ирина Викторовна, доктор экономических наук, доцент ВШГАдм МГУ",
+    "ticket_num": 8,
+    "title": "Стратегический лидер в цифровой экономике",
+    "canonical_answer_summary": "Digital Leader — лидер эпохи цифровой экономики: VUCA-mindset, data-driven decisions, digital fluency, innovation mindset, distributed teams, agile-подход, continuous learning. Компетенции: Technology understanding, Digital strategy, Change leadership, Ethics of AI, Customer-centricity.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Стратегический лидер в цифровой экономике — новый тип руководителя, сочетающий классические компетенции лидерства с технологической грамотностью, data-literacy и адаптивностью. Для магистра ГМУ в ИИ и цифровых коммуникациях это модель будущей профессиональной роли. Цель — раскрыть отличительные компетенции digital leader и их развитие."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Цифровая экономика меняет контекст лидерства: 1) VUCA (Volatility, Uncertainty, Complexity, Ambiguity); 2) data-driven decisions вместо интуитивных; 3) distributed teams; 4) rapid prototyping; 5) continuous learning. Digital Leader Model (MIT CISR, Weill&Woerner 2018): 4 future-ready pathways. Ключевые компетенции: 1) Technology Understanding (AI, cloud, data, cybersecurity); 2) Digital Strategy; 3) Change Leadership; 4) Ethics of AI; 5) Customer-centricity; 6) Data Literacy; 7) Digital Dexterity (Gartner); 8) Agile Mindset. Отличия: традиционный лидер (position power, hierarchy) vs digital leader (knowledge power, network influence). Модели: Deloitte Digital DNA (23 traits), Gartner Digital Leadership Capabilities."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) CDTO (Chief Digital Transformation Officer) — должность введена в ФОИВ с 2020 Указом № 21; 2) Digital MBA программы — РАНХиГС, Сколково; 3) «Цифровой прорыв» от АНО «Россия — страна возможностей»; 4) Минцифры обучает 120 тыс. госслужащих цифровым компетенциям. Digital leaders РФ: Герман Греф (Сбер, экосистема), руководители Яндекса, Тинькофф. Практический кейс: трансформация Сбера 2012-2023 под Грефом — переход от банка к экосистеме; личный пример: постоянное обучение (MBA Stanford), создание Технологического совета, привлечение top talent из IT. Обоснование: в цифровую эпоху лидер становится «тем, кто создаёт условия для команды принимать быстрые data-driven решения»."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Компетенции digital leader: базовое понимание ИИ, cloud, big data, cybersecurity; участие в digital-проектах; использование no-code/low-code (Zapier, AirTable); digital literacy (данные, дашборды); agile-методологии (Scrum, Kanban); LLM-ассистенты как copilot. Владение терминологией: VUCA, BANI (Brittle, Anxious, Non-linear, Incomprehensible), Digital DNA, digital dexterity, data literacy, AI literacy, technology fluency, agile mindset, psychological safety, fail-fast culture."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, стратегический лидер в цифровой экономике — эволюция классического лидерства с добавлением технологической грамотности, data-driven mindset и адаптивности. В РФ формируется поколение digital leaders через институт CDTO, программы обучения, переход корпораций на digital-модель. Перспективы: AI-augmented leadership (LLM как copilot), интеграция ESG-повестки, специализированные PhD-программы."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ моделей digital leader: MIT CISR (4 pathways), Deloitte Digital DNA (23 traits), Gartner Digital Dexterity, McKinsey Digital Quotient. Развитие лидеров: корпоративные университеты (Сбер), MBA (Сколково), online (Coursera, Яндекс Практикум). Междисциплинарные связи: стратегический менеджмент, information systems, организационное поведение, инновационный менеджмент. Визуализация: эволюция лидера от industrial до digital era; digital leader competencies wheel."
+      }
+    }
+  }
+]

@@ -38,16 +38,21 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-RAW_PATH = REPO_ROOT / "build" / "ai-extract" / "raw.txt"
+RAW_PATH_DEFAULT = REPO_ROOT / "build" / "ai-extract" / "raw.txt"
+RAW_PATH_OCR = REPO_ROOT / "build" / "ai-extract" / "raw_with_ocr.txt"
 OUT_PATH = REPO_ROOT / "build" / "ai-extract" / "tickets.json"
 
 # Discipline header start marker: "X.Y. " at beginning of line.
 DISCIPLINE_START_RE = re.compile(r"(?:^|\n)\s*(?P<code>\d+\.\d+)\.\s+")
 
-# Ticket header: "1. Вопрос…" OR "1 Вопрос…" (без точки — встречается в 2.12).
-# Ограничение по длине и монотонности в post-processing не даёт ложным
-# срабатываниям (номера глав, даты) прорваться.
-TICKET_RE = re.compile(r"^\s*(?P<num>\d{1,2})\.?\s+(?P<title>\S[^\n]+?)\s*$", re.MULTILINE)
+# TOC ticket line:  "1. Название билета ...... 8"
+# Dot-leaders + a trailing page number uniquely identify TOC items. Long
+# titles can wrap onto the next line, so we allow the title to span lines
+# via DOTALL — the dot-leaders + pagenum anchor catches them.
+TOC_TICKET_RE = re.compile(
+    r"(?:^|\n)\s*(?P<num>\d{1,2})\.?\s+(?P<title>[^\n].*?)\s*\.{5,}\s*(?P<page>\d+)(?=\s*\n|\s*$)",
+    re.DOTALL,
+)
 
 
 def _split_title_and_lecturer(rest: str) -> tuple[str, str]:
@@ -159,10 +164,64 @@ def _current_part(text_so_far_offset: int, part_positions: dict[int, str]) -> st
     return best_part
 
 
+def _normalize_for_match(text: str) -> str:
+    """Normalize title for robust substring matching: lowercase, drop
+    punctuation, collapse whitespace, replace ё→е."""
+    t = (text or "").lower().replace("ё", "е")
+    t = re.sub(r"[«»\"()\[\]\.,;:!?\-–—/\\]", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _parse_toc(toc_text: str) -> dict[str, list[tuple[int, str]]]:
+    """Parse the TOC into {discipline_code: [(num, title), ...]}.
+
+    Walks discipline headers in TOC order, collects TOC_TICKET_RE matches
+    between consecutive discipline headers.
+    """
+    toc: dict[str, list[tuple[int, str]]] = {}
+    disc_hits = _find_discipline_headers(toc_text)
+    for idx, d in enumerate(disc_hits):
+        code = d["code"]
+        start = d["end"]
+        end = disc_hits[idx + 1]["start"] if idx + 1 < len(disc_hits) else len(toc_text)
+        chunk = toc_text[start:end]
+        entries: list[tuple[int, str]] = []
+        for m in TOC_TICKET_RE.finditer(chunk):
+            num = int(m.group("num"))
+            title = m.group("title")
+            # Collapse multi-line wraps inside the title (TOC often breaks
+            # long titles across 2–3 lines before the dot-leaders).
+            title = re.sub(r"\s+", " ", title).strip().rstrip(".")
+            if 1 <= num <= 9 and len(title) >= 4:
+                entries.append((num, title))
+        # Dedup keeping the first hit per number.
+        seen: set[int] = set()
+        unique: list[tuple[int, str]] = []
+        for num, title in entries:
+            if num in seen:
+                continue
+            seen.add(num)
+            unique.append((num, title))
+        if unique:
+            # Keep the LAST TOC entry for each discipline code (sometimes
+            # headers appear on the cover and again in the real TOC — we
+            # want the real one with ticket lines).
+            toc[code] = unique
+    return toc
+
+
 def parse(raw: str) -> list[dict]:
     body_start = _find_body_start(raw)
-    body = raw[body_start:]
-    body = _strip_page_noise(body)
+    toc_text = _strip_page_noise(raw[:body_start])
+    body = _strip_page_noise(raw[body_start:])
+
+    # TOC is the authoritative source of ticket titles. We then locate
+    # each TOC-listed title in the body and carve the ticket's content
+    # between consecutive title positions.
+    toc = _parse_toc(toc_text)
+    if not toc:
+        raise SystemExit("TOC parsing yielded no tickets — check the TOC regex.")
 
     # Map offsets where each part starts.
     part_positions: dict[int, str] = {}
@@ -170,60 +229,77 @@ def parse(raw: str) -> list[dict]:
         for m in re.finditer(re.escape(marker), body):
             part_positions[m.start()] = part
 
-    # Find every discipline header.
-    discipline_hits = _find_discipline_headers(body)
-    if not discipline_hits:
-        raise SystemExit("No discipline headers matched — check regex against raw.txt")
+    # Find every discipline header in the BODY.
+    body_disc_hits = _find_discipline_headers(body)
+    if not body_disc_hits:
+        raise SystemExit("No discipline headers found in body.")
 
     tickets: list[dict] = []
-    for idx, dhit in enumerate(discipline_hits):
+    for idx, dhit in enumerate(body_disc_hits):
         code = dhit["code"]
         d_title = dhit["title"]
         d_lecturer = dhit["lecturer"]
         start = dhit["end"]
-        end = discipline_hits[idx + 1]["start"] if idx + 1 < len(discipline_hits) else len(body)
+        end = body_disc_hits[idx + 1]["start"] if idx + 1 < len(body_disc_hits) else len(body)
         discipline_body = body[start:end]
         part = _current_part(dhit["start"], part_positions)
 
-        ticket_hits = list(TICKET_RE.finditer(discipline_body))
-        # Filter: keep only tickets numbered 1..9 (max 9 tickets per discipline
-        # in this конспект; higher numbers would be noise).
-        ticket_hits = [
-            m for m in ticket_hits
-            if 1 <= int(m.group("num")) <= 9 and len(m.group("title").strip()) >= 4
-        ]
-        # Dedup consecutive headers (sometimes parser matches a reference to
-        # ticket N inside another ticket's body).
-        picked: list[re.Match] = []
-        seen_nums: list[int] = []
-        for m in ticket_hits:
-            num = int(m.group("num"))
-            # Enforce monotonic: ticket numbers within a discipline must
-            # increase by 1; skip anything out-of-order.
-            if not picked:
-                if num != 1:
-                    continue
-                picked.append(m)
-                seen_nums.append(num)
-                continue
-            if num == seen_nums[-1] + 1:
-                picked.append(m)
-                seen_nums.append(num)
+        expected = toc.get(code, [])
+        if not expected:
+            continue
 
-        for j, tmatch in enumerate(picked):
-            t_num = int(tmatch.group("num"))
-            t_title = tmatch.group("title").strip().rstrip(".")
-            t_start = tmatch.end()
-            t_end = picked[j + 1].start() if j + 1 < len(picked) else len(discipline_body)
-            raw_content = discipline_body[t_start:t_end].strip()
+        # For each (num, title) from TOC, find its position in discipline_body
+        # by normalized substring search. Normalize body the same way, but
+        # preserve a mapping back to raw offsets via per-character index.
+        norm_body, norm_to_raw = _normalize_with_offsets(discipline_body)
+
+        positions: list[tuple[int, str, int]] = []  # (raw_start, title, num)
+        search_from = 0
+        for num, title in expected:
+            norm_title = _normalize_for_match(title)
+            if len(norm_title) < 4:
+                continue
+            idx_norm = norm_body.find(norm_title, search_from)
+            if idx_norm < 0:
+                # Try harder: first-half match for long titles that got
+                # line-wrapped inside body with hyphenation etc.
+                half = norm_title[: max(20, len(norm_title) // 2)]
+                idx_norm = norm_body.find(half, search_from)
+            if idx_norm < 0:
+                # Still nothing — keep going with a placeholder so the
+                # ticket is still emitted (content will be empty).
+                positions.append((-1, title, num))
+                continue
+            raw_pos = norm_to_raw[idx_norm]
+            # The header line itself ends at the next newline; content starts there.
+            newline_after = discipline_body.find("\n", raw_pos)
+            content_start = newline_after + 1 if newline_after != -1 else raw_pos + len(title)
+            positions.append((content_start, title, num))
+            search_from = idx_norm + len(norm_title)
+
+        # Build raw_content: between current ticket's content_start and next
+        # ticket's header start (raw_pos of next). For the last, until
+        # discipline end.
+        # We need raw_pos for slicing upper bound. Compute again:
+        header_raws: list[int] = []
+        for p_start, _title, _num in positions:
+            # Recompute header raw position — simpler: scan for the first
+            # 'num.' occurrence near p_start. Fall back to p_start itself.
+            header_raws.append(p_start)
+        for j, (content_start, title, num) in enumerate(positions):
+            if content_start < 0:
+                raw_content = ""
+            else:
+                upper = header_raws[j + 1] if j + 1 < len(positions) and header_raws[j + 1] > 0 else len(discipline_body)
+                raw_content = discipline_body[content_start:upper].strip()
             tickets.append(
                 {
                     "discipline_code": code,
                     "discipline_title": d_title,
                     "discipline_lecturer": d_lecturer,
                     "part": part,
-                    "ticket_num": t_num,
-                    "title": t_title,
+                    "ticket_num": num,
+                    "title": title,
                     "raw_content": raw_content,
                 }
             )
@@ -231,8 +307,35 @@ def parse(raw: str) -> list[dict]:
     return tickets
 
 
+def _normalize_with_offsets(text: str) -> tuple[str, list[int]]:
+    """Return (normalized_text, offsets) where offsets[i] gives the
+    original index in `text` corresponding to normalized_text[i]."""
+    out_chars: list[str] = []
+    out_offsets: list[int] = []
+    last_was_space = True  # collapse leading whitespace
+    for i, c in enumerate(text):
+        ch = c.lower().replace("ё", "е")
+        if ch in "«»\"()[].,;:!?-–—/\\":
+            ch = " "
+        if ch.isspace():
+            if last_was_space:
+                continue
+            out_chars.append(" ")
+            out_offsets.append(i)
+            last_was_space = True
+        else:
+            out_chars.append(ch)
+            out_offsets.append(i)
+            last_was_space = False
+    return "".join(out_chars), out_offsets
+
+
 def main() -> int:
-    raw = RAW_PATH.read_text(encoding="utf-8")
+    # Prefer OCR-enriched source if available — it catches text stuck in
+    # scanned screenshots and formula images that plain pdftotext misses.
+    source = RAW_PATH_OCR if RAW_PATH_OCR.exists() else RAW_PATH_DEFAULT
+    print(f"Parsing from: {source.name}")
+    raw = source.read_text(encoding="utf-8")
     tickets = parse(raw)
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(

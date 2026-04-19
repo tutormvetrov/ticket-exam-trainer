@@ -1,0 +1,274 @@
+[
+  {
+    "discipline_code": "3.24",
+    "discipline_title": "Искусственный интеллект и когнитивные системы в менеджменте",
+    "discipline_lecturer": "Самсонов Роман Олегович, ВШГА МГУ, доцент",
+    "ticket_num": 1,
+    "title": "Основы и роль искусственного интеллекта и когнитивных систем в современном менеджменте",
+    "canonical_answer_summary": "ИИ в менеджменте — автоматизация рутинных решений, поддержка сложных, прогнозирование, персонализация. Когнитивные системы (IBM Watson, GPT-4, Claude, GigaChat) — системы с элементами человеческого мышления. Роль: augmentation управленческих функций.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Искусственный интеллект и когнитивные системы радикально трансформируют современный менеджмент — от автоматизации рутинных задач до стратегического прогнозирования. Для магистра ГМУ, работающего в эпоху AI-революции, понимание основ ИИ-менеджмента — базовая компетенция. Актуальность — массовое внедрение LLM (ChatGPT, Claude, GigaChat) в управленческие процессы. Цель ответа — раскрыть концепции ИИ и когнитивных систем, их роль в менеджменте."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Искусственный интеллект (AI) — область компьютерных наук, создающая системы для выполнения задач, которые традиционно требуют человеческого интеллекта (распознавание, понимание, рассуждение, обучение). Уровни: 1) Narrow AI (узкий, сегодняшняя реальность) — решает конкретные задачи; 2) General AI (AGI) — человеческий уровень во всех задачах; 3) Superintelligence — превосходящий человека. Когнитивные системы (cognitive computing) — IBM 2011 — системы, имитирующие человеческое познание: understanding, reasoning, learning, interaction. Классические примеры: IBM Watson, Siri, Alexa; современные — LLM (GPT-4, Claude 3, Gemini, GigaChat, YandexGPT). Роль в менеджменте (Davenport «AI Advantage»): 1) Process automation (RPA + AI) — рутинные операции; 2) Cognitive insight — ML-модели для прогнозирования; 3) Cognitive engagement — чат-боты, ассистенты. Теоретические основания: Turing Test (1950), Dartmouth Workshop (1956, рождение AI), ML renaissance (2010s, deep learning), Transformer breakthrough (2017), LLM era (2020+). НПА РФ: Указ Президента № 490 (2019) «О развитии ИИ в РФ»; Национальная стратегия развития ИИ до 2030."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика применения ИИ в менеджменте: 1) Сбер использует AI на всех уровнях — от чат-ботов (GigaChat) до риск-скоринга; 2) Яндекс интегрирует YandexGPT в продукты; 3) ФНС АСК-НДС-2 — ML для риск-анализа; 4) ФТС — AI для таможенного контроля; 5) РЖД — predictive maintenance; 6) Москва ДИТ — AI в транспорте. Практический кейс: «Оксиджен» Газпром нефти — AI-ассистент для сотрудников, помогает в рабочих задачах на основе корпоративной базы знаний; 10 000+ пользователей, экономия 2+ часа работы в неделю на сотрудника. Обоснование: ИИ в менеджменте — не замена человека, а augmentation его способностей."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки AI-управленца: понимание базовых концепций ML, умение формулировать задачи для AI-команд, оценка применимости ИИ к задаче, критическая оценка AI-results. Использование LLM в повседневной работе (prompt engineering), no-code AI-инструментов (AutoML, AI Assistants). Владение терминологией: artificial intelligence, narrow vs general AI, machine learning, deep learning, cognitive computing, large language models (LLM), prompt engineering, AI augmentation vs automation."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, ИИ и когнитивные системы — трансформирующая сила современного менеджмента, requiring новых компетенций от руководителей. В РФ развивается экосистема отечественных AI (GigaChat, YandexGPT, Saiga). Перспективы: повсеместное использование LLM как copilot'ов, agentic AI для автоматизации сложных процессов, development AGI (ожидание 2030+), этические и регуляторные вопросы (AI Act EU, аналог в РФ)."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ AI-экосистем: США (OpenAI, Anthropic, Google), Китай (Baidu, Alibaba, BYD Wencha), РФ (Сбер GigaChat, Яндекс YandexGPT, MTS Saiga). Сравнение подходов: rule-based AI (ranних дней) vs ML-based (современное) vs neurosymbolic (гибрид). Междисциплинарные связи: computer science, cognitive science, нейронаука, философия ума (Chinese Room — Searle), ethics of AI. Визуализация: эволюция AI от Turing до LLM; Davenport's 3 роли AI в бизнесе."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.24",
+    "discipline_title": "Искусственный интеллект и когнитивные системы в менеджменте",
+    "discipline_lecturer": "Самсонов Роман Олегович, ВШГА МГУ, доцент",
+    "ticket_num": 2,
+    "title": "Применение искусственного интеллекта в управлении бизнесом: автоматизация процессов, аналитика данных, прогнозирование и принятие решений",
+    "canonical_answer_summary": "ИИ в бизнес-управлении: RPA+AI для процессной автоматизации, BI+ML для аналитики, ML-forecasting для прогнозов, decision support systems для решений. Инструменты: UiPath, Celonis, Tableau+AI, prescriptive analytics.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Применение ИИ в управлении бизнесом — от точечной автоматизации отдельных процессов до целостной трансформации decision-making. Для магистра ГМУ, работающего с государственными корпорациями и в ФОИВ, знание практического инструментария AI в управлении — практическая необходимость. Цель — систематизировать области применения ИИ и связанные инструменты."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Четыре области применения AI в управлении: 1) Process automation (RPA + AI) — автоматизация рутинных процессов с элементами ML; инструменты: UiPath, Automation Anywhere, отечественный PIX Robotics; 2) Data analytics — BI-дашборды с ML-layer для insights; инструменты: Tableau+Einstein, Power BI, Яндекс DataLens; 3) Predictive analytics — прогнозирование (продажи, спрос, churn) через ML; инструменты: DataRobot, H2O.ai, собственные ML-платформы; 4) Prescriptive analytics и Decision Support Systems — не только прогноз, но и рекомендация action (optimization). AI Applications по business function: Marketing (personalization, targeting, content), Sales (lead scoring, recommendation), Finance (fraud detection, credit scoring), HR (recruitment, performance analytics), Operations (predictive maintenance, supply chain), Customer Service (chatbots, sentiment). Зрелые паттерны: Process Mining + AI (Celonis+ML), LLM + traditional systems (RAG — Retrieval-Augmented Generation), AI Agents (autonomous LLM-workflow)."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в крупных российских компаниях: 1) Сбер — AI Factory с сотнями ML-моделей в production (риск-скоринг, рекомендации, fraud detection); 2) ВТБ — аналогичная стратегия; 3) Газпром нефть — predictive maintenance на нефтедобыче; 4) X5 Retail — AI для ассортимента, цен, планирования; 5) Норникель — AI в промышленной безопасности. Государственный сектор: ФНС АСК-НДС-2, ФТС AI-таможня, АСК-ККТ (контроль онлайн-касс), АСК-Физлицо. Практический кейс: «Цифровая Северсталь» — AI оптимизация стальной плавки (sensors + ML prediction) снизила брак на 15%, экономия >1 млрд руб/год. Обоснование: ROI от AI-проекта растёт нелинейно — первые пилоты дают 10-20%, масштабирование — 50-100% ценности."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки AI-управленца: выбор AI-решения под business challenge (build vs buy vs partner), формулирование ROI для AI-проектов, управление AI-programs в организации. Прикладная data literacy. Владение терминологией: RPA (Robotic Process Automation), hyperautomation, machine learning operations (MLOps), AI Center of Excellence, AI ROI, build vs buy, proof of concept (POC), AI ethics, responsible AI."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, AI-приложения в управлении бизнесом покрывают широкий спектр от процессной автоматизации до стратегического прогнозирования. В РФ AI широко применяется в крупных корпорациях и ФОИВ. Перспективы: LLM-based AI копилоты во всех ролях, agentic AI для autonomous workflow, integration AI с digital twin для симуляции решений."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ подходов к AI в организациях: centralized (AI CoE), distributed (каждая команда свой AI), federated (общие tools + местная implementation). Сравнение стадий зрелости: Aware → Explorative → Experimental → Operational → Transformative (Gartner AI Maturity Model). Междисциплинарные связи: data science, business analytics, operations research, change management. Визуализация: матрица «Business function × AI application»; AI maturity curve."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.24",
+    "discipline_title": "Искусственный интеллект и когнитивные системы в менеджменте",
+    "discipline_lecturer": "Самсонов Роман Олегович, ВШГА МГУ, доцент",
+    "ticket_num": 3,
+    "title": "Искусственный интеллект (ИИ) в стратегическом управлении для анализа конкурентной среды, выявления трендов, прогнозирования развития рынков и разработки стратегических планов",
+    "canonical_answer_summary": "ИИ в стратегическом управлении: analyzing competitive intelligence through NLP, trend detection через topic modeling, forecasting через time series ML, scenario generation через LLM. Инструменты: Crimson Hexagon, Tebi, SimilarWeb + ML.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "ИИ трансформирует стратегическое управление, предоставляя инструменты для анализа больших объёмов данных, выявления слабых сигналов, быстрого сценарного моделирования. Для магистра ГМУ в стратегировании это новый tech-enabled способ работы. Цель — раскрыть применение ИИ в стратегическом управлении."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Четыре области применения AI в strategy: 1) Competitive intelligence — automated мониторинг конкурентов через NLP (scraping, sentiment, сравнение продуктов); 2) Trend detection — topic modeling (LDA, BERTopic) на Patent databases, news, academic papers для выявления emerging technologies; weak signal detection; 3) Market forecasting — ML-time series (ARIMA, Prophet, LSTM) для прогноза спроса, цен, долей рынка; 4) Strategic plan generation — LLM для генерации вариантов стратегий на основе inputs. Классические strategy frameworks + AI: SWOT (auto-populated с данных), Porter's 5 Forces (automated competitive analysis), Blue Ocean (AI-assisted strategy canvas), PESTEL (automated environmental scan). Теоретические основы: Strategic Foresight (Saritas, Aaltonen), AI-augmented decision-making (Davenport, Mittal), real-time strategy (Martin Reeves BCG Henderson)."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Стратегические штабы Сбера, Яндекса, X5 используют AI для отслеживания конкурентов; 2) ЦСР (Центр стратегических разработок) применяет AI для анализа больших объёмов документов при подготовке стратегических рекомендаций; 3) Минэкономразвития интегрирует AI-анализ в прогнозные модели; 4) отраслевые ассоциации используют competitive intelligence tools. Инструменты: Crimson Hexagon (до ухода из РФ), Brand Analytics, SimilarWeb. Практический кейс: стратегия Яндекс.Еда-Delivery club (2020-2022) — AI-анализ ресторанной доли, customer behavior, конкурентов; привёл к pivot модели и конкурентному бенефиту. Обоснование: AI позволяет обрабатывать объём информации, недоступный для ручного анализа."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки strategy + AI: интеграция AI-insights в классические frameworks, дизайн competitive intelligence системы, работа с trend-monitoring tools. Владение инструментами: Brand Analytics для tracking конкурентов, Tebi для market intelligence, Google Trends/Яндекс Wordstat для spotting trends. Владение терминологией: competitive intelligence, market intelligence, strategic foresight, horizon scanning, weak signals, trend analysis, topic modeling, AI-augmented strategy."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, AI становится essential tool стратегического управления, позволяя работать с масштабом данных современного бизнеса. В РФ крупные корпорации уже используют AI в стратегическом процессе. Перспективы: real-time strategic dashboards с AI-insights, agentic AI для autonomous competitive monitoring, LLM-based strategy writing assistants."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ AI-подходов к strategy: tactical (automation отдельных tasks), operational (AI-assisted frameworks), strategic (AI-generated scenarios). Международные примеры: BCG X (BCG internal AI), McKinsey QuantumBlack. Междисциплинарные связи: strategic management, business intelligence, data science, horizon scanning (futures studies). Визуализация: AI-strategy integration map; пример AI-generated scenario output."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.24",
+    "discipline_title": "Искусственный интеллект и когнитивные системы в менеджменте",
+    "discipline_lecturer": "Самсонов Роман Олегович, ВШГА МГУ, доцент",
+    "ticket_num": 4,
+    "title": "Когнитивные системы и принятие решений в менеджменте: моделирование решений, распознавание образов и машинное обучение",
+    "canonical_answer_summary": "Когнитивные системы в управленческих решениях: Decision Support Systems (DSS) с ML-моделями. Распознавание образов (CV — computer vision): classification, detection, segmentation. ML paradigms: supervised, unsupervised, reinforcement. Применение: fraud detection, quality control, predictive maintenance.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Когнитивные системы в управлении используют алгоритмы машинного обучения и pattern recognition для augmentation человеческого decision-making. От простых OCR-систем до сложных LLM, cognitive systems помогают принимать решения быстрее и точнее. Для магистра ГМУ в ИИ и цифровых коммуникациях понимание этих систем — прикладной инструмент. Цель — раскрыть когнитивные системы в менеджменте."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Decision Support Systems (DSS) — интерактивные информационные системы, помогающие менеджерам принимать решения с недостаточно структурированными задачами. Эволюция: 1) Database-centric DSS (1970s); 2) Model-based DSS (1980s); 3) Knowledge-based DSS (expert systems, 1990s); 4) Data Warehouse-based DSS (2000s); 5) AI-powered DSS (2010+) — с ML-моделями. Распознавание образов (Pattern Recognition, Computer Vision): 1) Classification — присвоение класса (кошка vs собака); 2) Object detection — найти и окружить (боксами) объекты; 3) Semantic segmentation — пиксель за пикселем классификация; 4) Instance segmentation — различает экземпляры объектов. ML paradigms: 1) Supervised learning — обучение на размеченных данных (classification, regression); 2) Unsupervised — поиск паттернов без разметки (clustering, dimensionality reduction); 3) Reinforcement learning — обучение через environment и rewards (применимо к управлению); 4) Semi-supervised; 5) Self-supervised (основа LLM)."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика cognitive systems в РФ: 1) FaceID в Московском метро — CV для верификации пассажиров (240 млн проходов/год); 2) ФНС АСК-НДС-2 — ML-риск-анализ; 3) Сбер Qwen Fraud Detection — ML на транзакциях; 4) РЖД — CV на платформах (ЧМ 2018+), предиктивное обслуживание; 5) Норникель — CV контроль качества; 6) Роспатент — ML-поиск аналогов; 7) МВД Face Recognition — верификация в аэропортах. Платформы: Яндекс AutoML, SberCloud ML Platform, CROC AI. Практический кейс: «Безопасный город» Москвы — AI-система видеоаналитики 170 тыс. камер, CV распознаёт инциденты (оставленные предметы, драки, нарушения) с точностью >90%; время реагирования сократилось с 15 до 3 минут. Обоснование: cognitive systems — не замена решений человека, а augmentation (усиление) его способностей."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки работы с cognitive systems: выбор ML-модели под задачу (classification vs regression vs clustering), оценка качества модели (precision, recall, F1-score, AUC-ROC), работа с платформами (Yandex Cloud ML, SberCloud). Владение терминологией: Decision Support System (DSS), pattern recognition, computer vision, supervised/unsupervised/reinforcement learning, classification, regression, clustering, precision, recall, F1, confusion matrix, overfitting, bias-variance tradeoff."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, cognitive systems в управлении — мощный инструмент для augmentation decision-making. В РФ активно развиваются AI-платформы и применения. Перспективы: foundation models как базовая инфраструктура cognitive systems, edge AI для мгновенных решений, neuromorphic computing как новая парадигма."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ ML paradigms: supervised (90% production models), unsupervised (exploration), reinforcement (games, robotics — распространяется на бизнес). CV-архитектуры: CNN (LeNet → AlexNet → ResNet → EfficientNet), Transformer-based (ViT — Vision Transformer). Междисциплинарные связи: computer science, statistics, cognitive science, operations research. Визуализация: ML paradigms tree; CV taxonomy (classification → detection → segmentation)."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.24",
+    "discipline_title": "Искусственный интеллект и когнитивные системы в менеджменте",
+    "discipline_lecturer": "Самсонов Роман Олегович, ВШГА МГУ, доцент",
+    "ticket_num": 5,
+    "title": "Искусственный интеллект (ИИ) и управление рисками: предсказание вероятности возникновения рисковых ситуаций, разработка стратегий минимизации рисков",
+    "canonical_answer_summary": "ИИ в риск-менеджменте: predictive models для identification рисков (credit, fraud, operational), early warning systems, anomaly detection. В РФ — ФНС, банки (AML, risk-scoring), страховые компании. Стандарты: ISO 31000, Basel III (финансовые).",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "ИИ в управлении рисками — один из самых зрелых applications ML в бизнесе. От credit scoring в банках до fraud detection в e-commerce, от AML в compliance до predictive maintenance в промышленности — ML-модели стали стандартным инструментом risk-management. Для магистра ГМУ в ИИ понимание этих применений — прикладная компетенция. Цель ответа — раскрыть применение AI в risk management."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Risk management (ISO 31000): процесс идентификации, анализа, оценки и treatment рисков. Цикл: identify → analyze → evaluate → treat → monitor. AI приложения по стадиям: 1) Risk identification — LLM анализирует документы и новости для detection новых рисков; NLP на внутренних документах; 2) Risk analysis — ML-модели оценивают likelihood и impact; 3) Risk scoring — assignment numerical оценок (credit scores, AML risk scores); 4) Risk monitoring — anomaly detection (isolation forest, autoencoder); 5) Risk response — reinforcement learning для оптимизации strategies. Ключевые techniques: 1) Credit scoring — logistic regression, XGBoost, neural networks; 2) Fraud detection — anomaly detection, graph neural networks; 3) AML (Anti-Money Laundering) — transaction pattern analysis; 4) Market risk — time series ML, VaR (Value-at-Risk) models; 5) Operational risk — predictive maintenance, incident prediction; 6) Cybersecurity risk — ML-based intrusion detection. Regulatory frameworks: Basel III (банковские риски), Solvency II (страхование), ISO 31000 (общий), NIST Cybersecurity Framework."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Сбер — AI-powered credit scoring для >60 млн клиентов, fraud detection на миллиардах транзакций ежегодно; 2) Тинькофф — ML risk models обеспечивают самые низкие default rates в отрасли; 3) ЦБ РФ — мониторинг systemic risks через ML; 4) ФНС — АСК-НДС-2 AI-риск-анализ 2+ млрд документов; 5) ФТС — риск-категорирование деклараций; 6) промышленность (Северсталь, ММК, Газпром нефть) — predictive maintenance для критического оборудования; 7) энергетика — predictive analytics оборудования Россетей. Практический кейс: Сбер Fraud Detection — ML-система в реальном времени блокирует подозрительные транзакции; ежегодно предотвращает мошенничества на 10+ млрд руб. Обоснование: ML в risk management даёт ощутимый ROI и стал нормой индустрии."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки risk management + AI: оценка risk-профиля организации, выбор ML-подходов под тип риска, интерпретация risk-scores. Понимание метрик (precision/recall trade-off в fraud detection, KS-statistic в credit scoring). Владение терминологией: risk management, risk appetite, risk tolerance, Key Risk Indicators (KRIs), Credit Risk, Fraud Risk, AML, Operational Risk, Value at Risk (VaR), Expected Shortfall, stress testing, scenario analysis, anomaly detection."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, AI в управлении рисками — зрелое и commercially значимое направление. В РФ финансовый и промышленный секторы широко используют ML в risk-management. Перспективы: foundation models для automatic risk identification из текстов, federated learning для cross-institution fraud detection (совместное обучение без sharing данных), real-time risk dashboards."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ AI-подходов по типам рисков: financial (well-established), operational (emerging), cyber (active development), strategic (LLM-assisted). Сравнение AI vs traditional risk models: AI более accurate, но менее interpretable (проблема «чёрного ящика»), регуляторы требуют explainability (XAI). Междисциплинарные связи: finance, actuarial science, cybersecurity, operations research. Визуализация: AI risk framework (identify → analyze → respond → monitor); пример credit score distribution curve."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.24",
+    "discipline_title": "Искусственный интеллект и когнитивные системы в менеджменте",
+    "discipline_lecturer": "Самсонов Роман Олегович, ВШГА МГУ, доцент",
+    "ticket_num": 6,
+    "title": "Искусственный интеллект (ИИ) и управление персоналом: рекрутинг, оценка производительности, обучение и развитие сотрудников",
+    "canonical_answer_summary": "AI в HR: рекрутинг (ATS+ML matching, resume screening, chatbot-interviews), performance analytics (productivity metrics, 360 feedback + NLP), обучение (personalized learning paths, adaptive assessments), predictive HR (retention forecasting, succession planning). Этические вопросы bias.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "ИИ в управлении персоналом (HR) — активно развивающееся направление: от автоматизации рекрутинга до персонализированного обучения. Одновременно HR — зона особой этической чувствительности (discrimination, privacy), что требует особого внимания к responsible AI. Для магистра ГМУ понимание AI в HR — профессиональная компетенция. Цель — раскрыть применения AI в HR и связанные challenges."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "AI применения в HR по lifecycle сотрудника: 1) Recruitment — AI-enhanced ATS (Applicant Tracking Systems) — resume screening через NLP, LinkedIn scraping, matching candidates с vacancies; chatbot-interviewers для первичного screening (Mya, AllyO); 2) Onboarding — personalized onboarding через adaptive apps, chatbots для вопросов новых сотрудников; 3) Performance management — analytics производительности, NLP-analysis на 360° feedback для выявления паттернов; continuous performance management; 4) Learning & Development — personalized learning paths (Coursera for Business, LinkedIn Learning), AI-tutors, adaptive assessments; 5) Compensation — ML для fair pay analysis; 6) Retention — predictive models флагать at-risk сотрудников; 7) Workforce planning — AI-forecasting needs. Этические challenges: 1) Bias в tренировочных данных (Amazon recruitment tool discriminated women); 2) Privacy (passive monitoring); 3) Explainability решений; 4) GDPR-like требования к profiling. Frameworks: SHRM AI Guidelines, IEEE Ethically Aligned Design, EU AI Act (2024) — HR как high-risk application."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Сбер — AI-powered HR-platform Пульс, 200+ тыс сотрудников, continuous performance management; 2) X5 Retail — AI для массового рекрутинга линейного персонала (кассиры, работники склада); 3) Яндекс — AI-ассистенты для инженерного рекрутинга; 4) Тинькофф — ATS с ML; 5) РЖД — аналитика производительности машинистов через sensors; 6) госкомпании (Роснефть, Газпром) — AI в оценке кандидатов на управленческие позиции. Практический кейс: VK Group HR platform — использует ML для автоматической фильтрации 100 000+ резюме ежегодно, chat-bot для первичного screening; среднее время «от CV до offer» сократилось с 45 до 18 дней. Обоснование: HR — одна из самых быстрорастущих областей AI-адопции, с существенными productivity gains."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки AI-enabled HR: выбор HR-tech под задачу, оценка bias в AI HR-tools, compliance с трудовым законодательством и 152-ФЗ. Работа с платформами: VK Академия, Сбер Университет, отечественные HR-tech (Potok, HuntIQ). Владение терминологией: HR analytics, people analytics, Applicant Tracking System (ATS), resume parsing, passive monitoring, algorithmic bias, explainable HR AI, continuous performance management, talent intelligence."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, AI в HR — активно развивающаяся область с большими bargains и серьёзными этическими challenges. В РФ крупные компании активно внедряют HR-tech; госсектор отстаёт, но ускоряется. Перспективы: LLM-powered assistants для каждого сотрудника, skills-based hiring (вместо degree-based), agentic AI для autonomous recruiting, усиление регулирования через будущий аналог EU AI Act."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ HR-tech: западные (Workday, SuccessFactors, Greenhouse) vs отечественные (Potok, Storia, Huntflow). Сравнение подходов к bias: blind screening (убрать demographic data), adversarial debiasing в ML-моделях, human-in-the-loop review. Междисциплинарные связи: HR-management, organizational psychology, trudovое law, data ethics. Визуализация: HR-value chain с AI applications; bias mitigation strategies map."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.24",
+    "discipline_title": "Искусственный интеллект и когнитивные системы в менеджменте",
+    "discipline_lecturer": "Самсонов Роман Олегович, ВШГА МГУ, доцент",
+    "ticket_num": 7,
+    "title": "Этические аспекты использования искусственного интеллекта (ИИ) в государственном управлении и контроле (надзоре)",
+    "canonical_answer_summary": "Этика AI в ГМУ: fairness (недискриминация), transparency (объяснимость), accountability (кто отвечает), privacy, human oversight. Специфика для госконтроля: proportionality, due process, right to appeal. В РФ — Этический кодекс ИИ (2021), международные — OECD AI Principles, EU AI Act.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Этические аспекты использования ИИ в государственном управлении и надзоре — одна из самых важных и быстро развивающихся тем. Государственный ИИ затрагивает миллионы граждан, что кратно повышает значимость fairness, transparency, accountability. Для магистра ГМУ в цифровых коммуникациях, работающего на стыке tech и policy, это central topic. Цель — раскрыть этические принципы и их применение."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Основные этические принципы AI (OECD AI Principles 2019, подписаны 40+ странами): 1) Inclusive growth, sustainable development, well-being; 2) Human-centred values and fairness; 3) Transparency and explainability; 4) Robustness, security, safety; 5) Accountability. EU AI Act (2024) — первое комплексное регулирование AI; 4 уровня риска: minimal, limited, high, unacceptable. High-risk включает AI в госуслугах, правоохранительных органах, recruiting, credit scoring. Специфические requirements для high-risk: quality management system, risk management, data governance, transparency, human oversight, accuracy/robustness. В РФ: Кодекс этики в сфере ИИ (подписан AI Russia Alliance, 2021) — добровольный, 7 принципов; Национальная стратегия развития ИИ до 2030 (обновлена 2024) с этическими требованиями. Проблемы: 1) Algorithmic bias (Amazon recruitment discriminated women, Apple Card discriminated women); 2) Facial recognition bias на dark-skinned лицах; 3) Predictive policing amplifies historical bias; 4) Black box decisions без explanability; 5) Data privacy violations. Концепции: AI fairness (group fairness vs individual fairness), AI interpretability vs explainability, human-in-the-loop, AI auditing."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Кодекс этики AI подписали Сбер, Яндекс, VK, MTS, Mail.ru, Ростелеком, МГУ; 2) этический комитет Сбера рассматривает высоко-impact AI-проекты; 3) AI в гос-надзоре с элементами human-in-the-loop (ФНС: AI даёт риск-скор, окончательное решение — инспектор); 4) обсуждение российского аналога AI Act в Госдуме. Международные кейсы: 1) ProPublica (2016) — расследование показало bias в COMPAS (американская система прогнозирования recidivism); 2) Apple Card gender bias investigation (2019); 3) Dutch childcare benefits scandal (2020) — AI-система ложно обвиняла семьи в мошенничестве. Практический кейс: обсуждение применения facial recognition в Москве (2017-2024) — balance между безопасностью и privacy, внедрение human oversight в критических решениях. Обоснование: этические подходы — это не ограничение, а условие устойчивой adoption AI."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки этической экспертизы AI: проведение AI impact assessment, применение fairness metrics (demographic parity, equalized odds), explainability через SHAP/LIME, дизайн human-in-the-loop процессов. Знание ключевых документов (OECD, EU AI Act, российский Кодекс). Владение терминологией: AI ethics, algorithmic fairness, explainable AI (XAI), responsible AI, human-in-the-loop, AI impact assessment, algorithmic accountability, automated decision-making (ADM), due process, GDPR Article 22."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, этика ИИ в госуправлении — не abstract discussion, а operational requirement. В РФ формируется этический и нормативный контур AI: от Кодекса этики до будущего законодательства. Для high-stake applications (правосудие, соцуслуги, надзор) этические требования особенно строгие. Перспективы: принятие российского аналога EU AI Act, development специализированных AI auditing методологий, рост роли AI ethics committees в организациях."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ регулирования: ЕС (EU AI Act 2024 — жёсткий, риск-ориентированный), США (executive orders + state laws — фрагментированный), Китай (регулирование генеративного AI 2023 — упор на контент), РФ (Кодекс этики + Национальная стратегия, будущий ФЗ). Ethical frameworks: fairness, accountability, transparency (FAccT research community). Междисциплинарные связи: ethics (applied, tech ethics), law (разработка AI-regulation), computer science (fair ML, XAI). Визуализация: EU AI Act 4 уровня риска; OECD 5 AI principles с примерами."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.24",
+    "discipline_title": "Искусственный интеллект и когнитивные системы в менеджменте",
+    "discipline_lecturer": "Самсонов Роман Олегович, ВШГА МГУ, доцент",
+    "ticket_num": 8,
+    "title": "Стратегические тренды и перспективы развития искусственного интеллекта (ИИ) в менеджменте",
+    "canonical_answer_summary": "Тренды AI 2024-2030: foundation models/LLM, multimodal AI, agentic AI (autonomous agents), on-device/edge AI, federated learning, quantum ML, AGI development. Применения в менеджменте: AI co-pilots для всех ролей, autonomous decision-making (ограниченно), AI-native организации.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Стратегические тренды развития AI определяют траекторию трансформации менеджмента на 5-10 лет вперёд. Для магистра ГМУ, планирующего карьеру в условиях AI-revolution, понимание трендов — необходимое условие готовности к будущему. Завершающий билет по дисциплине 3.24. Цель — систематизировать ключевые тренды и перспективы AI в менеджменте."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Ключевые тренды AI 2024-2030: 1) Foundation Models / LLM — GPT-4/5, Claude 3/4, Gemini, GigaChat, YandexGPT — универсальные модели, адаптируемые на любую задачу; 2) Multimodal AI — text+image+audio+video (Gemini Ultra, GPT-4o, Sora, Claude 3.5); 3) Agentic AI — autonomous agents выполняющие multi-step tasks (AutoGPT, BabyAGI, будущие AI-assistants); 4) On-device/Edge AI — LLM на смартфонах (Apple Intelligence, Samsung Galaxy AI); 5) Federated Learning — training на distributed data без centralization (privacy-preserving); 6) Quantum ML — применение квантовых вычислений к ML (research stage); 7) Neurosymbolic AI — сочетание neural networks + symbolic reasoning; 8) AGI (Artificial General Intelligence) development — OpenAI, Anthropic, Google DeepMind — потенциальный breakthrough 2028-2035. Управленческие impacts: 1) AI co-pilots для каждой роли (копирайтер, разработчик, аналитик, руководитель); 2) Autonomous workflows (agentic AI); 3) AI-native организации (новая компания = LLM + tools + few humans); 4) Radical productivity gains (2-10x для knowledge work); 5) Skill decay (что не требует AI — becomes commoditized); 6) Talent reconfiguration (новые роли: AI trainer, prompt engineer, AI ethicist)."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика РФ 2024: 1) Сбер развивает GigaChat для корпоративных клиентов и госорганов; 2) Яндекс интегрирует YandexGPT в Яндекс Браузер, Алиса, Почту, Диск; 3) МТС создаёт Saiga ML-модели; 4) Госуслуги.Ассистент — первый gov-scale LLM-помощник; 5) обсуждение создания национальной AI-платформы (аналог ЕС AI Factory initiative). Практический кейс: Сбер GigaChat Mono — AI-ассистент для государственных клиентов (ФОИВ, госкорпораций), интегрированный в корпоративные workflow; 50+ госорганизаций пилотируют в 2024. Обоснование: AI-революция требует proactive подготовки — организации, не адаптирующиеся, будут выведены out of competitive zone."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки навстречу AI-future: prompt engineering как базовая компетенция (как «Excel» в 2000-х), умение интегрировать LLM в свой workflow (Claude, GigaChat, YandexGPT), понимание limits текущих моделей (hallucinations, context window). Continuous learning — keep up с trendами через Papers with Code, arXiv cs.CL, Hugging Face. Владение терминологией: foundation models, LLM, multimodal, agentic AI, AI agents, on-device AI, edge computing, federated learning, neurosymbolic AI, AGI, AI alignment, AI safety, scaling laws (Chinchilla)."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, стратегические тренды AI указывают на радикальную трансформацию менеджмента в следующем десятилетии. LLM, multimodal, agentic AI становятся стандартными инструментами; AI-native организации меняют competitive landscape. В РФ формируется собственная AI-экосистема. Перспективы: к 2030 каждый knowledge worker будет работать с AI-copilot; первые полностью автономные AI-компании появятся (возможно, уже к 2027); вопросы AI alignment и safety станут централь темой публичной policy; AGI — открытый вопрос, но вероятность существенная."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ AI-strategies держав: США (doctrine acceleration через private sector — OpenAI, Anthropic, Google), Китай (national champions — Baidu, Alibaba + state-backed), ЕС (regulation-first + EU AI Factory initiative 2024), РФ (отечественные модели + sovereign digital ecosystem). Прогностические модели: Epoch AI compute trends (GPT-5 level in 2025, GPT-6 level 2026-2027), AI Index Stanford (annual benchmarks). Междисциплинарные связи: computer science, futures studies, economics of automation (Acemoglu, Brynjolfsson), philosophy of mind (AGI debates). Визуализация: Gartner AI Hype Cycle 2024; scaling laws curve compute → capability."
+      }
+    }
+  }
+]

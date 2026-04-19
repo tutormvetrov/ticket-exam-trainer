@@ -1,0 +1,274 @@
+[
+  {
+    "discipline_code": "3.21",
+    "discipline_title": "Онлайн социология",
+    "discipline_lecturer": "Преподаватели АНО «Диалог»; Журавлев Денис Максимович, доктор экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 1,
+    "title": "Основы и роль онлайн социологии в оценке актуальной повестки: трансформация форм коммуникации и адаптивность методологии социологических исследований для оценки трендов общественного мнения",
+    "canonical_answer_summary": "Онлайн-социология — применение социологических методов в цифровой среде: онлайн-опросы, social listening, big data analytics. Особенности: скорость, масштаб, нетипичные выборки (digital divide). Adaptation классической методологии (Gallup, Ликерт) к онлайн-среде.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Онлайн-социология — активно развивающаяся область, трансформирующая традиционные методы изучения общества под возможности цифровой среды. Она даёт беспрецедентную скорость и масштаб замеров, но требует нового методологического аппарата. Для магистра ГМУ в цифровых коммуникациях это ключевая дисциплина: государство всё чаще принимает решения на основе онлайн-социологических данных. Цель ответа — раскрыть основы онлайн-социологии и её роль в оценке повестки."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Онлайн-социология (digital sociology, computational social science) — область социологии, использующая цифровые технологии (интернет, мобильные устройства, соцсети) как предмет исследования, инструмент сбора данных и среду распространения результатов. Предметные области: 1) социальные сети и виртуальные сообщества (Castells, Rheingold); 2) цифровое неравенство (digital divide — van Dijk); 3) онлайн-поведение (digital behavior); 4) generation effects (цифровые native vs immigrants). Методы: 1) Online surveys (Яндекс Взгляд, Google Forms, MTurk, отечественные OnlineSurvey, Интерактивный опрос ВЦИОМ); 2) Social media analytics — анализ big data соцмедиа; 3) Digital ethnography — наблюдение за онлайн-сообществами; 4) Netnography (Kozinets) — этнография онлайн-культур; 5) Computational methods — машинный анализ текстов, сетевой анализ, симуляции. Трансформации методологии: sampling (онлайн-выборки смещены к digital natives, нужны quotas), data quality (bot detection), privacy (GDPR, ФЗ-152). Классики: digital sociology school Reed Elsevier Society, CSS Lazer-Pentland-Bail framework."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) ВЦИОМ онлайн-опросы — еженедельные опросы по панели; 2) ФОМ — исследования «Доминанты» на базе CATI и online; 3) HSE Центр изучения интернета и общества — академические исследования цифрового общества; 4) АНО «Диалог» — мониторинг соцмедиа как источник данных о повестке; 5) Yandex Research — анализ поведения пользователей; 6) Мониторинг Госуслуг — поведенческие данные 130+ млн пользователей. Роль в ГМУ: онлайн-социология позволяет в режиме near-real-time оценивать реакцию общества на решения, инициативы, события. Практический кейс: Мониторинг эффективности COVID-19 мер (2020-2022) — недельные онлайн-опросы ВЦИОМ + social listening АНО «Диалог» + анализ поисковых запросов Яндекса давали целостную картину общественных настроений. Обоснование: классические опросы (1-2 в месяц, телефон) слишком медленны для быстро меняющейся повестки; онлайн-социология даёт адаптивную картину."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки онлайн-социолога: дизайн online survey (вопросы, логика, fatigue), работа с онлайн-панелями и платформами (Яндекс Взгляд, Survio, Анкетолог), обработка big data социальных медиа (Brand Analytics API, Youscan). Базовые навыки computational social science: Python (pandas, NetworkX), R для статистического анализа. Владение терминологией: online survey, digital ethnography, netnography, social media analytics, computational social science, digital divide, sampling bias online, probability-based online panel, opt-in panel."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, онлайн-социология — современная методологическая ветвь, адаптирующая классические методы социологии к цифровой среде и открывающая новые возможности (big data, real-time, behavioral data). В РФ формируется сильная онлайн-социологическая школа. Перспективы: LLM-powered анализ больших текстовых корпусов (интервью, комментарии), federated privacy-preserving опросы, интеграция поведенческих данных платформ с классическими опросами."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ подходов: классическая социология (quota sampling, интервью, 1000-2000 респондентов) vs онлайн-социология (convenience/volunteer panel, 10К+ респондентов, но сдвинутая выборка). Ключевые школы digital sociology: Lupton (Sydney), Marres (Warwick), Lazer-Pentland-Bail (США). Междисциплинарные связи: social network analysis, computer science (NLP, ML), статистика, маркетинг-исследования. Визуализация: типология онлайн-методов по степени involvement vs unobtrusiveness; digital divide pyramid."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.21",
+    "discipline_title": "Онлайн социология",
+    "discipline_lecturer": "Преподаватели АНО «Диалог»; Журавлев Денис Максимович, доктор экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 2,
+    "title": "Количественные социологические исследования: методологические основы и особенности, этика и конфиденциальность в онлайн исследованиях",
+    "canonical_answer_summary": "Количественные исследования в онлайне: опросы на панелях, анализ big data. Основы: теория вероятностей, статистическая выборка, валидность и надёжность. Этические принципы: informed consent, privacy, ESOMAR/WAPOR codes. В РФ — ФЗ-152 «О персональных данных».",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Количественные социологические исследования в онлайн-среде опираются на классическую методологическую базу (теория вероятностей, статистика), но адаптируют её под особенности цифрового канала. Этические аспекты — privacy, consent, безопасность данных — приобретают особое значение из-за масштабов и скрытости цифровых наблюдений. Для магистра ГМУ в цифровых коммуникациях владение этими аспектами — профессиональная норма. Цель ответа — раскрыть методологические основы, особенности и этические принципы онлайн-опросных исследований."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Методологические основы количественных исследований: 1) Теория выборочного наблюдения — вероятностные vs невероятностные выборки; 2) Требования к выборке: представительность, объём для нужной statistical power, confidence level (95%); 3) Дизайн инструментария — анкета, вопросы (закрытые vs открытые, шкалы Ликерта, семантический дифференциал); 4) Обработка данных — дескриптивная статистика, inferential (t-test, χ², ANOVA, regression); 5) Качество данных — валидность (criterion, construct), надёжность (Cronbach's α ≥ 0.7 обычно). Особенности онлайн: невероятностные выборки (opt-in panels), quotas по демографии, post-stratification weighting. Этика исследований: 1) Informed consent — явное согласие на участие; 2) Voluntariness — добровольность; 3) Confidentiality/anonymity — конфиденциальность; 4) Beneficence — польза превышает риски; 5) Right to withdraw — право выхода. Международные кодексы: ESOMAR Code (European Society for Opinion and Marketing Research), WAPOR Code (World Association for Public Opinion Research), ICC/ESOMAR Code. НПА РФ: ФЗ № 152-ФЗ «О персональных данных» — обязательное согласие, цели обработки, хранение в РФ. Специфика онлайн-этики: bot detection (исключение нечеловеческих ответов), protection uniqueness (один респондент — один ответ), защита несовершеннолетних, GDPR-совместимость для международных."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) ВЦИОМ — гибридная методология (CATI + online panel, >200 тыс. members), еженедельные исследования; 2) ФОМ — «Доминанты» еженедельно, панель Poll-i; 3) Левада-центр (статус иноагента) — прикладной, in-person + online; 4) Ipsos, Kantar, Nielsen (частично ушли после 2022); 5) отечественные платформы — Яндекс Взгляд, OMI (Online Market Intelligence), Анкетолог. Кейс: мониторинг одобрения мер мобилизации (сентябрь-октябрь 2022) — ВЦИОМ проводил еженедельные замеры; выборка 1600 человек CATI, методика проверена десятилетиями. Результаты использовались при коммуникационной адаптации. Обоснование: онлайн-исследования дают скорость и объём, CATI/F2F даёт контроль качества выборки; оптимум — гибрид."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки количественного исследователя: дизайн анкеты (избегание leading questions, double-barreled, вопросов об отдалённом времени), расчёт sample size по формулам, проверка репрезентативности. Работа с СТАТIS, SPSS, R, Python (pandas, scipy.stats). Соблюдение этических стандартов ESOMAR/РАМИР. Владение терминологией: probability sampling, non-probability sampling, stratified/cluster/systematic sampling, response rate, margin of error, confidence interval, Likert scale, semantic differential, Cronbach's alpha, informed consent."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, количественные онлайн-исследования — адаптация классической социологии к цифровой среде с сохранением научной строгости и этических стандартов. В РФ сложилась развитая инфраструктура онлайн-исследований, сочетающая традиционные методы с цифровыми инновациями. Перспективы: интеграция passive data (цифровых следов пользователей с их согласия) с active data (опросами); federated surveys для сохранения privacy; AI-ассистенты для автоматической генерации и анализа опросов."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ онлайн-панелей: ВЦИОМ, ФОМ, OMI, Яндекс Взгляд — разные методологические подходы. Международные стандарты: ISO 20252 «Исследования рынка, общественного мнения и социальные исследования», ESOMAR Code. Междисциплинарные связи: статистика, теория вероятностей, математика (выборки), информатика (платформы исследований), этика. Визуализация: классификация типов выборок; life-cycle онлайн-опроса с этическими контрольными точками."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.21",
+    "discipline_title": "Онлайн социология",
+    "discipline_lecturer": "Преподаватели АНО «Диалог»; Журавлев Денис Максимович, доктор экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 3,
+    "title": "Обработка данных в количественном исследовании, анализ данных и формирование выводов",
+    "canonical_answer_summary": "Обработка количественных данных: проверка и очистка (data cleaning), кодирование, weighting (взвешивание), описательная статистика (frequencies, cross-tabs), inferential (хи-квадрат, t-test, регрессия). Формирование выводов — с указанием доверительных интервалов, ограничений методологии.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Обработка данных и формирование выводов — центральные этапы количественного исследования, на которых «сырые» ответы превращаются в аналитические инсайты. Качество этого этапа определяет ценность всего исследования. Для магистра ГМУ понимание обработки данных критично как с точки зрения заказчика (как читать отчёт), так и исполнителя. Цель — раскрыть процесс обработки данных и формирования выводов."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Процесс обработки данных: 1) Data cleaning — удаление некорректных записей (дубли, incomplete responses, обсессивно быстрые ответчики), handling missing data (listwise deletion, imputation — mean/median, MICE); 2) Coding — кодирование открытых вопросов, стандартизация ответов; 3) Weighting — взвешивание выборки по census-distribution (demographic quotas) для post-hoc корректировки; 4) Descriptive statistics — frequencies (распределение ответов), cross-tabulations (таблицы сопряжённости); 5) Inferential statistics — тесты hypotheses: χ² для категориальных, t-test/ANOVA для сравнения средних, regression для связей; 6) Analysis — интерпретация в терминах задачи, triangulation с другими источниками; 7) Reporting — dashboards, отчёт с executive summary, ключевыми графиками, ограничениями методологии. Principles для выводов: avoid over-generalization (не выходить за границы выборки), указание confidence intervals, учёт effect size (Cohen's d), честность о limitations (sample bias, time constraints, response bias). Типичные ошибки: p-hacking (множественные тесты без коррекции — Bonferroni), confirmation bias, cherry picking данных."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) ВЦИОМ — стандартный протокол: cleaning → weighting → descriptive + inferential → publication; результаты публикуются с указанием выборки, метода, ошибки; 2) ФОМ — аналогично, с визуализацией трендов; 3) АНО «Диалог» — агрегирование данных из нескольких источников (опросы + соцмедиа + поисковые запросы); 4) Росстат — выборочные обследования (ОБДХ — обследование бюджетов домохозяйств) с сложной методологией weighting и ростоимости оценок. Практический кейс: анализ отношения к повышению пенсионного возраста (2018) — мета-анализ данных ВЦИОМ, ФОМ, Левада показал стабильно высокий негатив (70%+ против), что потребовало коммуникационной адаптации (переходные меры, льготы). Обоснование: тщательная обработка данных — это трансформация нулевых уровня уверенности в actionable insights."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки анализа: cleaning и weighting в SPSS/R/Python; построение cross-tabs и выявление значимых различий; regression analysis для выявления drivers; построение дашбордов (Power BI, DataLens). Написание аналитических отчётов по стандартам ESOMAR/WAPOR. Владение терминологией: data cleaning, missing data, listwise/pairwise deletion, imputation, weighting, descriptive vs inferential statistics, cross-tabulation, χ²-test, significance level, confidence interval, effect size, p-hacking, multiple testing correction."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, обработка данных и формирование выводов — ключевые этапы превращения социологического исследования в полезное знание. Качество этого этапа определяется сочетанием методологической строгости и честности о ограничениях. В РФ инфраструктура обработки данных в крупных исследовательских центрах развита на международном уровне. Перспективы: AI-ассистенты для автоматизации рутинной обработки, причинно-следственный анализ (causal inference) как следующий стандарт, интеграция structured опросов с unstructured данными (комментарии, behavior)."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ методов обработки: frequentist statistics (традиционный p-value подход) vs Bayesian statistics (апостериорные распределения) vs exploratory data analysis (Tukey, больше descriptive). Инструменты: SPSS (коммерческий), R (open-source, научный), Python с pandas+scipy+statsmodels (data science), Stata (эконометрика). Междисциплинарные связи: статистика, data science, эконометрика, методология научных исследований. Визуализация: пайплайн cleaning → coding → weighting → analysis → reporting."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.21",
+    "discipline_title": "Онлайн социология",
+    "discipline_lecturer": "Преподаватели АНО «Диалог»; Журавлев Денис Максимович, доктор экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 4,
+    "title": "Качественные социологические исследования: возможности и особенности применения онлайн-методов, цифровая активность и социальная структура",
+    "canonical_answer_summary": "Качественные методы онлайн: virtual focus groups, in-depth interviews (IDI) в Zoom, netnography (этнография онлайн-сообществ), digital diaries. Возможности: гибкость, скорость, глобальный охват. Цифровая активность отражает социальную структуру: digital divide, generation-based patterns.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Качественные методы социологических исследований дополняют количественные пониманием «как» и «почему» — мотивов, значений, субъективного опыта. Онлайн-среда открыла новые возможности: virtual focus groups, netnography, digital ethnography. Для магистра ГМУ в цифровых коммуникациях качественные методы необходимы для понимания аудиторий и behavior patterns. Цель — раскрыть онлайн-возможности качественных методов."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Качественные методы (qualitative research) — методы сбора non-numerical данных для глубокого понимания социальных явлений. Классические: 1) In-Depth Interview (IDI) — глубинное интервью 1-2 часа; 2) Focus Group Discussion (FGD) — групповая дискуссия 6-10 человек; 3) Ethnography — погружённое наблюдение; 4) Case study — детальное исследование случая; 5) Document analysis. Онлайн-адаптация: 1) Virtual focus groups — Zoom, Teams, специализированные платформы (iTracks, FocusVision); 2) Online IDI — те же инструменты; 3) Digital ethnography — наблюдение в соцсетях, форумах, гейм-комьюнити; 4) Netnography (Kozinets 2002) — этнография онлайн-культур; 5) Digital diaries — pro mobile apps (Indeemo, dscout) для самонаблюдений; 6) Asynchronous online discussions (forum-based). Цифровая активность и социальная структура: digital divide (van Dijk) — неравенство в доступе к технологиям, навыках использования; Prensky's digital natives vs immigrants; generational patterns (Gen X, Y, Z в онлайне разные); socio-economic status определяет платформенные предпочтения (VK vs Telegram vs ТикТок)."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) ВЦИОМ и ФОМ активно используют онлайн-IDI и virtual FGD для быстрых insight-проектов; 2) HSE Лаборатория количественных и качественных методов — академические этнографии онлайн-сообществ; 3) Агентства (GfK, Nielsen, Online Market Intelligence) до 2022 активно внедряли digital ethnography; 4) АНО «Диалог» — регулярные online FGD для проверки ключевых сообщений. Цифровая структура РФ: 80% россиян онлайн (130+ млн), но возрастная пропасть (95% 18-34 vs 55% 55+), разные платформы для разных сегментов (VK — молодёжь, Одноклассники — 45+, Telegram — активные пользователи 25-45). Практический кейс: качественное исследование отношения к цифровому рублю (ЦБ РФ 2023) — серия FGD с разными возрастными группами показала глубокие различия в восприятии (молодёжь — любопытство, старшие — недоверие), что помогло в коммуникационной стратегии."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки качественного исследователя: подготовка гайда для IDI/FGD, модерация групп (активное слушание, probing questions, handling dominant/shy participants), наблюдение, интерпретация. Аналитические навыки: thematic analysis (Braun&Clarke), grounded theory (Glaser&Strauss), discourse analysis. Работа с MaxQDA, Atlas.ti, NVivo (CAQDAS — computer-assisted qualitative data analysis). Владение терминологией: qualitative research, IDI, FGD, ethnography, netnography, thematic analysis, grounded theory, digital diary, discourse analysis, triangulation, saturation, coding (open/axial/selective)."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, онлайн-качественные методы значительно расширили возможности социологических исследований — позволили изучать behavior в digital-среде, снизили издержки, увеличили географический охват. Цифровая активность отражает и формирует социальную структуру, что требует учёта при дизайне исследования. Перспективы: AI-powered тематический анализ LLM'ами, virtual reality фокус-группы, analysis мультимодального цифрового поведения (текст+видео+тайминг)."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ методов: offline IDI (лучше raporт, сложнее организация) vs virtual IDI (экономия, гибкость, но страдает non-verbal); offline FGD (group dynamic) vs virtual FGD (удобство, но возможна dispassion); netnography (пассивное наблюдение) vs digital ethnography (активное участие). Школы: Kozinets netnography, Marres digital sociology, Hine virtual ethnography. Междисциплинарные связи: антропология, культурология, лингвистика (discourse analysis), психология. Визуализация: таблица онлайн-методов × возможности × ограничения."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.21",
+    "discipline_title": "Онлайн социология",
+    "discipline_lecturer": "Преподаватели АНО «Диалог»; Журавлев Денис Максимович, доктор экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 5,
+    "title": "Качественные социологические исследования: анализ данных, комплексные методы предоставления данных, цифровое неравенство и доступ к информации",
+    "canonical_answer_summary": "Анализ качественных данных: thematic analysis, grounded theory, content analysis, discourse analysis. Визуализация — word clouds, concept maps, network graphs. Цифровое неравенство (digital divide) — трёхуровневое: access → skills → outcomes. Доступ к информации — ФЗ-8.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Анализ качественных данных и их comprehensive представление — ключевые этапы превращения записей интервью и наблюдений в системное знание. Параллельно актуализируется проблема цифрового неравенства — не все граждане имеют равный доступ к информации и цифровым сервисам, что влияет на репрезентативность онлайн-исследований и на справедливость цифровой госполитики. Цель ответа — раскрыть методы анализа качественных данных и концепцию цифрового неравенства."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Методы анализа качественных данных: 1) Thematic Analysis (Braun&Clarke 2006, 6 этапов: familiarization → initial coding → searching themes → reviewing themes → defining themes → report); 2) Grounded Theory (Glaser&Strauss 1967) — построение теории непосредственно из данных через open/axial/selective coding; 3) Content Analysis (Krippendorff) — количественный анализ текстового содержания по заданным категориям; 4) Discourse Analysis — анализ языковых практик как социального действия (Foucault, Gee, Fairclough); 5) Narrative Analysis — анализ историй как носителей значения; 6) Phenomenological Analysis (IPA — Interpretative Phenomenological Analysis) — понимание субъективного опыта. Инструменты: MaxQDA, Atlas.ti, NVivo, Dedoose (онлайн). Визуализация: word clouds, concept maps, network graphs, theme hierarchies. Цифровое неравенство (digital divide, van Dijk): Уровни — 1) Access divide (есть/нет доступ к интернету и устройствам); 2) Skills divide (навыки использования); 3) Outcomes divide (реальные преимущества от использования). В РФ 80%+ проникновение интернета, но остаётся серьёзный skills и outcomes divide по возрасту, образованию, региону. Доступ к информации: ФЗ № 8-ФЗ «Об обеспечении доступа к информации о деятельности государственных органов»; универсальные услуги связи (ФЗ-126, ст. 57)."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) Росстат — выборочные обследования использования ИКТ; 2) HSE мониторинг цифровой грамотности населения (шкала DigiMetry); 3) программа «Кадры для цифровой экономики» — обучение цифровой грамотности; 4) программа устранения цифрового неравенства (УЦН-2.0) Минцифры — 4G в малые населённые пункты; 5) инициативы для старшего поколения — «Азбука интернета», «Бабушка онлайн». Статистика: 20% граждан РФ имеют низкий уровень цифровой грамотности; 10% — без регулярного интернета. Кейс: программа «Цифровой гражданин» Москвы — обучение тысяч пенсионеров пользованию Госуслугами, Сбером Онлайн; показало, что skills divide преодолим инвестициями в обучение. Обоснование: цифровое неравенство — не только социальная проблема, но и ограничитель охвата цифровых госсервисов."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки анализа качественных данных: proficiency в thematic analysis по 6-step Braun&Clarke, работа с CAQDAS (MaxQDA/NVivo/Atlas.ti), визуализация результатов (Miro, concept mapping). Понимание trustworthiness критериев (Lincoln&Guba: credibility, transferability, dependability, confirmability). Умение оценивать и адресовать цифровое неравенство в дизайне исследования (offline-альтернативы для цифровых исключённых). Владение терминологией: thematic analysis, grounded theory, coding (open/axial/selective), saturation, member checking, triangulation, digital divide (1st/2nd/3rd level), digital literacy, digital inclusion."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, анализ качественных данных — системный процесс from transcripts к инсайтам, с богатой методологической традицией. Цифровое неравенство — актуальный аспект современных исследований, требующий специальных методов для inclusion цифрово-исключённых. В РФ развивается инфраструктура цифровой инклюзии. Перспективы: AI-assisted качественный анализ (LLM для thematic analysis больших корпусов), методы смешанного дизайна (online+offline) для охвата всех сегментов, longitudinal исследования цифрового разрыва."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ методов: thematic analysis (гибкий, начинающим) vs grounded theory (теорию-ориентированный, сложнее) vs content analysis (более quantitative) vs discourse analysis (language-focused). Digital divide theories: van Dijk (3 уровня), Warschauer (включая usage), Ragnedda (tri-partite). Междисциплинарные связи: социология, культурология, лингвистика, развитие (development studies). Визуализация: 6-шаговый цикл thematic analysis; 3-уровневая модель цифрового неравенства."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.21",
+    "discipline_title": "Онлайн социология",
+    "discipline_lecturer": "Преподаватели АНО «Диалог»; Журавлев Денис Максимович, доктор экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 6,
+    "title": "Методы сбора данных в онлайн среде: сбор данных в количественных и качественных исследованиях",
+    "canonical_answer_summary": "Методы сбора данных онлайн: 1) опросы (web-based, mobile); 2) panel research (opt-in/probability); 3) social listening; 4) behavioral tracking (клики, скроллы); 5) virtual focus groups; 6) online IDI; 7) digital diaries; 8) A/B тесты. Инструменты: Яндекс Взгляд, Brand Analytics, Zoom, Survio.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Методы сбора данных в онлайн-среде значительно расширились за последние 20 лет: от простых email-опросов до сложных комбинированных methodology с тысячами passive-метрик. Современный онлайн-социолог оперирует портфелем методов, выбирая оптимальный под задачу. Для магистра ГМУ это прикладной инструментарий. Цель — систематизировать методы сбора данных в онлайн-среде."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Количественные онлайн-методы сбора: 1) Web surveys — на своих страницах или через платформы (Google Forms, SurveyMonkey, Яндекс Взгляд, Анкетолог); 2) Panel research — вовлечение участников в панели (OMI, ВЦИОМ Online Panel, FOM Poll-i); 3) Intercept surveys — всплывающие опросы на сайтах (popup); 4) Mobile surveys — через мобильные приложения; 5) Email blasts — массовая рассылка опросов; 6) Behavioral tracking — отслеживание кликов, скроллов, time-on-page (Яндекс Метрика, Google Analytics); 7) A/B testing — экспериментальные дизайны; 8) Social media analytics (Brand Analytics, Youscan). Качественные онлайн-методы: 1) Virtual FGD — Zoom, Teams, Google Meet + специализированные (iTracks, Focus Vision); 2) Online IDI — те же инструменты; 3) Asynchronous discussions — forum-based (реддит-подобные); 4) Digital diary studies — Indeemo, dscout; 5) Digital ethnography — наблюдение в соцмедиа; 6) Sentiment analysis — NLP над comments. Passive data (цифровые следы): 1) Server logs, 2) Platform analytics (VK, Telegram analytics); 3) Open data (Google Trends, Яндекс Wordstat). Комбинированный дизайн: mixed-methods — триангуляция."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) ВЦИОМ использует combination phone (CATI) + online panel; 2) ФОМ — Poll-i панель онлайн-опросов; 3) АНО «Диалог» — social listening через собственную платформу «Инцидент Менеджмент»; 4) коммерческие провайдеры — OMI, Online Market Intelligence, Tiburon; 5) академические — HSE Centre for Longitudinal Research (RLMS); 6) Yandex Research — panel поведенческих исследований; 7) big corps — Сбер, Яндекс проводят собственные исследования на миллионах пользователей. Практический кейс: research before запуска цифрового рубля (ЦБ РФ 2022-2023) — комбинация web-опросов (3000+ респондентов), virtual FGD (12 групп × 8 человек), анализа соцсетей (Brand Analytics), тестирования прототипа ассистировано онлайн — полная картина перед принятием решения. Обоснование: combination методов даёт наиболее полную картину."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки выбора метода под задачу: при необходимости репрезентативной статистики — panel survey; для глубокого понимания — virtual FGD/IDI; для трендов — social listening; для behavior — analytics. Работа с платформами: Яндекс Взгляд, Survio, Анкетолог, Brand Analytics, Zoom+MaxQDA. Владение терминологией: web survey, mobile survey, panel study, intercept survey, CAWI (Computer-Assisted Web Interview), CAPI (Personal), CATI (Telephone), passive data, active data, mixed methods research."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, методы сбора онлайн-данных образуют богатый портфель, покрывающий quantitative, qualitative, и passive подходы. Профессиональный исследователь владеет mixing этих методов под задачу. Перспективы: AI-powered chatbot-interviews (автоматизация IDI через LLM), integrated analytics platforms (все источники данных в одной панели), privacy-preserving methods (federated learning, differential privacy) для работы с sensitive data."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ методов: web surveys (дёшево, быстро, но опасность bias) vs phone (CATI — репрезентативно, но дорого); virtual FGD (удобно, но group dynamic слабее) vs offline FGD. Сравнение российских платформ: Яндекс Взгляд (крупнейшая панель), Survio (международная), Анкетолог (отечественная), iTracks (qualitative). Междисциплинарные связи: marketing research, HCI (human-computer interaction), behavioral science. Визуализация: матрица «quantitative × qualitative» × «active × passive» с примерами."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.21",
+    "discipline_title": "Онлайн социология",
+    "discipline_lecturer": "Преподаватели АНО «Диалог»; Журавлев Денис Максимович, доктор экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 7,
+    "title": "Таргетированная реклама как современный инструмент сбора данных: анализ данных социальных сетей",
+    "canonical_answer_summary": "Таргетированная реклама — не только инструмент маркетинга, но и источник данных о поведении и предпочтениях пользователей. Анализ: aggregate targeting data, lookalike audiences, interest graphs. В РФ — VK Реклама, myTarget (VK), Яндекс Директ. Ограничения: ФЗ-152, cookies depreciation.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Таргетированная реклама в современной цифровой экономике выполняет двойную функцию: это инструмент коммуникации и одновременно мощный источник данных о пользователях. Анализ aggregated targeting data и behavior в соцсетях позволяет глубоко понимать аудитории, tracking trends, тестировать messaging. Для магистра ГМУ в цифровых коммуникациях эта область — на стыке маркетинга, социологии, data science. Цель — раскрыть таргет как исследовательский инструмент."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Таргетированная реклама (targeted advertising) — реклама, показываемая пользователям на основе их демографии, интересов, поведения, контекста. Типы таргетинга: 1) Demographic (пол, возраст, семейное положение); 2) Geographic (геолокация, геоповедение); 3) Behavioral (поведение в сети, покупки); 4) Interest-based (интересы, группы подписок); 5) Contextual (содержание страницы); 6) Retargeting (ретаргет по посетившим сайт); 7) Lookalike (похожие на существующих клиентов). Рекламные платформы как источник данных: 1) VK Реклама (ранее myTarget) — крупнейшая в РФ; 2) Яндекс Директ; 3) Telegram Ads; 4) Programmatic через DSP (AdRiver, Hybrid); 5) Auction House Roskomnadzor (до 2023). Анализ соцмедиа-данных: 1) Aggregate targeting data — сколько пользователей с определёнными характеристиками (напр., «интересующиеся автомобилями — 3.2 млн в VK»); 2) Audience insights — демография и интересы followers; 3) Interest graphs — связи между интересами (fans A также любят B); 4) Trend detection — рост конкретных интересов во времени; 5) Content performance — какой контент резонирует. Инструменты анализа: VK Ads Analytics, Brand Analytics, Youscan. Правовая база: ФЗ-152 о персональных данных, ФЗ-38 о рекламе (маркировка ERID с 2022), GDPR-inspired ограничения."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) VK Реклама — 100+ млн MAU россиян, можно таргетироваться на сотни characteristics; 2) Яндекс Директ — таргет на поисковые запросы и поведение в сети; 3) Telegram Ads (с 2021, отечественная версия) — таргет на каналы; 4) programmatic — закупка у разных платформ через DSP. Для госорганов: 1) таргет-кампании Минздрава (антитабачные, вакцинация), Минцифры (Госуслуги), Минтранса (безопасное вождение); 2) анализ aggregate data для понимания аудитории перед кампанией. Практический кейс: кампания vaccination-awareness Минздрава (2021-2022) — таргет на 45+ с учётом медицинских интересов и потреблением лайфстайл-контента; аналитика показала, что сообщения от врачей работают лучше, чем от политиков; результаты повысили CTR на 40%. Обоснование: targeting data — legitimate источник aggregate insights о пользователях при соблюдении ФЗ-152."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Навыки анализа targeting data: настройка audiences в VK Реклама, интерпретация audience insights, использование lookalike для расширения охвата. Понимание ограничений privacy (ФЗ-152, opt-out, cookies). Построение interest maps для стратегий. Работа с аналитикой объявлений (CTR, CR, CPA). Владение терминологией: targeting, retargeting, lookalike, interest graph, DSP (Demand-Side Platform), SSP (Supply-Side Platform), programmatic, DMP (Data Management Platform), CPM, CPC, CTR, CR, CPA, ERID (отечественная маркировка рекламы)."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, таргетированная реклама — не только инструмент коммуникации, но и aggregate-источник социологических инсайтов о пользователях. Анализ данных соцсетей через рекламные платформы даёт государству и бизнесу уникальное понимание аудиторий. Перспективы: усиление privacy-регулирования (cookies depreciation), рост contextual targeting, federated learning модели (без передачи персональных данных), AI-powered творческая оптимизация (genAI-варианты рекламных креативов)."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ рекламных экосистем: РФ (VK Реклама, Яндекс Директ, Telegram Ads — impressive после exit Meta/Google), ЕС (Google, Meta + DSA regulations), Китай (WeChat, Weibo, собственные экосистемы). Междисциплинарные связи: маркетинг-коммуникации, data science, behavioral economics, privacy law. Визуализация: воронка таргет-кампании (audience → impression → click → action); interest graph фрагмент."
+      }
+    }
+  },
+  {
+    "discipline_code": "3.21",
+    "discipline_title": "Онлайн социология",
+    "discipline_lecturer": "Преподаватели АНО «Диалог»; Журавлев Денис Максимович, доктор экономических наук, доцент ВШГА МГУ",
+    "ticket_num": 8,
+    "title": "Актуальные тренды и паттерны поведения в онлайн среде (в общественном мнении) и применение онлайн социологии в практике государственного управления",
+    "canonical_answer_summary": "Тренды онлайн-поведения: рост mobile, short-form video, messaging apps, privacy awareness, AI-инструменты. Паттерны: фрагментация внимания, echo chambers, virality, negative bias. Применение в ГМУ: real-time мониторинг общественного мнения, таргетирование госкоммуникаций, evidence-based policy-making.",
+    "blocks": {
+      "intro": {
+        "title": "Введение",
+        "content": "Актуальные тренды онлайн-поведения формируют новое поле для применения социологических методов в государственном управлении. Понимание паттернов взаимодействия граждан с информацией — основа эффективных госкоммуникаций. Для магистра ГМУ завершающий билет по онлайн-социологии — интеграция изученного в применимую практику. Цель — раскрыть ключевые тренды и их использование в ГМУ."
+      },
+      "theory": {
+        "title": "Теоретическая часть",
+        "content": "Ключевые тренды онлайн-поведения 2024-2025: 1) Mobile-first — >80% трафика с мобильных устройств, short attention spans; 2) Short-form video dominance — Reels, VK Клипы, YouTube Shorts, TikTok (в странах где доступен); 3) Messaging apps как новые media — Telegram, WhatsApp как ключевые каналы news и политической повестки; 4) Fragmentation of attention — средняя длина потребления снижается; 5) Echo chambers & filter bubbles (Pariser 2011) — алгоритмическая персонализация создаёт homogeneous среды; 6) Privacy awareness — рост числа пользователей, использующих VPN, privacy-focused сервисы; 7) Rise of creator economy — микро-инфлюенсеры как новые authority figures; 8) GenAI потребление — LLM-ассистенты в повседневной жизни; 9) Platform fatigue — уход с major соцсетей в closed communities (discord, telegram); 10) Negative bias — негативный контент получает больше engagement. Паттерны общественного мнения онлайн: виральность (неравномерное distribution — power law), spiral of silence online (Noelle-Neumann applied to social media), bandwagon effect в трендах, polarization через algorithmic amplification. Применение в ГМУ: 1) Real-time мониторинг настроений (АНО «Диалог» «Инцидент Менеджмент»); 2) Таргет-коммуникации госорганов; 3) Early warning systems для кризисов; 4) Evidence-based policy через mining онлайн-данных."
+      },
+      "practice": {
+        "title": "Практическая часть",
+        "content": "Практика в РФ: 1) АНО «Диалог» — агрегированный мониторинг 20+ млн упоминаний ежедневно, детектирование инцидентов в регионах; 2) ВЦИОМ — еженедельные замеры общественного мнения с online panel; 3) интеграция данных в ситуационные центры Правительства; 4) ФНС, МВД, Минздрав используют social listening для выявления problem-zones; 5) предиктивные модели эскалации социального недовольства (АНО «Диалог», внутренние разработки). Российские специфические тренды: доминирование Telegram в политической коммуникации (40+ млн активных), VK в social networking (80+ млн), YouTube оставлен только для entertainment, Instagram/Facebook заблокированы (Meta признана экстремистской). Практический кейс: раннее детектирование проблем «Пушкинской карты» (2021+) — мониторинг соцсетей выявил жалобы на сложности использования; АНО «Диалог» передало в Минкультуры, быстрое улучшение UX. Обоснование: онлайн-социология превращает цифровые следы в actionable insights для госуправления."
+      },
+      "skills": {
+        "title": "Навыки",
+        "content": "Интегрированные навыки онлайн-социолога в ГМУ: постоянный мониторинг повестки через Brand Analytics, Медиалогия, АНО «Диалог»; проведение быстрых исследований (48-72 часа от брифа до отчёта) под оперативные задачи; предиктивная аналитика (какие темы могут стать крупными через 2 недели); translation insights в решения ЛПР. Владение терминологией: digital sociology, real-time analytics, early warning system, trend detection, virality metrics, echo chamber, filter bubble, algorithmic amplification, behavioral insights, data-driven governance."
+      },
+      "conclusion": {
+        "title": "Заключение",
+        "content": "Итак, тренды онлайн-поведения в РФ определяются уникальным сочетанием мировых паттернов (mobile, short-form video) и специфической инфраструктуры (Telegram, VK как альтернативы Meta). Применение онлайн-социологии в ГМУ РФ достигло зрелого уровня: АНО «Диалог» мониторит в реальном времени, ВЦИОМ еженедельно замеряет, ФОИВ используют инсайты для policy. Перспективы: полный переход на AI-powered мониторинг (LLM анализируют миллионы текстов в часах), integrated командные центры с цифровой картой настроений регионов, применение causal inference для эффектов policy на общественное мнение."
+      },
+      "extra": {
+        "title": "Дополнительные элементы",
+        "content": "Сравнительный анализ применения онлайн-социологии: РФ (АНО «Диалог» + ВЦИОМ + ФОМ — zrelый стек), США (Pew Research, Gallup online panels), Великобритания (YouGov panel, огромный по EU масштабам), Китай (Baidu Search Index, Weibo Analysis). Междисциплинарные связи: computational social science, behavioral science, data journalism, public policy analysis. Визуализация: matrix трендов онлайн-поведения vs применения в ГМУ; карта российского цифрового медиа-ландшафта."
+      }
+    }
+  }
+]

@@ -1,149 +1,96 @@
-# Тренажёр билетов к вузовским экзаменам
+# Тезис — тренажёр билетов к письменному госэкзамену
 
-Локальное desktop-приложение на `Python 3.12+` и `PySide6` для подготовки к обычным экзаменам, письменному госэкзамену и защите выпускной работы. Облачные LLM не используются. Все LLM-функции работают только через локальный `Ollama`.
+Локальное desktop-приложение на `Python 3.12+` и `Flet` для подготовки к письменному госэкзамену ГМУ (ВШГА МГУ, май 2026). 208 билетов курса вшиты в сборку, вся работа происходит офлайн, прогресс хранится только на компьютере пользователя. LLM-функции (содержательный рецензент) работают опционально через локальный `Ollama`.
 
-## Текущее состояние
+## Что внутри
 
-- Основной Windows desktop flow подтверждён.
-- Warm Minimal visual refresh завершён для shell, `Библиотеки`, `Билетов` и `Тренировки`.
-- В навигации доступны экраны: `Библиотека`, `Предметы`, `Разделы`, `Билеты`, `Импорт`, `Тренировка`, `Диалог`, `Статистика`, `Подготовка к защите`, `Настройки`.
-- В `Тренировке` доступны 8 отдельных режимов:
-  - `reading`
-  - `active-recall`
-  - `cloze`
-  - `matching`
-  - `plan`
-  - `mini-exam`
-  - `state-exam-full`
-  - `review`
-- Поддержан профиль ответа `Госэкзамен` с 6 answer blocks, block scores и criterion scores.
-- Отдельный DLC workspace `Подготовка к защите` уже рабочий: paywall, локальная активация, проекты, импорт материалов, dossier, outline, storyboard, logical gaps, mock defense и repair queue.
-- Базовый тестовый контур на 2026-04-17: `python -m pytest -q` -> `186 passed, 5 skipped`.
+- **Ежедневный ритуал вместо тренажёра.** Главный экран — Дневник с тремя состояниями: утром приветствие и очередь на сегодня, днём лента попыток с дельтами балла, вечером сводка дня и лучший момент.
+- **6 тренировочных режимов**, выстроенных по возрастанию нагрузки на память: `reading` (чтение эталона), `plan` (восстановление скелета), `cloze` (закрытие пропусков), `active-recall` (активное воспроизведение), `state-exam-full` (полный письменный ответ с таймером 20–40 минут), `review` (разбор готового ответа).
+- **Алгоритм интервальных повторений FSRS** с cold-start-лестницей: приложение само выбирает, какой билет показать сегодня, основываясь на истории попыток и confidence-сигнале пользователя.
+- **Калибровка уверенности.** Перед проверкой свободного ответа пользователь обязан выбрать 🤷 / 🤔 / 💡 — после проверки приложение сопоставляет уверенность с реальным баллом и даёт метакогнитивный отклик.
+- **Локальный профиль** (имя + emoji-аватар), создаётся при первом запуске, никакой регистрации.
+- **Light + dark warm-minimal тема**, шрифты Lora (serif) + Golos Text (sans) + JetBrains Mono (monospace), адаптивный layout от 1024 до 3840+.
 
-## Основные сценарии
+## Скачать
 
-### 1. Базовый exam flow
+Готовые сборки для Windows и macOS — в разделе [Releases](https://github.com/tutormvetrov/ticket-exam-trainer/releases).
 
-1. Запустить приложение.
-2. Открыть `Настройки -> Ollama`.
-3. Проверить локальный endpoint и модель.
-4. Импортировать `DOCX` или `PDF`.
-5. Проверить результат в `Библиотеке` и `Билетах`.
-6. Перейти в `Тренировку`.
-7. Смотреть динамику в `Статистике`.
+Инструкция для однокурсников на 10 шагов, включая обход SmartScreen и Gatekeeper, лежит в каждом архиве в файле `README_classmates.md`.
 
-### 2. Устная репетиция
-
-Экран `Диалог` запускает ticket-grounded диалоговую сессию по выбранному билету и сохраняет историю сессий и итоговый результат.
-
-### 3. Подготовка к защите
-
-Экран `Подготовка к защите` даёт отдельный workflow для защиты: активация DLC, проект, импорт материалов, карта аргументов, вопросы комиссии и mock defense.
-
-## Что важно заранее
-
-- Никаких облачных LLM. Только локальный `Ollama`.
-- Основной exam import path поддерживает `DOCX` и `PDF`.
-- Для defense flow дополнительно поддерживаются `PPTX`, `TXT`, `MD`.
-- Отдельного `import preview` перед стартом импорта пока нет.
-- `dist/` считается generated output, а не местом ручного редактирования.
-- macOS code-path подготовлен, но ручной runtime smoke на реальном Mac остаётся открытым QA-пунктом.
-
-## Требования
-
-Для запуска из исходников:
-
-- `Python 3.12+`
-- зависимости из `requirements.txt`
-
-Для LLM-функций:
-
-- локально установленный `Ollama`
-- доступный endpoint `http://localhost:11434`
-- локально загруженная `qwen3:8b` или совместимая локальная `Qwen`-модель
-
-## Запуск
-
-### Готовый Windows release
-
-1. Скачать архив релиза из GitHub Releases.
-2. Распаковать каталог релиза.
-3. Запустить `Tezis.exe`.
-4. Открыть `Настройки -> Ollama`.
-5. Нажать `Проверить соединение`.
-
-### Запуск из исходников
+## Запуск из исходников
 
 ```powershell
 python -m pip install -r requirements.txt
-python main.py
+python -m ui_flet.main
 ```
 
-Полезные варианты:
+На macOS аналогично через `python3`.
+
+При первом запуске приложение создаёт локальный workspace в `%LOCALAPPDATA%\Tezis\app_data\` (Windows) или `~/Library/Application Support/Tezis/app_data/` (macOS) и копирует туда предзагруженную БД билетов.
+
+## Опциональный ИИ-рецензент (Ollama)
+
+Без Ollama приложение проверяет ответы по ключевым словам — это работает офлайн и мгновенно. С Ollama рецензент даёт per-thesis verdict, сильные стороны и рекомендации.
+
+Автоматическая установка через мастер (Windows):
 
 ```powershell
-python main.py --view library
-python main.py --view training
-python main.py --view dialogue
-python main.py --view defense
-python main.py --theme dark
+powershell -ExecutionPolicy Bypass -File scripts\install_ollama_wizard.ps1
 ```
 
-## Ollama
+Мастер определит железо (RAM/VRAM), подберёт подходящий тир модели (qwen2.5:7b-instruct-q4_K_M для 8–16 GB RAM, vikhr-nemo-12b для 16+ GB, keyword-fallback для <8 GB), установит Ollama через winget, скачает модель, проверит canary и пропишет выбор в settings.
 
-Рекомендуемая конфигурация:
-
-- API URL: `http://localhost:11434`
-- preferred-модель: `qwen3:8b`
-
-Подготовка на Windows:
+## Сборка бинарника
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\setup_ollama_windows.ps1
-powershell -ExecutionPolicy Bypass -File scripts\check_ollama.ps1
+powershell -ExecutionPolicy Bypass -File scripts\build_flet_exe.ps1
 ```
 
-Подготовка на macOS:
+Выход: `dist\Tezis.exe` (~100 МБ, onefile-bundle). Seed-БД и TTF-шрифты упаковываются внутрь.
 
-```bash
-bash scripts/setup_ollama_macos.sh
-bash scripts/check_ollama_macos.sh
-```
+Для macOS — `scripts/build_mac_app.sh python3 data/state_exam_public_admin_demo.db`.
 
-## Документация
-
-- [Быстрый старт](docs/quickstart.md)
-- [Быстрый старт для госэкзамена](docs/quickstart_state_exam.md)
-- [Руководство пользователя](docs/user_guide.md)
-- [Архитектура](docs/architecture.md)
-- [Спецификация продукта](docs/product_spec.md)
-- [Roadmap](docs/roadmap.md)
-- [Handoff для разработки](PICKUP.md)
-
-## QA и визуальные артефакты
-
-- Visual gate warm-minimal pass: `docs/superpowers/screenshots/2026-04-17-warm-minimal/`
-- Click audit light: `audit/ui_click_audit.md`
-- Click audit dark: `audit/ui_click_audit_dark.md`
-- Manual test report: `audit/manual_test_report.md`
+GitHub Actions workflow `.github/workflows/release.yml` собирает оба бинарника автоматически по push-у тега вида `v*` и публикует GitHub Release.
 
 ## Тесты
-
-Базовый прогон:
 
 ```powershell
 python -m pytest -q
 ```
 
-Live Ollama integration:
+Текущий статус: `397 passed, 5 skipped, 0 failed`.
 
-```powershell
-python -m pytest -q --run-live-ollama
-```
+Ключевые test-контуры:
+- `test_language_contract.py` — AST-визитор, проверяет, что все user-facing строки в `ui_flet/` на русском и что нет прямого рендеринга domain-enum'ов в widget-ах.
+- `test_block_derivation.py` — эвристика восстановления недостающих answer-blocks из типизированных атомов и «Фрагмент N»-fallback'ов.
+- `test_daily_digest.py` — агрегатор дневной сводки (попытки, best-moment, дельта vs предыдущая попытка, mastered-сегодня).
+- `test_ticket_quality.py` — skeleton-weak heuristic.
+- `test_user_profile.py` — валидация имени, round-trip профиля, corrupt-file handling.
+- `test_flet_router.py` — auth-gate (нет профиля → /onboarding), /journal как root-route.
 
-UI click audit:
+## Архитектура
 
-```powershell
-python scripts/ui_click_audit.py --theme light --report audit/ui_click_audit.md
-python scripts/ui_click_audit.py --theme dark --report audit/ui_click_audit_dark.md
-```
+Три слоя без циклов:
+
+- `domain/` — чистые dataclass'ы билета, атома, оценки. Нулевые внешние зависимости.
+- `application/` — сервисы: `AppFacade` (единая точка в UI), `MicroSkillScoringService`, `StateExamScoringService`, `AdaptiveReviewService` (FSRS), `user_profile`, `daily_digest`, `ticket_quality`, `block_derivation`.
+- `infrastructure/` — `sqlite3` репозитории, Ollama HTTP-клиент.
+- `ui_flet/` — Flet-интерфейс: `views/` (3 root-screen'а: onboarding, journal, tickets, training, settings), `workspaces/` (6 тренировочных), `components/` (top bar, ticket card, attempt card, calibration chips, ornamental divider и т.д.), `theme/` (tokens + elevation + buttons + fonts), `i18n/ru.py` — единственное место с пользовательскими строками.
+
+## Документация
+
+- [Архитектура](docs/architecture.md)
+- [Быстрый старт](docs/quickstart.md)
+- [Быстрый старт для госэкзамена](docs/quickstart_state_exam.md)
+- [Руководство пользователя](docs/user_guide.md)
+- [Специфика госэкзамена](docs/product_spec.md)
+- [Handoff для разработки](PICKUP.md)
+- [Инструкция для однокурсников](README_classmates.md) — humanitarian-friendly, 10 шагов от ZIP до первого разобранного билета
+
+Активные дизайн-спеки Flet-миграции и сопутствующих полиш-этапов в `docs/superpowers/specs/`.
+
+## Лицензия и контекст
+
+Проект сделан для однокурсников ГМУ ВШГА МГУ к госэкзамену 13 мая 2026 года. Билеты, структура ответа и методика основаны на конспекте курса и открытых исследованиях по педагогической психологии (retrieval practice, spaced repetition).
+
+Код без лицензии. Если хочется переиспользовать — пишите автору.

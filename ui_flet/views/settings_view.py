@@ -485,16 +485,10 @@ def _save_settings_patch(state: AppState, **changes) -> None:
 
 
 def _show_snackbar(state: AppState, message: str) -> None:
+    # Тонкая обёртка, оставлена как имя-фасад для локальных callsite'ов.
+    from ui_flet.components.feedback import show_snackbar
     try:
-        snack = ft.SnackBar(content=ft.Text(message))
-        # Flet 0.27 prefers `page.open(snack)`; `show_snack_bar` is gone.
-        opener = getattr(state.page, "open", None)
-        if opener is not None:
-            opener(snack)
-        else:  # pragma: no cover — legacy path
-            legacy = getattr(state.page, "show_snack_bar", None)
-            if legacy is not None:
-                legacy(snack)
-        state.page.update()
+        show_snackbar(state, message)
+        return
     except Exception:
         pass

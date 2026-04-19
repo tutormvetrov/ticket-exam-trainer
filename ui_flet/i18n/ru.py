@@ -178,6 +178,7 @@ TEXT = {
 
     # Journal
     "nav.journal":                  "Дневник",
+    "nav.training.needs_ticket":    "Не торопись. Сначала выбери билет.",
     "journal.morning.greeting":      "С добрым утром",
     "journal.morning.queue":          "Сегодня тебя ждёт:",
     "journal.morning.queue_review":  "{count} повторений",

@@ -167,7 +167,11 @@ class OllamaRuntimeManager:
                 Path.home() / ".ollama" / "models",
                 Path(r"D:\OllamaModels"),
             ]
-        return [default_models_path()]
+        legacy_paths: list[Path] = [Path.home() / ".ollama" / "models"]
+        default_path = default_models_path()
+        if default_path not in legacy_paths:
+            legacy_paths.append(default_path)
+        return legacy_paths
 
     @staticmethod
     def _path_has_models(path: Path) -> bool:

@@ -86,8 +86,8 @@ def _get_ocr_engine(cache_dir: Path) -> Any:
         cached = _ENGINE_CACHE.get(cache_key)
         if cached is not None:
             return cached
-        assets = _ensure_ocr_assets(cache_dir)
         rapid_ocr_class = _load_rapidocr_class()
+        assets = _ensure_ocr_assets(cache_dir)
         engine = rapid_ocr_class(
             print_verbose=False,
             text_score=0.35,

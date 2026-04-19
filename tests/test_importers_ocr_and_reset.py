@@ -111,9 +111,15 @@ def test_pdf_import_keeps_base_text_when_rapidocr_is_unavailable(tmp_path: Path,
             raise ImportError(f"missing optional dependency: {name}")
         return original_import_module(name)
 
+    monkeypatch.setattr(ocr_support_module, "_ENGINE_CACHE", {})
     monkeypatch.setattr(ocr_support_module, "_RAPID_OCR_CLASS", None)
     monkeypatch.setattr(ocr_support_module, "_RAPID_OCR_IMPORT_ERROR", None)
     monkeypatch.setattr(ocr_support_module, "_RAPID_OCR_IMPORT_ATTEMPTED", False)
+    monkeypatch.setattr(
+        ocr_support_module,
+        "_ensure_ocr_assets",
+        lambda cache_dir: (_ for _ in ()).throw(AssertionError("OCR assets should not be downloaded")),
+    )
     monkeypatch.setattr(
         ocr_support_module.importlib,
         "import_module",

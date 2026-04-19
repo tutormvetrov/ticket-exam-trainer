@@ -33,3 +33,19 @@ app-dark.png
 # Source PDFs for seed building — not tracked in repo
 МДЭ_ГА_2024_Кол_Конспект_ГМУ_ГАРФ_18_02_2025_в_2.pdf
 *.source.pdf
+# User-specific source PDFs (exam reference materials)
+/*MDE*.pdf
+/*Konspekt*.pdf
+
+# Local-only DB backups created by cold-reset / pre-migration flows
+exam_trainer.db.pre-*
+exam_trainer.db.post-*
+*.db.pre-*
+*.db.post-*
+
+# Legacy PySide6 codebase kept only on disk — not part of the repo history
+archive/
+
+# Throwaway inspection workspaces
+tmp-*/
+

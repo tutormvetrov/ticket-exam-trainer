@@ -253,22 +253,23 @@ class AdaptiveReviewService:
         now: datetime,
         mode: ReviewMode,
     ) -> datetime:
-        """Return absolute ``due_at`` taking FSRS state / cold-start into account."""
+        """Единая точка истины: очередь доверяет ``profile.next_review_at``.
+
+        ``record_attempt`` уже прогоняет cold-start-лестницу и FSRS, пишет
+        итог в ``profile.next_review_at``. Очередь не пересчитывает с нуля
+        по-своему (это порождало off-by-one между профилем и due_at), а
+        просто берёт профильное значение. Если его нет — профиль никогда
+        не повторялся, используется первая ступенька лестницы.
+        """
         attempts = int(profile.attempts_count or 0)
 
-        # Карточка никогда не повторялась — кладём в завтра (шаг 1 лестницы).
+        # Никогда не повторялась — первый показ через шаг 0 (1 день).
         if attempts <= 0:
             return now + timedelta(days=COLD_START_INTERVALS_DAYS[0])
 
-        # В cold-start фазе берём следующий шаг лестницы. При attempts == 1
-        # билет уже прошёл первый шаг и ожидает 2-й (3 дня).
-        if attempts < len(COLD_START_INTERVALS_DAYS):
-            return now + timedelta(days=COLD_START_INTERVALS_DAYS[attempts])
-
-        # После cold-start ориентируемся на fsrs-state, если он есть.
-        card = _load_card(profile.fsrs_state_json)
-        if card is not None and card.due is not None:
-            due = card.due
+        # Если запись повторялась и имеет next_review_at — доверяем ему.
+        if profile.next_review_at is not None:
+            due = profile.next_review_at
             if due.tzinfo is not None:
                 due = due.astimezone(timezone.utc).replace(tzinfo=None)
             # В EXAM_CRUNCH сжимаем "хвост" интервала, чтобы всё всплывало чаще.
@@ -277,8 +278,12 @@ class AdaptiveReviewService:
                 return now + shrink
             return due
 
-        # Эмёржансы: профиль есть, attempts >= 3, но fsrs-state не
-        # сохранён — работает fallback на базе confidence_score.
+        # Legacy / battle-broken профиль: attempts>=1, но next_review_at
+        # не проставлен. Синтезируем интервал по положению на лестнице
+        # либо по mastery для пост-cold-start.
+        if attempts < len(COLD_START_INTERVALS_DAYS):
+            step_index = min(attempts - 1, len(COLD_START_INTERVALS_DAYS) - 1)
+            return now + timedelta(days=COLD_START_INTERVALS_DAYS[step_index])
         mastery = max(0.1, profile.confidence_score or 0.0)
         base_hours = 18 * mastery if mode is ReviewMode.EXAM_CRUNCH else 72 * mastery
         return now + timedelta(hours=max(1, int(base_hours)))

@@ -159,8 +159,25 @@ def test_new_ticket_gets_cold_start_ladder_first_step() -> None:
     assert queue[0].due_at == expected
 
 
-def test_partially_trained_ticket_uses_next_ladder_step() -> None:
-    """Профиль с attempts_count=1 → следующий шаг лестницы (3 дня)."""
+def test_partially_trained_ticket_reuses_profile_next_review_at() -> None:
+    """Очередь доверяет ``profile.next_review_at`` — единая точка истины,
+    уже посчитанная ``record_attempt`` (cold-start-лестница или FSRS)."""
+    ticket = _ticket()
+    scheduled_due = NOW + timedelta(days=COLD_START_INTERVALS_DAYS[0])
+    profile = TicketMasteryProfile(
+        user_id="u",
+        ticket_id=ticket.ticket_id,
+        attempts_count=1,
+        next_review_at=scheduled_due,
+    )
+    queue = AdaptiveReviewService().build_queue("u", [ticket], [profile], [], now=NOW)
+    assert queue[0].due_at == scheduled_due
+
+
+def test_partially_trained_ticket_without_next_review_at_falls_back_to_ladder() -> None:
+    """Legacy-профиль без ``next_review_at``: очередь синтезирует интервал
+    по фактически пройденному шагу (INTERVALS[attempts-1]), а не по
+    следующему — это бывшая off-by-one между record_attempt и очередью."""
     ticket = _ticket()
     profile = TicketMasteryProfile(
         user_id="u",
@@ -168,5 +185,5 @@ def test_partially_trained_ticket_uses_next_ladder_step() -> None:
         attempts_count=1,
     )
     queue = AdaptiveReviewService().build_queue("u", [ticket], [profile], [], now=NOW)
-    expected = NOW + timedelta(days=COLD_START_INTERVALS_DAYS[1])
+    expected = NOW + timedelta(days=COLD_START_INTERVALS_DAYS[0])
     assert queue[0].due_at == expected

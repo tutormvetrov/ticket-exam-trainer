@@ -7,7 +7,6 @@ place without regenerating ticket_ids.
 from __future__ import annotations
 
 import sqlite3
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

@@ -41,10 +41,12 @@ powershell -ExecutionPolicy Bypass -File scripts\install_ollama_wizard.ps1
 ```
 
 macOS:
+- откройте `Tezis.app`
+- перейдите в `Настройки` → `Рецензирование`
+- нажмите `Скачать Ollama for Mac`, затем вернитесь в приложение
+- после установки нажмите `Запустить Ollama`, затем при необходимости `Скачать qwen3:8b`
 
-```bash
-bash scripts/setup_ollama_macos.sh
-```
+Скрипт `scripts/setup_ollama_macos.sh` оставлен только как manual/troubleshooting fallback, а не как основной пользовательский сценарий.
 
 ## Сборка
 

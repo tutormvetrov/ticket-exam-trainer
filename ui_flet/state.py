@@ -130,7 +130,12 @@ class AppState:
 
         def _worker() -> None:
             try:
-                ok = probe_ollama_now(base_url, timeout=timeout)
+                inspect_bootstrap = getattr(self.facade, "inspect_ollama_bootstrap", None)
+                if callable(inspect_bootstrap):
+                    status = inspect_bootstrap()
+                    ok = getattr(status, "state", "") == "ready"
+                else:
+                    ok = probe_ollama_now(base_url, timeout=timeout)
             except Exception:
                 _LOG.exception("Ollama probe crashed base_url=%s", base_url)
                 ok = False

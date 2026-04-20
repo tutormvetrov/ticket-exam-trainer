@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+from infrastructure.ollama import OllamaBootstrapStatus
 from infrastructure.ollama.service import OllamaScenarioResult
 from tests.support.workspace_builder import (
     create_workspace_bundle,
@@ -66,6 +67,21 @@ class _TrustedFakeReviewService:
         return OllamaScenarioResult(True, payload, True, 1)
 
 
+class _BootstrapReadyService(_TrustedFakeReviewService):
+    def __init__(self) -> None:
+        super().__init__()
+        self.ensure_calls: list[str] = []
+
+    def ensure_bootstrap_ready(self, preferred_model: str):
+        self.ensure_calls.append(preferred_model)
+        return OllamaBootstrapStatus(
+            state="ready",
+            preferred_model=preferred_model,
+            resolved_model=preferred_model,
+            endpoint_ready=True,
+        )
+
+
 def test_evaluate_answer_review_falls_back_when_probe_is_offline(tmp_path, monkeypatch) -> None:
     bundle = create_workspace_bundle(tmp_path / "workspace")
     try:
@@ -86,6 +102,9 @@ def test_evaluate_answer_review_falls_back_when_probe_is_offline(tmp_path, monke
         assert result.review is not None
         assert result.review.overall_comment
         assert fake_service.review_calls == 0
+        assert result.used_fallback is True
+        assert result.used_llm is False
+        assert result.ollama_status == "installed_not_running"
     finally:
         bundle.close()
 
@@ -111,6 +130,8 @@ def test_evaluate_answer_state_exam_falls_back_without_llm_review_call(tmp_path,
         assert result.block_scores
         assert result.criterion_scores
         assert fake_service.review_calls == 0
+        assert result.used_fallback is True
+        assert result.ollama_status == "installed_not_running"
     finally:
         bundle.close()
 
@@ -142,5 +163,34 @@ def test_evaluate_answer_trusts_fake_service_without_probe_client(tmp_path, monk
         assert result.review.overall_comment == "LLM verdict"
         assert fake_service.review_calls == 1
         assert recorded_timeouts == [5.0]
+        assert result.used_llm is True
+        assert result.used_fallback is False
+    finally:
+        bundle.close()
+
+
+def test_evaluate_answer_ensures_runtime_before_reviewing(tmp_path, monkeypatch) -> None:
+    bundle = create_workspace_bundle(tmp_path / "workspace")
+    try:
+        seed_standard_document(bundle)
+        ticket = bundle.facade.load_ticket_maps()[0]
+        answer_text = ticket.canonical_answer_summary or "\n\n".join(atom.text for atom in ticket.atoms[:3])
+        fake_service = _BootstrapReadyService()
+
+        monkeypatch.setattr(type(bundle.facade), "build_ollama_service", lambda self, timeout_seconds=None: fake_service)
+
+        result = bundle.facade.evaluate_answer(
+            ticket.ticket_id,
+            "review",
+            answer_text,
+            include_followups=False,
+        )
+
+        assert result.ok
+        assert result.review is not None
+        assert result.review.overall_comment == "LLM verdict"
+        assert fake_service.ensure_calls == ["qwen3:8b"]
+        assert result.used_llm is True
+        assert result.ollama_status == "ready"
     finally:
         bundle.close()

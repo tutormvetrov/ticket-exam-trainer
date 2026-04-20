@@ -27,6 +27,9 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
+      - name: Check release guardrails
+        run: python scripts/check_release_guardrails.py
+
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
@@ -39,6 +42,15 @@ jobs:
             echo "Seed DB missing — build_mac_app.sh needs it as --add-data"
             exit 1
           fi
+
+      - name: Run focused macOS runtime tests
+        run: |
+          python -m pytest -q \
+            tests/test_platform_support.py \
+            tests/test_ollama_runtime.py \
+            tests/test_ollama_service.py \
+            tests/test_facade_review_fastfail.py \
+            tests/test_settings_view_helpers.py
 
       - name: Build macOS app
         run: |

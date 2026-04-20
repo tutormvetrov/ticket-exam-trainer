@@ -175,6 +175,9 @@ class TrainingEvaluationResult:
     followup_questions: list[str] = field(default_factory=list)
     error: str = ""
     review: ReviewVerdict | None = None
+    used_llm: bool = False
+    used_fallback: bool = False
+    ollama_status: str = ""
 
 
 @dataclass(slots=True)

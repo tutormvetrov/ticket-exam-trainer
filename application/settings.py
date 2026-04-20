@@ -50,6 +50,7 @@ class OllamaSettings:
     model: str = DEFAULT_OLLAMA_MODEL
     models_path: Path = field(default_factory=default_models_path)
     timeout_seconds: int = 60
+    ollama_enabled: bool = True
     rewrite_questions: bool = True
     examiner_followups: bool = True
     rule_based_fallback: bool = True

@@ -1,51 +1,78 @@
+# Python caches and test artifacts
 __pycache__/
 .pytest_cache/
-.worktrees/
-.superpowers/
-build/
-build_refresh/
-dist/
-dist_refresh/
-backups/
-audit/screens/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.tox/
+.nox/
+.venv/
 *.pyc
 *.pyo
 *.pyd
-*.db
-*.db.pre-derivation-backup
-*.db-shm
-*.db-wal
-app_data/
-/Tezis.spec
+
+# Local tooling and scratch workspaces
+.worktrees/
+.superpowers/
+.claude/
+local_tools/
+archive/
 /tmp-inspect-model/
 /tmp-measure-contract*/
+/tmp-*/
 tmp_qt_smoke/
 tmp_qt_smoke2/
-local_tools/
-.claude/
 llm_inbox_*/
+
+# Build and release outputs
+/dist/
+/build_refresh/
+/dist_refresh/
+/backups/
+/audit/screens/
+/Tezis.spec
 smoke-*.png
 logomark-*.png
 mainwin-*.png
 app-light.png
 app-dark.png
 
-# Source PDFs for seed building — not tracked in repo
-МДЭ_ГА_2024_Кол_Конспект_ГМУ_ГАРФ_18_02_2025_в_2.pdf
-*.source.pdf
-# User-specific source PDFs (exam reference materials)
-/*MDE*.pdf
-/*Konspekt*.pdf
+# Build tree: keep only source fixtures that are intentionally versioned
+/build/*
+!/build/ai-extract/
+!/build/ai-extract/tickets.json
+!/build/ai-generated/
+!/build/ai-generated/*.json
 
-# Local-only DB backups created by cold-reset / pre-migration flows
+# Databases and local runtime state
+*.db
+!data/state_exam_public_admin_demo.db
+*.db.pre-derivation-backup
+*.db-shm
+*.db-wal
 exam_trainer.db.pre-*
 exam_trainer.db.post-*
 *.db.pre-*
 *.db.post-*
+app_data/
 
-# Legacy PySide6 codebase kept only on disk — not part of the repo history
-archive/
+# Source PDFs kept only on local machines
+МДЭ_ГА_2024_Кол_Конспект_ГМУ_ГАРФ_18_02_2025_в_2.pdf
+*.source.pdf
+/*MDE*.pdf
+/*Konspekt*.pdf
 
-# Throwaway inspection workspaces
-tmp-*/
+# macOS noise
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100/
+.Trashes/
 
+# Windows noise
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk

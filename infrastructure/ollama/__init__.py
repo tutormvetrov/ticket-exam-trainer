@@ -6,6 +6,7 @@ from infrastructure.ollama.dialogue import (
     DialogueTurnPayload,
     DialogueTurnResult,
 )
+from infrastructure.ollama.runtime import OllamaBootstrapStatus
 from infrastructure.ollama.service import (
     LLMStructuringResult,
     OllamaDiagnostics,
@@ -20,6 +21,7 @@ __all__ = [
     "DialogueTurnResult",
     "LLMStructuringResult",
     "OllamaDiagnostics",
+    "OllamaBootstrapStatus",
     "OllamaScenarioResult",
     "OllamaService",
 ]

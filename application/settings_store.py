@@ -18,6 +18,7 @@ class SettingsStore:
             model=payload.get("model", DEFAULT_OLLAMA_SETTINGS.model),
             models_path=Path(payload.get("models_path", str(DEFAULT_OLLAMA_SETTINGS.models_path))),
             timeout_seconds=int(payload.get("timeout_seconds", DEFAULT_OLLAMA_SETTINGS.timeout_seconds)),
+            ollama_enabled=bool(payload.get("ollama_enabled", DEFAULT_OLLAMA_SETTINGS.ollama_enabled)),
             rewrite_questions=bool(payload.get("rewrite_questions", DEFAULT_OLLAMA_SETTINGS.rewrite_questions)),
             examiner_followups=bool(payload.get("examiner_followups", DEFAULT_OLLAMA_SETTINGS.examiner_followups)),
             rule_based_fallback=bool(payload.get("rule_based_fallback", DEFAULT_OLLAMA_SETTINGS.rule_based_fallback)),

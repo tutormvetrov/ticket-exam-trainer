@@ -149,11 +149,11 @@ class OllamaStatusBadge:
             new_status: Status = "offline"
             latency_ms: int | None = None
             try:
-                service = self._state.facade.build_ollama_service()
-                response = service.client.get_tags()
-                latency_ms = response.latency_ms
-                if response.ok:
+                status = self._state.facade.inspect_ollama_bootstrap()
+                if getattr(status, "state", "") == "ready":
                     new_status = "ok"
+                elif getattr(status, "state", "") == "error":
+                    new_status = "error"
                 else:
                     new_status = "offline"
             except Exception:

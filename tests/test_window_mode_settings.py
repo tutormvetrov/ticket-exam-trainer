@@ -26,6 +26,7 @@ def test_window_fields_types_and_defaults() -> None:
     assert isinstance(settings.window_width, int)
     assert isinstance(settings.window_height, int)
     assert settings.window_mode in ("fullscreen", "windowed")
+    assert settings.ollama_enabled is True
 
 
 def test_settings_store_load_tolerates_legacy_json(tmp_path: Path) -> None:
@@ -80,6 +81,18 @@ def test_settings_store_round_trip_preserves_style_and_gemini_fields(tmp_path: P
     assert loaded.theme_family == "deco"
     assert loaded.gemini_api_key == "test-key"
     assert loaded.gemini_model == "gemini-2.5-pro"
+
+
+def test_settings_store_round_trip_preserves_ollama_enabled(tmp_path: Path) -> None:
+    store = SettingsStore(tmp_path / "settings.json")
+    base = store.load()
+    from dataclasses import replace
+
+    modified = replace(base, ollama_enabled=False)
+    store.save(modified)
+
+    loaded = store.load()
+    assert loaded.ollama_enabled is False
 
 
 def test_settings_store_load_falls_back_on_empty_strings(tmp_path: Path) -> None:

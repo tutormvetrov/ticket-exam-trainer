@@ -24,6 +24,8 @@ jobs:
           cache: "pip"
       - name: Install ruff
         run: pip install "ruff>=0.8,<1.0"
+      - name: Check release guardrails
+        run: python scripts/check_release_guardrails.py
       - name: Run ruff check
         run: ruff check .
       # `ruff format --check` is intentionally disabled until a one-shot
@@ -43,6 +45,8 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
+      - name: Check release guardrails
+        run: python scripts/check_release_guardrails.py
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

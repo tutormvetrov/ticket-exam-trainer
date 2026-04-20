@@ -23,6 +23,11 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
+      - name: Check release guardrails
+        shell: pwsh
+        run: |
+          python scripts/check_release_guardrails.py
+
       - name: Install Python deps
         shell: pwsh
         run: |
@@ -48,9 +53,13 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}"
           $stagingDir = "release-staging-windows"
+          $scriptsDir = Join-Path $stagingDir "scripts"
           New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
+          New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
           Copy-Item -Recurse -Force "dist/*" -Destination $stagingDir
-          Copy-Item -Recurse -Force "scripts" -Destination $stagingDir
+          Copy-Item -Force "scripts/install_ollama_wizard.ps1" -Destination $scriptsDir
+          Copy-Item -Force "scripts/check_ollama.ps1" -Destination $scriptsDir
+          Copy-Item -Force "scripts/setup_ollama_windows.ps1" -Destination $scriptsDir
           Copy-Item -Recurse -Force "data" -Destination $stagingDir
           Copy-Item -Force "README_classmates.md" -Destination $stagingDir
           $zipName = "Tezis-$version-windows.zip"
@@ -75,6 +84,9 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
+      - name: Check release guardrails
+        run: python scripts/check_release_guardrails.py
+
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
@@ -88,6 +100,15 @@ jobs:
             exit 1
           fi
 
+      - name: Run focused macOS runtime tests
+        run: |
+          python -m pytest -q \
+            tests/test_platform_support.py \
+            tests/test_ollama_runtime.py \
+            tests/test_ollama_service.py \
+            tests/test_facade_review_fastfail.py \
+            tests/test_settings_view_helpers.py
+
       - name: Build macOS app
         run: |
           chmod +x scripts/build_mac_app.sh
@@ -97,9 +118,12 @@ jobs:
         run: |
           VERSION="${{ github.ref_name }}"
           STAGING="release-staging-macos"
+          SCRIPTS_DIR="$STAGING/scripts"
           mkdir -p "$STAGING"
+          mkdir -p "$SCRIPTS_DIR"
           cp -R dist/*.app "$STAGING/" 2>/dev/null || cp -R dist/* "$STAGING/"
-          cp -R scripts "$STAGING/"
+          cp scripts/check_ollama_macos.sh "$SCRIPTS_DIR/"
+          cp scripts/setup_ollama_macos.sh "$SCRIPTS_DIR/"
           cp -R data "$STAGING/"
           cp README_classmates.md "$STAGING/"
           ZIP="Tezis-$VERSION-macos.zip"
@@ -153,10 +177,11 @@ jobs:
             Applications. Первый запуск: правый клик по приложению ->
             «Открыть» (обход Gatekeeper для неподписанных приложений).
 
-            **Опциональный ИИ-рецензент (Ollama):** запусти
-            `scripts/install_ollama_wizard.ps1` (Windows) или
-            `scripts/setup_ollama_macos.sh` (mac). Без него приложение
-            работает в режиме проверки по ключевым словам.
+            **Опциональный ИИ-рецензент (Ollama):**
+            Windows: можно запустить `scripts/install_ollama_wizard.ps1`.
+            macOS: открой `Tezis.app` -> `Настройки` -> `Рецензирование`
+            и пройди встроенный setup-flow. `scripts/` внутри архива
+            остаются только как troubleshooting-артефакт.
 
             Полная инструкция для однокурсников — в `README_classmates.md`
             внутри архива.

@@ -12,6 +12,7 @@ import logging
 import flet as ft
 
 from ui_flet.components.calibration_chips import CalibrationChips
+from ui_flet.components.ollama_fallback_notice import build_ollama_fallback_notice
 from ui_flet.components.review_verdict_widget import build_review_verdict
 from ui_flet.components.training_workspace_base import build_workspace_frame, safe_update
 from ui_flet.i18n.ru import TEXT
@@ -52,14 +53,12 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         calibration_warning.visible = False
         safe_update(calibration_warning)
         text = (answer_field.value or "").strip()
-        skip_llm = not state.is_ollama_available()
         in_flight["value"] = True
         try:
             result = state.facade.evaluate_answer(
                 ticket.ticket_id,
                 "review",
                 text,
-                skip_llm=skip_llm,
                 confidence=calibration.value,
             )
         except Exception:  # noqa: BLE001
@@ -74,6 +73,8 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         review_verdict = getattr(result, "review", None)
         score_percent = getattr(result, "score_percent", 0)
         feedback = getattr(result, "feedback", "") or ""
+        used_fallback = bool(getattr(result, "used_fallback", False))
+        ollama_status = str(getattr(result, "ollama_status", "") or "")
 
         controls: list[ft.Control] = []
         reply = calibration.render_reply(score_percent)
@@ -106,27 +107,8 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                 )
             )
         else:
-            if skip_llm:
-                controls.append(
-                    ft.Container(
-                        padding=ft.padding.symmetric(vertical=SPACE["xs"], horizontal=SPACE["sm"]),
-                        bgcolor=p["bg_elevated"],
-                        border_radius=RADIUS["pill"],
-                        border=ft.border.all(1, p["border_soft"]),
-                        content=ft.Row(
-                            spacing=SPACE["xs"],
-                            tight=True,
-                            controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE, size=14, color=p["text_muted"]),
-                                ft.Text(
-                                    TEXT["result.review_fallback_short"],
-                                    size=12,
-                                    color=p["text_secondary"],
-                                ),
-                            ],
-                        ),
-                    )
-                )
+            if used_fallback:
+                controls.append(build_ollama_fallback_notice(state, ollama_status))
             controls.append(build_review_verdict(state, review_verdict))
 
         result_box.controls = controls

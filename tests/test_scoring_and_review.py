@@ -124,6 +124,9 @@ def test_review_verdict_dataclass_defaults() -> None:
 
     result = TrainingEvaluationResult(ok=True, score_percent=72, feedback="ok", weak_points=[])
     assert result.review is None
+    assert result.used_llm is False
+    assert result.used_fallback is False
+    assert result.ollama_status == ""
 
     result_with_review = TrainingEvaluationResult(ok=True, score_percent=72, feedback="ok", weak_points=[], review=rv)
     assert result_with_review.review is not None

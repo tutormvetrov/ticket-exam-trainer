@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from infrastructure.ollama.client import OllamaResponse
-from infrastructure.ollama.runtime import OllamaRuntimeStatus
+from infrastructure.ollama.runtime import OllamaBootstrapStatus
 from infrastructure.ollama.service import OllamaService
 
 
@@ -9,8 +9,14 @@ def test_inspect_uses_installed_qwen_fallback_when_preferred_missing(monkeypatch
     service = OllamaService("http://localhost:11434")
     monkeypatch.setattr(
         service.runtime,
-        "ensure_server_ready",
-        lambda wait_timeout_seconds=0: OllamaRuntimeStatus(endpoint_ready=True, models_path="D:/Ollama/models"),
+        "ensure_ready",
+        lambda preferred_model="", wait_timeout_seconds=0: OllamaBootstrapStatus(
+            state="ready",
+            endpoint_ready=True,
+            models_path="D:/Ollama/models",
+            preferred_model=preferred_model,
+            resolved_model="qwen3:latest",
+        ),
     )
     monkeypatch.setattr(
         service.client,

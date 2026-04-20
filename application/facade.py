@@ -37,7 +37,7 @@ from domain.models import DocumentData, SubjectData
 from infrastructure.db import DefenseRepository, DialogueRepository, KnowledgeRepository
 from infrastructure.db.transaction import atomic
 from infrastructure.importers.common import normalize_import_title
-from infrastructure.ollama import OllamaService
+from infrastructure.ollama import OllamaBootstrapStatus, OllamaService
 from infrastructure.ollama.dialogue import DialogueTranscriptLine, DialogueTurnContext
 from infrastructure.ollama.service import OllamaDiagnostics
 
@@ -106,32 +106,29 @@ class AppFacade:
             generation_timeout_seconds=resolved_generation,
         )
 
-    @staticmethod
-    def _probe_evaluation_ollama_service(service) -> tuple[bool, str]:
-        client = getattr(service, "client", None)
-        get_tags = getattr(client, "get_tags", None)
-        if not callable(get_tags):
-            return True, "probe_unavailable"
+    def inspect_ollama_bootstrap(self, preferred_model: str | None = None) -> OllamaBootstrapStatus:
+        target_model = preferred_model if preferred_model is not None else self._settings.model
+        return self.build_ollama_service(timeout_seconds=5.0).inspect_bootstrap(target_model)
 
-        try:
-            response = get_tags()
-        except Exception as exc:  # noqa: BLE001
-            return False, str(exc)
+    def ensure_ollama_ready(self, preferred_model: str | None = None) -> OllamaBootstrapStatus:
+        target_model = preferred_model if preferred_model is not None else self._settings.model
+        return self.build_ollama_service(timeout_seconds=5.0).ensure_bootstrap_ready(target_model)
 
-        if hasattr(response, "ok") and not bool(response.ok):
-            return False, str(getattr(response, "error", "") or "get_tags_not_ok")
-        return True, ""
+    def pull_ollama_model(self, model_name: str | None = None) -> OllamaBootstrapStatus:
+        target_model = (model_name or self._settings.model).strip()
+        return self.build_ollama_service(timeout_seconds=5.0).pull_model(target_model)
 
     def _resolve_evaluation_ollama_service(
         self,
         *,
         mode_key: str,
+        preferred_model: str,
         skip_llm: bool,
         needs_followups: bool,
         needs_review_verdict: bool,
-    ):
-        if skip_llm or not (needs_followups or needs_review_verdict):
-            return None
+    ) -> tuple[OllamaService | None, OllamaBootstrapStatus | None]:
+        if skip_llm or not self._settings.ollama_enabled or not (needs_followups or needs_review_verdict):
+            return None, None
 
         generation_timeout_seconds = None
         if self._settings.rule_based_fallback:
@@ -141,18 +138,53 @@ class AppFacade:
             service = self.build_ollama_service(timeout_seconds=generation_timeout_seconds)
         except Exception:  # noqa: BLE001
             _LOG.exception("Failed to build Ollama service mode=%s", mode_key)
-            return None
+            return None, OllamaBootstrapStatus(
+                state="error",
+                preferred_model=preferred_model,
+                error="Не удалось создать клиент Ollama.",
+            )
 
-        available, reason = self._probe_evaluation_ollama_service(service)
-        if available:
-            return service
+        ensure_ready = getattr(service, "ensure_bootstrap_ready", None)
+        if not callable(ensure_ready):
+            client = getattr(service, "client", None)
+            get_tags = getattr(client, "get_tags", None)
+            if callable(get_tags):
+                try:
+                    response = get_tags()
+                except Exception as exc:  # noqa: BLE001
+                    return None, OllamaBootstrapStatus(
+                        state="error",
+                        preferred_model=preferred_model,
+                        error=str(exc),
+                    )
+                if hasattr(response, "ok") and not bool(response.ok):
+                    return None, OllamaBootstrapStatus(
+                        state="installed_not_running",
+                        preferred_model=preferred_model,
+                        error=str(getattr(response, "error", "") or "get_tags_not_ok"),
+                    )
+            return service, None
+
+        try:
+            status = ensure_ready(preferred_model)
+        except Exception:  # noqa: BLE001
+            _LOG.exception("Failed to ensure Ollama runtime mode=%s", mode_key)
+            return None, OllamaBootstrapStatus(
+                state="error",
+                preferred_model=preferred_model,
+                error="Не удалось подготовить локальную Ollama.",
+            )
+
+        if status.state == "ready":
+            return service, status
 
         _LOG.info(
-            "Skipping Ollama-backed evaluation mode=%s reason=%s",
+            "Skipping Ollama-backed evaluation mode=%s bootstrap_state=%s reason=%s",
             mode_key,
-            reason or "unavailable",
+            status.state,
+            status.error or "unavailable",
         )
-        return None
+        return None, status
 
     @staticmethod
     def _recommended_import_part_count(ticket_total: int) -> int:
@@ -1259,6 +1291,7 @@ class AppFacade:
 
         ticket = self.queries.load_ticket_map(ticket_id)
         resolved_model = model or self._settings.model
+        active_ollama_model = resolved_model
         exercise = self._pick_exercise(ticket, mode_key)
         profile = self._load_profile(ticket_id)
         block_profile = self._load_block_profile(ticket_id)
@@ -1294,12 +1327,15 @@ class AppFacade:
         weak_titles = [area.title for area in outcome.weak_areas[:2]]
         needs_followups = bool(weak_titles) and include_followups and self._settings.examiner_followups
         needs_review_verdict = mode_key in _REVIEW_VERDICT_MODES
-        ollama_service = self._resolve_evaluation_ollama_service(
+        ollama_service, ollama_status = self._resolve_evaluation_ollama_service(
             mode_key=mode_key,
+            preferred_model=resolved_model,
             skip_llm=skip_llm,
             needs_followups=needs_followups,
             needs_review_verdict=needs_review_verdict,
         )
+        if ollama_status is not None and ollama_status.resolved_model:
+            active_ollama_model = ollama_status.resolved_model
 
         followups: list[str] = []
         if needs_followups and ollama_service is not None:
@@ -1307,7 +1343,7 @@ class AppFacade:
                 ticket.title,
                 ticket.canonical_answer_summary,
                 weak_titles,
-                resolved_model,
+                active_ollama_model,
                 count=2,
             )
             if llm_result.ok and llm_result.content:
@@ -1318,7 +1354,7 @@ class AppFacade:
             review_verdict = self.scoring.build_review_verdict(
                 ticket, mode_key, answer,
                 ollama_service=ollama_service,
-                model=resolved_model if ollama_service is not None else "",
+                model=active_ollama_model if ollama_service is not None else "",
             )
 
         return TrainingEvaluationResult(
@@ -1331,6 +1367,9 @@ class AppFacade:
             criterion_scores={code.value: int(round(score * 100)) for code, score in outcome.criterion_scores.items()},
             followup_questions=followups,
             review=review_verdict,
+            used_llm=ollama_service is not None,
+            used_fallback=(needs_followups or needs_review_verdict) and ollama_service is None,
+            ollama_status=ollama_status.state if ollama_status is not None else "",
         )
 
     def _pick_exercise(self, ticket, mode_key: str):

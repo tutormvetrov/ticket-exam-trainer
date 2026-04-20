@@ -24,13 +24,15 @@ from __future__ import annotations
 import logging
 import os
 import re
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import flet as ft
 
+from app.platform import is_macos
 from application.pdf_export import generate_collection_pdf
 from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
+from infrastructure.ollama.runtime import OllamaBootstrapStatus
 from ui_flet.components.ollama_status_badge import OllamaStatusBadge
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
@@ -54,6 +56,18 @@ _OLLAMA_MODEL_OPTIONS: list[tuple[str, str, bool]] = [
     ("qwen3:4b", "qwen3:4b · баланс скорости и качества", False),
     ("qwen3:8b", "qwen3:8b · качество рецензии", True),
 ]
+
+_OLLAMA_DOWNLOAD_URL_MAC = "https://docs.ollama.com/macos"
+
+
+@dataclass(slots=True)
+class OllamaSetupDescriptor:
+    title: str
+    body: str
+    action_label: str = ""
+    action_kind: str = ""
+    action_icon: str = ft.Icons.INFO_OUTLINE
+    meta: str = ""
 
 
 def build_settings_view(state: AppState) -> ft.Control:
@@ -863,6 +877,298 @@ def _handle_test_connection(
 # ============================================================================
 # Section: Reset
 # ============================================================================
+
+def _build_ollama_section(
+    state: AppState,
+    p: dict[str, str],
+    badge: OllamaStatusBadge,
+    badge_control: ft.Control,
+) -> ft.Control:
+    settings = _current_settings(state)
+    enable_switch = ft.Switch(
+        label=TEXT["settings.ollama.enabled"],
+        value=_is_ollama_enabled(settings),
+        on_change=lambda e: _handle_ollama_toggle(state, e.control.value, badge),
+    )
+    model_dropdown = ft.Dropdown(
+        label=TEXT["settings.ollama.model"],
+        value=settings.model,
+        options=[
+            ft.dropdown.Option(
+                key=model_id,
+                text=f"{label}{' ★ Рекомендовано' if recommended else ''}",
+            )
+            for model_id, label, recommended in _OLLAMA_MODEL_OPTIONS
+        ],
+        width=380,
+    )
+    setup_title = ft.Text(
+        TEXT["settings.ollama.setup.loading.title"],
+        style=text_style("h3", color=p["text_primary"]),
+    )
+    setup_body = ft.Text(
+        TEXT["settings.ollama.setup.loading.body"],
+        style=text_style("body", color=p["text_secondary"]),
+    )
+    setup_meta = ft.Text(
+        "",
+        visible=False,
+        style=text_style("caption", color=p["text_muted"]),
+    )
+    progress_ring = ft.ProgressRing(width=16, height=16, stroke_width=2, visible=False)
+    primary_button = ft.FilledButton(visible=False)
+    status_holder: dict[str, OllamaBootstrapStatus | None] = {"value": None}
+    action_holder: dict[str, str] = {"value": ""}
+
+    def _safe_page_update() -> None:
+        try:
+            state.page.update()
+        except Exception:
+            pass
+
+    def _apply_setup_status(status: OllamaBootstrapStatus | None, *, busy: bool = False) -> None:
+        status_holder["value"] = status
+        descriptor = _describe_ollama_setup(status, model_dropdown.value or settings.model)
+        action_holder["value"] = descriptor.action_kind
+        setup_title.value = descriptor.title
+        setup_body.value = descriptor.body
+        setup_meta.value = descriptor.meta
+        setup_meta.visible = bool(descriptor.meta)
+        primary_button.text = descriptor.action_label
+        primary_button.icon = descriptor.action_icon
+        primary_button.visible = bool(descriptor.action_kind)
+        primary_button.disabled = busy or not bool(descriptor.action_kind)
+        progress_ring.visible = busy
+        _safe_page_update()
+
+    def _run_setup_action(action_kind: str, *, announce: bool = False) -> None:
+        import threading
+
+        if action_kind == "download_mac":
+            try:
+                state.page.launch_url(_OLLAMA_DOWNLOAD_URL_MAC)
+                _show_snackbar(state, TEXT["settings.ollama.download_opened"])
+            except Exception:
+                _LOG.exception("Failed to launch Ollama macOS URL")
+                _show_snackbar(state, TEXT["settings.ollama.download_failed"])
+            return
+
+        if not action_kind:
+            return
+
+        preferred_model = (model_dropdown.value or settings.model or "").strip()
+        _apply_setup_status(status_holder["value"], busy=True)
+
+        def _worker() -> None:
+            try:
+                if action_kind == "pull_model":
+                    status = state.facade.pull_ollama_model(preferred_model)
+                elif action_kind == "ensure_ready":
+                    status = state.facade.ensure_ollama_ready(preferred_model)
+                else:
+                    status = state.facade.inspect_ollama_bootstrap(preferred_model)
+            except Exception:  # noqa: BLE001
+                _LOG.exception("Ollama setup action failed action=%s", action_kind)
+                status = OllamaBootstrapStatus(
+                    state="error",
+                    preferred_model=preferred_model,
+                    error=TEXT["settings.ollama.setup.error.body"],
+                )
+
+            badge.set_model(preferred_model)
+            badge.probe_now()
+            state.probe_ollama()
+            _apply_setup_status(status, busy=False)
+            if announce:
+                _show_snackbar(state, _ollama_probe_feedback(status, preferred_model))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _refresh_setup_status() -> None:
+        _run_setup_action("inspect", announce=False)
+
+    primary_button.on_click = lambda _e: _run_setup_action(action_holder["value"], announce=action_holder["value"] != "inspect")
+    model_dropdown.on_change = lambda e: _handle_model_change(
+        state,
+        e.control.value,
+        badge,
+        refresh_callback=_refresh_setup_status,
+    )
+
+    test_button = ft.FilledTonalButton(
+        TEXT["settings.ollama.test"],
+        icon=ft.Icons.NETWORK_CHECK,
+        on_click=lambda _e: _run_setup_action("ensure_ready", announce=True),
+    )
+    setup_card = ft.Container(
+        padding=SPACE["md"],
+        bgcolor=p["bg_surface"],
+        border_radius=RADIUS["md"],
+        border=ft.border.all(1, p["border_soft"]),
+        content=ft.Column(
+            spacing=SPACE["sm"],
+            controls=[
+                setup_title,
+                setup_body,
+                setup_meta,
+                ft.Row(
+                    spacing=SPACE["sm"],
+                    wrap=True,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    controls=[primary_button, progress_ring],
+                ),
+            ],
+        ),
+    )
+    hint = ft.Text(
+        TEXT["settings.ollama.install_hint"],
+        style=text_style("caption", color=p["text_muted"]),
+    )
+    _apply_setup_status(None, busy=False)
+    _refresh_setup_status()
+
+    return _section_card(
+        p,
+        title=TEXT["settings.ollama.title"],
+        children=[
+            enable_switch,
+            model_dropdown,
+            setup_card,
+            ft.Row(
+                spacing=SPACE["md"],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    test_button,
+                    ft.Text(TEXT["settings.ollama.status"], color=p["text_secondary"]),
+                    badge_control,
+                ],
+            ),
+            hint,
+        ],
+    )
+
+
+def _ollama_bootstrap_meta(status: OllamaBootstrapStatus) -> str:
+    parts: list[str] = []
+    if status.resolved_model:
+        parts.append(TEXT["settings.ollama.meta.model"].format(model=status.resolved_model))
+    elif status.preferred_model and status.state == "model_missing":
+        parts.append(TEXT["settings.ollama.meta.target"].format(model=status.preferred_model))
+    if status.models_path:
+        parts.append(TEXT["settings.ollama.meta.path"].format(path=status.models_path))
+    return " · ".join(parts)
+
+
+def _describe_ollama_setup(
+    status: OllamaBootstrapStatus | None,
+    model_name: str,
+    *,
+    macos: bool | None = None,
+) -> OllamaSetupDescriptor:
+    is_macos_platform = is_macos() if macos is None else macos
+    target_model = (model_name or getattr(status, "preferred_model", "") or "qwen3:8b").strip()
+    if status is None:
+        return OllamaSetupDescriptor(
+            title=TEXT["settings.ollama.setup.loading.title"],
+            body=TEXT["settings.ollama.setup.loading.body"],
+        )
+    meta = _ollama_bootstrap_meta(status)
+    if status.state == "not_installed":
+        return OllamaSetupDescriptor(
+            title=TEXT["settings.ollama.setup.not_installed.title"],
+            body=TEXT["settings.ollama.setup.not_installed.body"],
+            action_label=TEXT["settings.ollama.download_mac"] if is_macos_platform else TEXT["settings.ollama.recheck"],
+            action_kind="download_mac" if is_macos_platform else "inspect",
+            action_icon=ft.Icons.DOWNLOAD,
+            meta=meta,
+        )
+    if status.state == "installed_not_running":
+        return OllamaSetupDescriptor(
+            title=TEXT["settings.ollama.setup.installed_not_running.title"],
+            body=TEXT["settings.ollama.setup.installed_not_running.body"],
+            action_label=TEXT["settings.ollama.start"],
+            action_kind="ensure_ready",
+            action_icon=ft.Icons.PLAY_ARROW,
+            meta=meta,
+        )
+    if status.state == "model_missing":
+        return OllamaSetupDescriptor(
+            title=TEXT["settings.ollama.setup.model_missing.title"],
+            body=TEXT["settings.ollama.setup.model_missing.body"].format(model=target_model),
+            action_label=TEXT["settings.ollama.pull_model"].format(model=target_model),
+            action_kind="pull_model",
+            action_icon=ft.Icons.DOWNLOAD_FOR_OFFLINE,
+            meta=meta,
+        )
+    if status.state == "ready":
+        body = TEXT["settings.ollama.setup.ready.body"]
+        if status.resolved_model and status.preferred_model and status.resolved_model != status.preferred_model:
+            body = TEXT["settings.ollama.setup.ready.fallback"].format(model=status.resolved_model)
+        return OllamaSetupDescriptor(
+            title=TEXT["settings.ollama.setup.ready.title"],
+            body=body,
+            action_label=TEXT["settings.ollama.recheck"],
+            action_kind="inspect",
+            action_icon=ft.Icons.REFRESH,
+            meta=meta,
+        )
+    return OllamaSetupDescriptor(
+        title=TEXT["settings.ollama.setup.error.title"],
+        body=status.error or TEXT["settings.ollama.setup.error.body"],
+        action_label=TEXT["settings.ollama.recheck"],
+        action_kind="inspect",
+        action_icon=ft.Icons.REFRESH,
+        meta=meta,
+    )
+
+
+def _ollama_probe_feedback(status: OllamaBootstrapStatus, preferred_model: str) -> str:
+    if status.state == "ready":
+        return TEXT["settings.ollama.probe.ready"].format(model=status.resolved_model or preferred_model or "qwen3")
+    if status.state == "model_missing":
+        return TEXT["settings.ollama.probe.model_missing"].format(model=preferred_model or status.preferred_model or "qwen3:8b")
+    if status.state == "installed_not_running":
+        return TEXT["settings.ollama.probe.not_running"]
+    if status.state == "not_installed":
+        return TEXT["settings.ollama.probe.not_installed"]
+    return status.error or TEXT["settings.ollama.probe.error"]
+
+
+def _is_ollama_enabled(settings: OllamaSettings) -> bool:
+    return bool(getattr(settings, "ollama_enabled", True))
+
+
+def _handle_ollama_toggle(
+    state: AppState,
+    value: bool,
+    badge: OllamaStatusBadge,
+) -> None:
+    _save_settings_patch(
+        state,
+        ollama_enabled=bool(value),
+    )
+    badge.probe_now()
+    state.probe_ollama()
+
+
+def _handle_model_change(
+    state: AppState,
+    new_model: str,
+    badge: OllamaStatusBadge,
+    *,
+    refresh_callback=None,
+) -> None:
+    if not new_model:
+        return
+    _save_settings_patch(state, model=new_model)
+    badge.set_model(new_model)
+    badge.probe_now()
+    state.probe_ollama()
+    if refresh_callback is not None:
+        try:
+            refresh_callback()
+        except Exception:
+            pass
 
 def _build_reset_section(state: AppState, p: dict[str, str]) -> ft.Control:
     # The dialog instance is kept on this closure so close/confirm handlers

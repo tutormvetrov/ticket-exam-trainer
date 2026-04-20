@@ -21,7 +21,7 @@ from infrastructure.ollama.prompts import (
     structuring_system_prompt,
     structuring_user_prompt,
 )
-from infrastructure.ollama.runtime import OllamaRuntimeManager
+from infrastructure.ollama.runtime import OllamaBootstrapStatus, OllamaRuntimeManager
 
 _UNSET_TIMEOUT = object()
 
@@ -39,6 +39,7 @@ class OllamaDiagnostics:
     available_models: list[str] = field(default_factory=list)
     error_text: str = ""
     resolved_models_path: str = ""
+    bootstrap_state: str = ""
 
     @property
     def last_checked_label(self) -> str:
@@ -117,7 +118,10 @@ class OllamaService:
 
     def inspect(self, preferred_model: str = "") -> OllamaDiagnostics:
         timeout_for_runtime = self.timeout_seconds if self.timeout_seconds is not None else 25.0
-        runtime_status = self.runtime.ensure_server_ready(wait_timeout_seconds=min(max(timeout_for_runtime, 6.0), 25.0))
+        runtime_status = self.runtime.ensure_ready(
+            preferred_model=preferred_model,
+            wait_timeout_seconds=min(max(timeout_for_runtime, 6.0), 25.0),
+        )
         checked_at = datetime.now()
         if not runtime_status.endpoint_ready:
             return OllamaDiagnostics(
@@ -128,6 +132,7 @@ class OllamaService:
                 checked_at=checked_at,
                 error_text=runtime_status.error,
                 resolved_models_path=runtime_status.models_path,
+                bootstrap_state=runtime_status.state,
             )
 
         response = self.client.get_tags()
@@ -141,6 +146,7 @@ class OllamaService:
                 latency_ms=response.latency_ms,
                 error_text=response.error,
                 resolved_models_path=runtime_status.models_path,
+                bootstrap_state=runtime_status.state,
             )
 
         models = response.payload.get("models", [])
@@ -177,6 +183,24 @@ class OllamaService:
             available_models=names,
             error_text="",
             resolved_models_path=runtime_status.models_path,
+            bootstrap_state=runtime_status.state,
+        )
+
+    def inspect_bootstrap(self, preferred_model: str = "") -> OllamaBootstrapStatus:
+        return self.runtime.inspect_bootstrap(preferred_model)
+
+    def ensure_bootstrap_ready(self, preferred_model: str = "") -> OllamaBootstrapStatus:
+        timeout_for_runtime = self.timeout_seconds if self.timeout_seconds is not None else 25.0
+        return self.runtime.ensure_ready(
+            preferred_model=preferred_model,
+            wait_timeout_seconds=min(max(timeout_for_runtime, 6.0), 25.0),
+        )
+
+    def pull_model(self, model_name: str) -> OllamaBootstrapStatus:
+        timeout_for_runtime = self.timeout_seconds if self.timeout_seconds is not None else 25.0
+        return self.runtime.pull_model(
+            model_name,
+            wait_timeout_seconds=min(max(timeout_for_runtime, 6.0), 25.0),
         )
 
     def list_models(self) -> list[str]:

@@ -1,0 +1,54 @@
+name: Mac build smoke
+
+# Ручной smoke macOS-сборки перед тегом релиза. Собирает Tezis.app
+# на macos-latest и падает, если что-то сломано. Артефакты не загружает —
+# полная сборка + публикация живут в release.yml на тег v*.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-build-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build Tezis.app (macos-latest)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Ensure bundled seed exists
+        run: |
+          if [ ! -f "data/state_exam_public_admin_demo.db" ]; then
+            echo "Seed DB missing — build_mac_app.sh needs it as --add-data"
+            exit 1
+          fi
+
+      - name: Build macOS app
+        run: |
+          chmod +x scripts/build_mac_app.sh
+          ./scripts/build_mac_app.sh python3 data/state_exam_public_admin_demo.db
+
+      - name: Verify Tezis.app bundle exists
+        run: |
+          if [ ! -d "dist/Tezis.app" ]; then
+            echo "dist/Tezis.app missing after build"
+            exit 1
+          fi
+          echo "Bundle OK: dist/Tezis.app"

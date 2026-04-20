@@ -47,8 +47,8 @@ flet pack "$ROOT/ui_flet/main.py" \
   --bundle-id "com.tutormvetrov.tezis" \
   --copyright "2026" \
   --yes \
-  "${ICON_ARGS[@]}" \
-  "${ADD_DATA_ARGS[@]}"
+  ${ICON_ARGS[@]+"${ICON_ARGS[@]}"} \
+  ${ADD_DATA_ARGS[@]+"${ADD_DATA_ARGS[@]}"}
 
 if [[ ! -d "$APP_BUNDLE" ]]; then
   echo "Build failed: bundle not found at $APP_BUNDLE" >&2

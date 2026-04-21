@@ -12,6 +12,29 @@ BUILD_INFO_RELATIVE_PATH="tmp-build-metadata/build_info.json"
 BUILD_INFO_PATH="$ROOT/$BUILD_INFO_RELATIVE_PATH"
 BUILD_VERSION="${TEZIS_BUILD_VERSION:-}"
 BUILD_COMMIT="${TEZIS_BUILD_COMMIT:-}"
+EXCLUDED_MODULES=(
+  # OCR uses onnxruntime inference only; these helper namespaces drag in
+  # transformers/torch/scipy/pandas toolchains from the local environment.
+  "onnxruntime.quantization"
+  "onnxruntime.tools"
+  "onnxruntime.training"
+  "onnxruntime.transformers"
+  # The app does not use these ML stacks directly. If they are installed in the
+  # build environment, PyInstaller may otherwise pull gigabytes of baggage.
+  "accelerate"
+  "datasets"
+  "huggingface_hub"
+  "pandas"
+  "safetensors"
+  "scipy"
+  "sentence_transformers"
+  "sklearn"
+  "tokenizers"
+  "torch"
+  "torchaudio"
+  "torchvision"
+  "transformers"
+)
 
 cd "$ROOT"
 
@@ -23,6 +46,7 @@ APP_VERSION="$("$PYTHON_EXE" -c 'from app.meta import APP_VERSION; print(APP_VER
 ICON_ARGS=()
 ADD_DATA_ARGS=()
 BUILD_INFO_ARGS=("$ROOT/scripts/write_build_info.py" --output "$BUILD_INFO_PATH")
+PYINSTALLER_BUILD_ARGS=()
 
 if [[ -f "$ROOT/assets/icon.icns" ]]; then
   ICON_ARGS+=(--icon "$ROOT/assets/icon.icns")
@@ -46,6 +70,9 @@ fi
 
 "$PYTHON_EXE" "${BUILD_INFO_ARGS[@]}"
 ADD_DATA_ARGS+=(--add-data "$BUILD_INFO_RELATIVE_PATH:.")
+for module_name in "${EXCLUDED_MODULES[@]}"; do
+  PYINSTALLER_BUILD_ARGS+=(--pyinstaller-build-args="--exclude-module=$module_name")
+done
 
 mkdir -p "$DIST_ROOT"
 rm -rf "$APP_BUNDLE"
@@ -65,6 +92,7 @@ flet pack "$ROOT/ui_flet/main.py" \
   --bundle-id "com.tutormvetrov.tezis" \
   --copyright "2026" \
   --yes \
+  "${PYINSTALLER_BUILD_ARGS[@]}" \
   ${ICON_ARGS[@]+"${ICON_ARGS[@]}"} \
   ${ADD_DATA_ARGS[@]+"${ADD_DATA_ARGS[@]}"}
 

@@ -102,6 +102,29 @@ $finalExePath = Join-Path $resolvedOutputDir "Tezis.exe"
 $buildInfoRelativePath = "tmp-build-metadata\build_info.json"
 $buildInfoPath = Join-Path $ProjectRoot $buildInfoRelativePath
 $buildInfoArgs = @("scripts\write_build_info.py", "--output", $buildInfoPath)
+$excludedModules = @(
+  # OCR uses onnxruntime inference only; these helper namespaces drag in
+  # transformers/torch/scipy/pandas toolchains from the local environment.
+  "onnxruntime.quantization",
+  "onnxruntime.tools",
+  "onnxruntime.training",
+  "onnxruntime.transformers",
+  # The app does not use these ML stacks directly. If they are installed in the
+  # build environment, PyInstaller may otherwise pull gigabytes of baggage.
+  "accelerate",
+  "datasets",
+  "huggingface_hub",
+  "pandas",
+  "safetensors",
+  "scipy",
+  "sentence_transformers",
+  "sklearn",
+  "tokenizers",
+  "torch",
+  "torchaudio",
+  "torchvision",
+  "transformers"
+)
 
 $iconArgs = @()
 $fullIconPath = Join-Path $ProjectRoot $IconPath
@@ -131,6 +154,10 @@ if ($BuildCommit) {
 
 python @buildInfoArgs | Out-Host
 $addData += @("--add-data", "$buildInfoRelativePath;.")
+$pyinstallerBuildArgs = @()
+foreach ($moduleName in $excludedModules) {
+  $pyinstallerBuildArgs += "--pyinstaller-build-args=--exclude-module=$moduleName"
+}
 
 # ---- dispatch ----
 Write-Host "=== Building Tezis.exe via flet pack ===" -ForegroundColor Cyan
@@ -139,6 +166,7 @@ Write-Host "  output dir    : $resolvedOutputDir"
 Write-Host "  icon          : $(if ($iconArgs.Count) { $iconArgs[1] } else { '(default)' })"
 Write-Host "  build info    : $buildInfoPath"
 Write-Host "  add-data      : $(if ($addData.Count) { ($addData -join ' ') } else { '(none)' })"
+Write-Host "  excludes      : $($excludedModules -join ', ')"
 Write-Host ""
 
 $args = @(
@@ -149,7 +177,7 @@ $args = @(
   "--file-description", "Подготовка к письменному госэкзамену ГМУ",
   "--company-name", "ВШГА МГУ",
   "--yes"
-) + $iconArgs + $addData
+) + $pyinstallerBuildArgs + $iconArgs + $addData
 
 try {
   Remove-BuilderPath -PathValue $stagingOutputDir -Label "staging dist"

@@ -8,9 +8,12 @@ APP_NAME="Tezis"
 APP_BUNDLE="$DIST_ROOT/$APP_NAME.app"
 SEED_DB_INPUT="${TEZIS_SEED_DATABASE:-${2:-data/state_exam_public_admin_demo.db}}"
 SEED_DB=""
-BUILD_INFO_PATH="$ROOT/build/build_info.json"
+BUILD_INFO_RELATIVE_PATH="tmp-build-metadata/build_info.json"
+BUILD_INFO_PATH="$ROOT/$BUILD_INFO_RELATIVE_PATH"
 BUILD_VERSION="${TEZIS_BUILD_VERSION:-}"
 BUILD_COMMIT="${TEZIS_BUILD_COMMIT:-}"
+
+cd "$ROOT"
 
 if [[ -n "$SEED_DB_INPUT" ]]; then
   SEED_DB="$("$PYTHON_EXE" -c 'from app.release_seed import resolve_seed_database; import sys; print(resolve_seed_database(sys.argv[1]) or "")' "$SEED_DB_INPUT")"
@@ -19,6 +22,7 @@ fi
 APP_VERSION="$("$PYTHON_EXE" -c 'from app.meta import APP_VERSION; print(APP_VERSION)')"
 ICON_ARGS=()
 ADD_DATA_ARGS=()
+BUILD_INFO_ARGS=("$ROOT/scripts/write_build_info.py" --output "$BUILD_INFO_PATH")
 
 if [[ -f "$ROOT/assets/icon.icns" ]]; then
   ICON_ARGS+=(--icon "$ROOT/assets/icon.icns")
@@ -32,8 +36,16 @@ if [[ -d "$ROOT/ui_flet/theme/fonts" ]]; then
   ADD_DATA_ARGS+=(--add-data "$ROOT/ui_flet/theme/fonts:ui_flet/theme/fonts")
 fi
 
-"$PYTHON_EXE" "$ROOT/scripts/write_build_info.py" --output "$BUILD_INFO_PATH" --version "$BUILD_VERSION" --commit "$BUILD_COMMIT"
-ADD_DATA_ARGS+=(--add-data "$BUILD_INFO_PATH:.")
+if [[ -n "$BUILD_VERSION" ]]; then
+  BUILD_INFO_ARGS+=(--version "$BUILD_VERSION")
+fi
+
+if [[ -n "$BUILD_COMMIT" ]]; then
+  BUILD_INFO_ARGS+=(--commit "$BUILD_COMMIT")
+fi
+
+"$PYTHON_EXE" "${BUILD_INFO_ARGS[@]}"
+ADD_DATA_ARGS+=(--add-data "$BUILD_INFO_RELATIVE_PATH:.")
 
 mkdir -p "$DIST_ROOT"
 rm -rf "$APP_BUNDLE"

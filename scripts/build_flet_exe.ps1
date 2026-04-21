@@ -99,7 +99,9 @@ $resolvedOutputDir = Resolve-BuilderPath -PathValue $OutputDir
 $stagingOutputDir = Join-Path $ProjectRoot ("build\flet-pack-stage-" + [guid]::NewGuid().ToString("N"))
 $stagingExePath = Join-Path $stagingOutputDir "Tezis.exe"
 $finalExePath = Join-Path $resolvedOutputDir "Tezis.exe"
-$buildInfoPath = Join-Path $ProjectRoot "build\build_info.json"
+$buildInfoRelativePath = "tmp-build-metadata\build_info.json"
+$buildInfoPath = Join-Path $ProjectRoot $buildInfoRelativePath
+$buildInfoArgs = @("scripts\write_build_info.py", "--output", $buildInfoPath)
 
 $iconArgs = @()
 $fullIconPath = Join-Path $ProjectRoot $IconPath
@@ -120,8 +122,15 @@ if ((Test-Path $fontsDir) -and (Get-ChildItem $fontsDir -Filter "*.ttf" -ErrorAc
   $addData += @("--add-data", "ui_flet\theme\fonts\*.ttf;ui_flet\theme\fonts")
 }
 
-python scripts\write_build_info.py --output $buildInfoPath --version $BuildVersion --commit $BuildCommit | Out-Host
-$addData += @("--add-data", "build\build_info.json;.")
+if ($BuildVersion) {
+  $buildInfoArgs += @("--version", $BuildVersion)
+}
+if ($BuildCommit) {
+  $buildInfoArgs += @("--commit", $BuildCommit)
+}
+
+python @buildInfoArgs | Out-Host
+$addData += @("--add-data", "$buildInfoRelativePath;.")
 
 # ---- dispatch ----
 Write-Host "=== Building Tezis.exe via flet pack ===" -ForegroundColor Cyan

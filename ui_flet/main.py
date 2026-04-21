@@ -19,11 +19,11 @@ Startup choreography
 
 from __future__ import annotations
 
-from dataclasses import replace
 import logging
 import shutil
 import sqlite3
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import flet as ft
@@ -38,7 +38,12 @@ from app.paths import get_workspace_root
 from app.runtime_logging import setup_runtime_logging
 from application.facade import AppFacade
 from application.settings_store import SettingsStore
-from application.user_profile import COURSE_CATALOG, DEFAULT_EXAM_ID, ProfileStore, UserProfile
+from application.user_profile import (
+    COURSE_CATALOG,
+    DEFAULT_EXAM_ID,
+    ProfileStore,
+    UserProfile,
+)
 from infrastructure.db import connect_initialized, get_database_path
 from ui_flet.router import on_route_change
 from ui_flet.state import AppState

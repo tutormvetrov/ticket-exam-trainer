@@ -9,6 +9,10 @@
   * дельта балла по билету (текущая попытка vs предыдущая).
 
 Не трогает FSRS и не меняет данные — только read-side.
+
+Если задан ``exam_id``, digest считается только по активному курсу, а не по
+всей базе сразу. Это важно для мульти-курсного onboarding/profile режима:
+утренний экран не должен показывать суммарные числа по чужому курсу.
 """
 
 from __future__ import annotations
@@ -49,9 +53,13 @@ class DailyDigest:
         return len(self.attempts) > 0
 
 
-def compute_daily_digest(connection: sqlite3.Connection, user_id: str = "local-user") -> DailyDigest:
+def compute_daily_digest(
+    connection: sqlite3.Connection,
+    user_id: str = "local-user",
+    exam_id: str | None = None,
+) -> DailyDigest:
     today_iso = date.today().isoformat()
-    attempts = _load_todays_attempts(connection, today_iso)
+    attempts = _load_todays_attempts(connection, today_iso, exam_id=exam_id)
 
     best_attempt: AttemptCard | None = None
     for card in attempts:
@@ -63,8 +71,8 @@ def compute_daily_digest(connection: sqlite3.Connection, user_id: str = "local-u
         if card.score_percent >= int(MASTERED_THRESHOLD * 100):
             mastered_tickets.add(card.ticket_id)
 
-    queue_due_today = _count_queue_due(connection, user_id, today_iso)
-    queue_new = _count_never_attempted(connection)
+    queue_due_today = _count_queue_due(connection, user_id, today_iso, exam_id=exam_id)
+    queue_new = _count_never_attempted(connection, exam_id=exam_id)
     queue_total = queue_due_today + queue_new
     queue_estimate_minutes = max(1, queue_total * MINUTES_PER_ATTEMPT)
 
@@ -79,27 +87,52 @@ def compute_daily_digest(connection: sqlite3.Connection, user_id: str = "local-u
     )
 
 
-def _load_todays_attempts(connection: sqlite3.Connection, today_iso: str) -> list[AttemptCard]:
+def _load_todays_attempts(
+    connection: sqlite3.Connection,
+    today_iso: str,
+    *,
+    exam_id: str | None = None,
+) -> list[AttemptCard]:
     """Список попыток за сегодня, newest first, с дельтой vs предыдущая попытка
     этого же билета."""
-    rows = connection.execute(
-        """
-        SELECT
-            a.attempt_id AS attempt_id,
-            a.ticket_id AS ticket_id,
-            t.title AS ticket_title,
-            ei.exercise_type AS mode_key,
-            a.score AS score,
-            a.created_at AS created_at,
-            a.confidence AS confidence
-        FROM attempts a
-        JOIN tickets t ON t.ticket_id = a.ticket_id
-        LEFT JOIN exercise_instances ei ON ei.exercise_id = a.exercise_id
-        WHERE DATE(a.created_at) = ?
-        ORDER BY a.created_at DESC
-        """,
-        (today_iso,),
-    ).fetchall()
+    if exam_id:
+        rows = connection.execute(
+            """
+            SELECT
+                a.attempt_id AS attempt_id,
+                a.ticket_id AS ticket_id,
+                t.title AS ticket_title,
+                ei.exercise_type AS mode_key,
+                a.score AS score,
+                a.created_at AS created_at,
+                a.confidence AS confidence
+            FROM attempts a
+            JOIN tickets t ON t.ticket_id = a.ticket_id
+            LEFT JOIN exercise_instances ei ON ei.exercise_id = a.exercise_id
+            WHERE DATE(a.created_at) = ? AND t.exam_id = ?
+            ORDER BY a.created_at DESC
+            """,
+            (today_iso, exam_id),
+        ).fetchall()
+    else:
+        rows = connection.execute(
+            """
+            SELECT
+                a.attempt_id AS attempt_id,
+                a.ticket_id AS ticket_id,
+                t.title AS ticket_title,
+                ei.exercise_type AS mode_key,
+                a.score AS score,
+                a.created_at AS created_at,
+                a.confidence AS confidence
+            FROM attempts a
+            JOIN tickets t ON t.ticket_id = a.ticket_id
+            LEFT JOIN exercise_instances ei ON ei.exercise_id = a.exercise_id
+            WHERE DATE(a.created_at) = ?
+            ORDER BY a.created_at DESC
+            """,
+            (today_iso,),
+        ).fetchall()
 
     cards: list[AttemptCard] = []
     for row in rows:
@@ -141,28 +174,60 @@ def _previous_attempt_delta(
     return current_score_percent - previous_percent
 
 
-def _count_queue_due(connection: sqlite3.Connection, user_id: str, today_iso: str) -> int:
-    row = connection.execute(
-        """
-        SELECT COUNT(*) AS total
-        FROM spaced_review_queue
-        WHERE user_id = ? AND (due_at IS NULL OR DATE(due_at) <= ?)
-        """,
-        (user_id, today_iso),
-    ).fetchone()
+def _count_queue_due(
+    connection: sqlite3.Connection,
+    user_id: str,
+    today_iso: str,
+    *,
+    exam_id: str | None = None,
+) -> int:
+    if exam_id:
+        row = connection.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM spaced_review_queue srq
+            JOIN tickets t ON t.ticket_id = srq.ticket_id
+            WHERE srq.user_id = ?
+              AND (srq.due_at IS NULL OR DATE(srq.due_at) <= ?)
+              AND t.exam_id = ?
+            """,
+            (user_id, today_iso, exam_id),
+        ).fetchone()
+    else:
+        row = connection.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM spaced_review_queue
+            WHERE user_id = ? AND (due_at IS NULL OR DATE(due_at) <= ?)
+            """,
+            (user_id, today_iso),
+        ).fetchone()
     return int(row["total"] if row else 0)
 
 
-def _count_never_attempted(connection: sqlite3.Connection) -> int:
-    row = connection.execute(
-        """
-        SELECT COUNT(*) AS total
-        FROM tickets t
-        WHERE NOT EXISTS (
-            SELECT 1 FROM attempts a WHERE a.ticket_id = t.ticket_id
-        )
-        """
-    ).fetchone()
+def _count_never_attempted(connection: sqlite3.Connection, *, exam_id: str | None = None) -> int:
+    if exam_id:
+        row = connection.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM tickets t
+            WHERE t.exam_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM attempts a WHERE a.ticket_id = t.ticket_id
+              )
+            """,
+            (exam_id,),
+        ).fetchone()
+    else:
+        row = connection.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM tickets t
+            WHERE NOT EXISTS (
+                SELECT 1 FROM attempts a WHERE a.ticket_id = t.ticket_id
+            )
+            """
+        ).fetchone()
     return int(row["total"] if row else 0)
 
 

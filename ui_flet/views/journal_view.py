@@ -123,7 +123,10 @@ def _auto_reset_day_closed_if_new_day(state: AppState) -> None:
 
 def _load_digest_safely(state: AppState) -> DailyDigest:
     try:
-        return compute_daily_digest(state.facade.connection)
+        return compute_daily_digest(
+            state.facade.connection,
+            exam_id=state.active_exam_id,
+        )
     except Exception:
         _LOG.exception("Daily digest failed — showing empty state")
         return DailyDigest(

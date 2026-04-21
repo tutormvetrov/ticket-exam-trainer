@@ -16,31 +16,41 @@ def _make_connection(tmp_path: Path) -> sqlite3.Connection:
     return connect_initialized(tmp_path / "trainer.db")
 
 
-def _insert_ticket(conn: sqlite3.Connection, ticket_id: str, title: str) -> None:
+def _insert_ticket(
+    conn: sqlite3.Connection,
+    ticket_id: str,
+    title: str,
+    *,
+    exam_id: str = "e1",
+) -> None:
     now = datetime.now().isoformat()
+    section_id = f"s-{exam_id}"
+    document_id = f"doc-{exam_id}"
     conn.execute(
-        "INSERT INTO exams (exam_id, title) VALUES ('e1', 'Экзамен') ON CONFLICT DO NOTHING",
+        "INSERT INTO exams (exam_id, title) VALUES (?, ?) ON CONFLICT DO NOTHING",
+        (exam_id, f"Экзамен {exam_id}"),
     )
     conn.execute(
-        "INSERT INTO sections (section_id, exam_id, title) VALUES ('s1', 'e1', 'Раздел') ON CONFLICT DO NOTHING",
+        "INSERT INTO sections (section_id, exam_id, title) VALUES (?, ?, 'Раздел') ON CONFLICT DO NOTHING",
+        (section_id, exam_id),
     )
     conn.execute(
         """
         INSERT INTO source_documents (
             document_id, exam_id, title, file_path, file_type, imported_at
-        ) VALUES ('doc-1', 'e1', 'Док', 'test', 'txt', ?)
+        ) VALUES (?, ?, 'Док', 'test', 'txt', ?)
         ON CONFLICT DO NOTHING
         """,
-        (now,),
+        (document_id, exam_id, now),
     )
     conn.execute(
         """
         INSERT INTO tickets (
             ticket_id, exam_id, section_id, source_document_id, title,
             canonical_answer_summary, created_at
-        ) VALUES (?, 'e1', 's1', 'doc-1', ?, 'эталон', ?)
+        ) VALUES (?, ?, ?, ?, ?, 'эталон', ?)
         """,
-        (ticket_id, title, now),
+        (ticket_id, exam_id, section_id, document_id, title, now),
     )
 
 
@@ -202,3 +212,41 @@ def test_digest_estimate_minutes_at_least_one(tmp_path: Path) -> None:
     conn = _make_connection(tmp_path)
     digest = compute_daily_digest(conn)
     assert digest.queue_estimate_minutes >= 1
+
+
+def test_digest_filters_queue_and_attempts_by_exam_id(tmp_path: Path) -> None:
+    conn = _make_connection(tmp_path)
+    _insert_ticket(conn, "gmu-1", "ГМУ 1", exam_id="gmu")
+    _insert_ticket(conn, "gmu-2", "ГМУ 2", exam_id="gmu")
+    _insert_ticket(conn, "ai-1", "ИИ 1", exam_id="ai")
+    _insert_ticket(conn, "ai-2", "ИИ 2", exam_id="ai")
+
+    today = datetime.now().isoformat()
+    _insert_attempt(conn, "a-gmu", "gmu-1", 0.8, today)
+    _insert_attempt(conn, "a-ai", "ai-1", 0.6, today)
+    conn.execute(
+        """
+        INSERT INTO spaced_review_queue (
+            review_item_id, user_id, ticket_id, reference_type, reference_id,
+            mode, priority, due_at, scheduled_at
+        ) VALUES (?, 'local-user', ?, 'ticket', ?, 'reading', 1.0, ?, ?)
+        """,
+        ("rq-gmu", "gmu-1", "gmu-1", today, today),
+    )
+    conn.execute(
+        """
+        INSERT INTO spaced_review_queue (
+            review_item_id, user_id, ticket_id, reference_type, reference_id,
+            mode, priority, due_at, scheduled_at
+        ) VALUES (?, 'local-user', ?, 'ticket', ?, 'reading', 1.0, ?, ?)
+        """,
+        ("rq-ai", "ai-1", "ai-1", today, today),
+    )
+    conn.commit()
+
+    digest = compute_daily_digest(conn, exam_id="gmu")
+
+    assert {card.ticket_id for card in digest.attempts} == {"gmu-1"}
+    assert digest.queue_due_today == 1
+    assert digest.queue_new == 1
+    assert digest.queue_estimate_minutes == 10

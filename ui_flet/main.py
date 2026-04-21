@@ -19,6 +19,7 @@ Startup choreography
 
 from __future__ import annotations
 
+from dataclasses import replace
 import logging
 import shutil
 import sqlite3
@@ -37,7 +38,7 @@ from app.paths import get_workspace_root
 from app.runtime_logging import setup_runtime_logging
 from application.facade import AppFacade
 from application.settings_store import SettingsStore
-from application.user_profile import ProfileStore
+from application.user_profile import COURSE_CATALOG, DEFAULT_EXAM_ID, ProfileStore, UserProfile
 from infrastructure.db import connect_initialized, get_database_path
 from ui_flet.router import on_route_change
 from ui_flet.state import AppState
@@ -45,6 +46,11 @@ from ui_flet.theme.fonts import font_map
 from ui_flet.theme.theme import apply_theme
 
 SEED_FILENAME = "state_exam_public_admin_demo.db"
+RELEASE_EXAM_IDS = tuple(
+    str(course.get("exam_id", "")).strip()
+    for course in COURSE_CATALOG
+    if str(course.get("exam_id", "")).strip()
+)
 _LOG = logging.getLogger(__name__)
 
 
@@ -86,32 +92,218 @@ def _ticket_count(db_path: Path) -> int:
         return 0
 
 
-def _bootstrap_seed_if_empty(workspace_root: Path, database_path: Path) -> str:
-    """Copy bundled seed over the workspace DB when the workspace has no tickets.
-
-    Returns a short diagnostic string for logging: "seeded", "skipped_has_data",
-    "no_source", or "failed". Never raises - seeding failure leaves the app in
-    its current (possibly empty) state and users see the empty catalog.
-    """
-    if _ticket_count(database_path) > 0:
-        return "skipped_has_data"
-
-    had_copy_failure = False
+def _select_seed_candidate(workspace_root: Path) -> Path | None:
     for candidate in _seed_candidates(workspace_root):
         if candidate.exists() and candidate.stat().st_size > 0:
-            try:
-                database_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(candidate, database_path)
-                return "seeded"
-            except Exception:
-                had_copy_failure = True
-                _LOG.exception(
-                    "Seed bootstrap copy failed source=%s target=%s",
-                    candidate,
-                    database_path,
-                )
-                continue
-    return "failed" if had_copy_failure else "no_source"
+            return candidate
+    return None
+
+
+def _count_tickets_for_exam(connection: sqlite3.Connection, exam_id: str) -> int:
+    row = connection.execute(
+        "SELECT COUNT(*) FROM tickets WHERE exam_id = ?",
+        (exam_id,),
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def _missing_release_exam_ids(connection: sqlite3.Connection) -> list[str]:
+    return [
+        exam_id
+        for exam_id in RELEASE_EXAM_IDS
+        if _count_tickets_for_exam(connection, exam_id) <= 0
+    ]
+
+
+def _shared_table_columns(connection: sqlite3.Connection, table_name: str) -> list[str]:
+    main_cols = [
+        row[1]
+        for row in connection.execute(f"PRAGMA main.table_info({table_name})").fetchall()
+    ]
+    seed_cols = {
+        row[1]
+        for row in connection.execute(f"PRAGMA seed.table_info({table_name})").fetchall()
+    }
+    return [col for col in main_cols if col in seed_cols]
+
+
+def _copy_seed_rows(
+    connection: sqlite3.Connection,
+    table_name: str,
+    where_clause: str,
+    params: tuple[object, ...],
+) -> None:
+    columns = _shared_table_columns(connection, table_name)
+    if not columns:
+        return
+    insert_cols = ", ".join(columns)
+    select_cols = ", ".join(f"seed.{table_name}.{col}" for col in columns)
+    connection.execute(
+        f"""
+        INSERT OR REPLACE INTO main.{table_name} ({insert_cols})
+        SELECT {select_cols}
+        FROM seed.{table_name}
+        WHERE {where_clause}
+        """,
+        params,
+    )
+
+
+def _merge_release_seed_content(database_path: Path, seed_path: Path) -> bool:
+    if not RELEASE_EXAM_IDS:
+        return False
+
+    placeholders = ", ".join("?" for _ in RELEASE_EXAM_IDS)
+    exam_params: tuple[object, ...] = tuple(RELEASE_EXAM_IDS)
+    ticket_filter = (
+        f"ticket_id IN (SELECT ticket_id FROM seed.tickets WHERE exam_id IN ({placeholders}))"
+    )
+    document_filter = (
+        f"document_id IN (SELECT document_id FROM seed.source_documents WHERE exam_id IN ({placeholders}))"
+    )
+    concept_filter = (
+        "concept_id IN ("
+        f"SELECT DISTINCT concept_id FROM seed.ticket_concepts WHERE {ticket_filter}"
+        ")"
+    )
+
+    connection = sqlite3.connect(str(database_path))
+    try:
+        connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute("ATTACH DATABASE ? AS seed", (str(seed_path),))
+        missing_exam_ids = _missing_release_exam_ids(connection)
+        if not missing_exam_ids:
+            return False
+
+        connection.execute("BEGIN")
+        _copy_seed_rows(connection, "exams", f"exam_id IN ({placeholders})", exam_params)
+        _copy_seed_rows(connection, "sections", f"exam_id IN ({placeholders})", exam_params)
+        _copy_seed_rows(connection, "subjects", f"exam_id IN ({placeholders})", exam_params)
+        _copy_seed_rows(connection, "source_documents", f"exam_id IN ({placeholders})", exam_params)
+        _copy_seed_rows(connection, "content_chunks", document_filter, exam_params)
+        _copy_seed_rows(connection, "tickets", f"exam_id IN ({placeholders})", exam_params)
+        _copy_seed_rows(connection, "atoms", ticket_filter, exam_params)
+        _copy_seed_rows(connection, "skills", ticket_filter, exam_params)
+        _copy_seed_rows(connection, "exercise_templates", ticket_filter, exam_params)
+        _copy_seed_rows(connection, "scoring_rubrics", ticket_filter, exam_params)
+        _copy_seed_rows(connection, "examiner_prompts", ticket_filter, exam_params)
+        _copy_seed_rows(connection, "cross_ticket_concepts", concept_filter, exam_params)
+        _copy_seed_rows(connection, "ticket_concepts", ticket_filter, exam_params)
+        _copy_seed_rows(connection, "ticket_answer_blocks", ticket_filter, exam_params)
+        connection.commit()
+        return True
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        try:
+            connection.execute("DETACH DATABASE seed")
+        except Exception:
+            pass
+        try:
+            connection.execute("PRAGMA foreign_keys = ON")
+        except Exception:
+            pass
+        connection.close()
+
+
+def _bootstrap_seed_if_empty(workspace_root: Path, database_path: Path) -> str:
+    """Initialize or repair bundled release content in the workspace DB.
+
+    Returns a short diagnostic string for logging:
+    "seeded", "merged_release_content", "skipped_has_data", "no_source",
+    or "failed". Never raises - bootstrap failure leaves the app in its current
+    state and users may see an incomplete catalog.
+    """
+    candidate = _select_seed_candidate(workspace_root)
+    if candidate is None:
+        return "no_source"
+
+    if _ticket_count(database_path) <= 0:
+        try:
+            database_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(candidate, database_path)
+            return "seeded"
+        except Exception:
+            _LOG.exception(
+                "Seed bootstrap copy failed source=%s target=%s",
+                candidate,
+                database_path,
+            )
+            return "failed"
+
+    try:
+        if _merge_release_seed_content(database_path, candidate):
+            return "merged_release_content"
+        return "skipped_has_data"
+    except Exception:
+        _LOG.exception(
+            "Release-content merge failed source=%s target=%s",
+            candidate,
+            database_path,
+        )
+        return "failed"
+
+
+def _pick_fallback_exam_id(connection: sqlite3.Connection) -> str | None:
+    seen: set[str] = set()
+    preferred_exam_ids = [DEFAULT_EXAM_ID, *RELEASE_EXAM_IDS]
+    for exam_id in preferred_exam_ids:
+        if exam_id in seen:
+            continue
+        seen.add(exam_id)
+        if _count_tickets_for_exam(connection, exam_id) > 0:
+            return exam_id
+
+    rows = connection.execute(
+        """
+        SELECT exam_id, COUNT(*) AS tickets_count
+        FROM tickets
+        GROUP BY exam_id
+        ORDER BY tickets_count DESC, exam_id ASC
+        """
+    ).fetchall()
+    for row in rows:
+        exam_id = str(row[0] or "").strip()
+        if exam_id:
+            return exam_id
+    return None
+
+
+def _ensure_profile_exam_compatibility(
+    profile_store: ProfileStore,
+    profile: UserProfile | None,
+    connection: sqlite3.Connection,
+) -> UserProfile | None:
+    if profile is None:
+        return None
+
+    desired_exam_id = str(getattr(profile, "active_exam_id", "") or "").strip()
+    if desired_exam_id and _count_tickets_for_exam(connection, desired_exam_id) > 0:
+        return profile
+
+    fallback_exam_id = _pick_fallback_exam_id(connection)
+    if not fallback_exam_id:
+        return profile
+
+    repaired = replace(profile, active_exam_id=fallback_exam_id)
+    if repaired.active_exam_id == desired_exam_id:
+        return repaired
+
+    try:
+        profile_store.save(repaired)
+    except Exception:
+        _LOG.exception(
+            "Profile exam repair could not be persisted from=%s to=%s",
+            desired_exam_id,
+            fallback_exam_id,
+        )
+    _LOG.warning(
+        "Profile exam repaired from=%s to=%s",
+        desired_exam_id or "<empty>",
+        fallback_exam_id,
+    )
+    return repaired
 
 
 def _build_facade(workspace_root: Path | None = None) -> tuple[AppFacade, Path]:
@@ -141,7 +333,12 @@ def _reset_state_to_cold_start(state: AppState, workspace_root: Path) -> None:
 
     facade, _ = _build_facade(workspace_root)
     state.facade = facade
-    state.user_profile = ProfileStore(workspace_root / "app_data" / "profile.json").load()
+    profile_store = ProfileStore(workspace_root / "app_data" / "profile.json")
+    state.user_profile = _ensure_profile_exam_compatibility(
+        profile_store,
+        profile_store.load(),
+        facade.connection,
+    )
     state.selected_ticket_id = None
     state.selected_mode = "reading"
     state.day_closed_at = None
@@ -313,7 +510,11 @@ def _main(page: ft.Page) -> None:
         state.cold_reset_callback = lambda: _reset_state_to_cold_start(state, workspace_root)
 
         profile_store = ProfileStore(workspace_root / "app_data" / "profile.json")
-        state.user_profile = profile_store.load()
+        state.user_profile = _ensure_profile_exam_compatibility(
+            profile_store,
+            profile_store.load(),
+            facade.connection,
+        )
         _LOG.info(
             "Profile load result exists=%s name=%s",
             state.user_profile is not None,

@@ -56,6 +56,7 @@ def _profile_path(state: AppState) -> Path:
 def build_onboarding_view(state: AppState) -> ft.Control:
     p = palette(state.is_dark)
     store = ProfileStore(_profile_path(state))
+    course_ticket_counts = _load_course_ticket_counts(state)
 
     picked_avatar: dict[str, str | None] = {"value": None}
     picked_course: dict[str, str] = {"value": DEFAULT_EXAM_ID}
@@ -115,6 +116,7 @@ def build_onboarding_view(state: AppState) -> ft.Control:
                 course,
                 selected=(picked_course["value"] == course["exam_id"]),
                 on_pick=_on_pick_course,
+                ticket_count=course_ticket_counts.get(course["exam_id"]),
                 p=p,
             )
             for course in COURSE_CATALOG
@@ -301,11 +303,12 @@ def _course_card(
     course: dict[str, str],
     selected: bool,
     on_pick,
+    ticket_count: int | None,
     p: dict,
 ) -> ft.Control:
     """Карточка-кнопка выбора курса (Госэкзамен по ИИ / по ГМУ / …)."""
     short = course.get("short_title", "")
-    description = course.get("description", "")
+    description = _course_description(course, ticket_count)
     title_text = ft.Text(
         short,
         size=15,
@@ -336,6 +339,34 @@ def _course_card(
         on_click=lambda _e, eid=course["exam_id"]: on_pick(eid),
         ink=True,
     )
+
+
+def _load_course_ticket_counts(state: AppState) -> dict[str, int]:
+    try:
+        rows = state.facade.connection.execute(
+            """
+            SELECT exam_id, COUNT(*) AS tickets_count
+            FROM tickets
+            GROUP BY exam_id
+            """
+        ).fetchall()
+    except Exception:
+        _LOG.exception("Failed to load course ticket counts for onboarding")
+        return {}
+    return {
+        str(row["exam_id"] or "").strip(): int(row["tickets_count"] or 0)
+        for row in rows
+        if str(row["exam_id"] or "").strip()
+    }
+
+
+def _course_description(course: dict[str, str], ticket_count: int | None) -> str:
+    if ticket_count is not None and ticket_count > 0:
+        long_title = str(course.get("long_title", "") or "").strip()
+        if long_title:
+            return f"{ticket_count} билетов · {long_title}"
+        return f"{ticket_count} билетов"
+    return str(course.get("description", "") or "").strip()
 
 
 def _avatar_button(

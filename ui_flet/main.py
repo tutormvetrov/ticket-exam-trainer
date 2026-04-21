@@ -105,18 +105,27 @@ def _select_seed_candidate(workspace_root: Path) -> Path | None:
 
 
 def _count_tickets_for_exam(connection: sqlite3.Connection, exam_id: str) -> int:
+    return _count_tickets_for_exam_in_schema(connection, "main", exam_id)
+
+
+def _count_tickets_for_exam_in_schema(
+    connection: sqlite3.Connection,
+    schema_name: str,
+    exam_id: str,
+) -> int:
     row = connection.execute(
-        "SELECT COUNT(*) FROM tickets WHERE exam_id = ?",
+        f"SELECT COUNT(*) FROM {schema_name}.tickets WHERE exam_id = ?",
         (exam_id,),
     ).fetchone()
     return int(row[0]) if row else 0
 
 
-def _missing_release_exam_ids(connection: sqlite3.Connection) -> list[str]:
+def _stale_release_exam_ids(connection: sqlite3.Connection) -> list[str]:
     return [
         exam_id
         for exam_id in RELEASE_EXAM_IDS
-        if _count_tickets_for_exam(connection, exam_id) <= 0
+        if _count_tickets_for_exam_in_schema(connection, "main", exam_id)
+        < _count_tickets_for_exam_in_schema(connection, "seed", exam_id)
     ]
 
 
@@ -158,27 +167,27 @@ def _merge_release_seed_content(database_path: Path, seed_path: Path) -> bool:
     if not RELEASE_EXAM_IDS:
         return False
 
-    placeholders = ", ".join("?" for _ in RELEASE_EXAM_IDS)
-    exam_params: tuple[object, ...] = tuple(RELEASE_EXAM_IDS)
-    ticket_filter = (
-        f"ticket_id IN (SELECT ticket_id FROM seed.tickets WHERE exam_id IN ({placeholders}))"
-    )
-    document_filter = (
-        f"document_id IN (SELECT document_id FROM seed.source_documents WHERE exam_id IN ({placeholders}))"
-    )
-    concept_filter = (
-        "concept_id IN ("
-        f"SELECT DISTINCT concept_id FROM seed.ticket_concepts WHERE {ticket_filter}"
-        ")"
-    )
-
     connection = sqlite3.connect(str(database_path))
     try:
         connection.execute("PRAGMA foreign_keys = OFF")
         connection.execute("ATTACH DATABASE ? AS seed", (str(seed_path),))
-        missing_exam_ids = _missing_release_exam_ids(connection)
-        if not missing_exam_ids:
+        stale_exam_ids = _stale_release_exam_ids(connection)
+        if not stale_exam_ids:
             return False
+
+        placeholders = ", ".join("?" for _ in stale_exam_ids)
+        exam_params: tuple[object, ...] = tuple(stale_exam_ids)
+        ticket_filter = (
+            f"ticket_id IN (SELECT ticket_id FROM seed.tickets WHERE exam_id IN ({placeholders}))"
+        )
+        document_filter = (
+            f"document_id IN (SELECT document_id FROM seed.source_documents WHERE exam_id IN ({placeholders}))"
+        )
+        concept_filter = (
+            "concept_id IN ("
+            f"SELECT DISTINCT concept_id FROM seed.ticket_concepts WHERE {ticket_filter}"
+            ")"
+        )
 
         connection.execute("BEGIN")
         _copy_seed_rows(connection, "exams", f"exam_id IN ({placeholders})", exam_params)

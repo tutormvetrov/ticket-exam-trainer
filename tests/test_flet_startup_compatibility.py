@@ -7,6 +7,7 @@ from infrastructure.db import connect_initialized
 from ui_flet.main import (
     _bootstrap_seed_if_empty,
     _ensure_profile_exam_compatibility,
+    _merge_release_seed_content,
     _select_seed_candidate,
 )
 
@@ -153,3 +154,46 @@ def test_profile_exam_is_repaired_when_active_exam_has_no_tickets(tmp_path: Path
     persisted = profile_store.load()
     assert persisted is not None
     assert persisted.active_exam_id == "local-exam"
+
+
+def test_merge_release_seed_restores_missing_release_tickets(tmp_path: Path) -> None:
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir(parents=True, exist_ok=True)
+    database_path = workspace_root / "exam_trainer.db"
+
+    seed_path = _select_seed_candidate(workspace_root)
+    assert seed_path is not None, "Bundled seed DB is required for release bootstrap tests."
+    database_path.write_bytes(seed_path.read_bytes())
+
+    import sqlite3
+
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute(
+            "DELETE FROM tickets WHERE exam_id = ? AND ticket_id IN (SELECT ticket_id FROM tickets WHERE exam_id = ? LIMIT 5)",
+            (DEFAULT_EXAM_ID, DEFAULT_EXAM_ID),
+        )
+        connection.commit()
+        remaining = connection.execute(
+            "SELECT COUNT(*) FROM tickets WHERE exam_id = ?",
+            (DEFAULT_EXAM_ID,),
+        ).fetchone()[0]
+    finally:
+        connection.close()
+
+    assert remaining > 0
+
+    merged = _merge_release_seed_content(database_path, seed_path)
+    assert merged is True
+
+    connection = connect_initialized(database_path)
+    try:
+        restored = connection.execute(
+            "SELECT COUNT(*) FROM tickets WHERE exam_id = ?",
+            (DEFAULT_EXAM_ID,),
+        ).fetchone()[0]
+    finally:
+        connection.close()
+
+    assert restored > remaining

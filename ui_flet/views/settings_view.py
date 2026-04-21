@@ -48,13 +48,11 @@ _FONT_PRESET_OPTIONS: list[tuple[str, str]] = [
     ("large", "Большой"),
 ]
 
-_OLLAMA_MODEL_OPTIONS: list[tuple[str, str, bool]] = [
+_RECOMMENDED_OLLAMA_MODELS: list[tuple[str, str, bool]] = [
     # (model_id, description, is_recommended)
-    # "Рекомендовано" вешает сам дропдаун отдельным маркером —
-    # не дублировать в description.
-    ("qwen3:0.6b", "qwen3:0.6b · быстро, для слабого железа", False),
-    ("qwen3:4b", "qwen3:4b · баланс скорости и качества", False),
-    ("qwen3:8b", "qwen3:8b · качество рецензии", True),
+    ("qwen3:0.6b", "быстро, для слабого железа", False),
+    ("qwen3:4b", "баланс скорости и качества", False),
+    ("qwen3:8b", "качество рецензии", True),
 ]
 
 _OLLAMA_DOWNLOAD_URL_MAC = "https://docs.ollama.com/macos"
@@ -734,10 +732,6 @@ def _build_gemini_section(state: AppState, p: dict[str, str]) -> ft.Control:
     )
 
 
-# ============================================================================
-# Section: Ollama
-# ============================================================================
-
 def _build_ollama_section(
     state: AppState,
     p: dict[str, str],
@@ -745,146 +739,7 @@ def _build_ollama_section(
     badge_control: ft.Control,
 ) -> ft.Control:
     settings = _current_settings(state)
-
-    # --- Enable switch ---
-    # `OllamaSettings` doesn't expose a dedicated `ollama_enabled` flag; the
-    # closest semantic match is `rule_based_fallback` (inverse) and the model
-    # selection. We treat `rewrite_questions and examiner_followups` as the
-    # de-facto "Ollama features enabled" composite so the toggle is honest.
-    enable_switch = ft.Switch(
-        label=TEXT["settings.ollama.enabled"],
-        value=_is_ollama_enabled(settings),
-        on_change=lambda e: _handle_ollama_toggle(state, e.control.value),
-    )
-
-    # --- Model dropdown with recommendation chip ---
-    model_dropdown = ft.Dropdown(
-        label=TEXT["settings.ollama.model"],
-        value=settings.model,
-        options=[
-            ft.dropdown.Option(
-                key=model_id,
-                text=f"{label}{' ★ Рекомендовано' if recommended else ''}",
-            )
-            for model_id, label, recommended in _OLLAMA_MODEL_OPTIONS
-        ],
-        on_change=lambda e: _handle_model_change(state, e.control.value, badge),
-        width=380,
-    )
-
-    # --- Test connection button + progress ring ---
-    progress_ring = ft.ProgressRing(width=16, height=16, stroke_width=2, visible=False)
-    test_button = ft.FilledTonalButton(
-        TEXT["settings.ollama.test"],
-        icon=ft.Icons.NETWORK_CHECK,
-        on_click=lambda _e: _handle_test_connection(state, badge, progress_ring),
-    )
-
-    # --- Hint ---
-    hint = ft.Text(
-        TEXT["settings.ollama.install_hint"],
-        style=text_style("caption", color=p["text_muted"]),
-    )
-
-    return _section_card(
-        p,
-        title=TEXT["settings.ollama.title"],
-        children=[
-            enable_switch,
-            model_dropdown,
-            ft.Row(
-                spacing=SPACE["md"],
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                controls=[
-                    test_button,
-                    progress_ring,
-                    ft.Text(TEXT["settings.ollama.status"], color=p["text_secondary"]),
-                    badge_control,
-                ],
-            ),
-            hint,
-        ],
-    )
-
-
-def _is_ollama_enabled(settings: OllamaSettings) -> bool:
-    # "Использовать Ollama для рецензий": exam-trainer treats Ollama as enabled
-    # when at least one LLM-backed feature is on. We track this via
-    # `rewrite_questions` (the canonical setting the Qt UI also toggles).
-    return bool(settings.rewrite_questions or settings.examiner_followups)
-
-
-def _handle_ollama_toggle(state: AppState, value: bool) -> None:
-    _save_settings_patch(
-        state,
-        rewrite_questions=bool(value),
-        examiner_followups=bool(value),
-    )
-
-
-def _handle_model_change(state: AppState, new_model: str, badge: OllamaStatusBadge) -> None:
-    if not new_model:
-        return
-    _save_settings_patch(state, model=new_model)
-    badge.set_model(new_model)
-    badge.probe_now()
-
-
-def _handle_test_connection(
-    state: AppState,
-    badge: OllamaStatusBadge,
-    progress_ring: ft.ProgressRing,
-) -> None:
-    import threading
-
-    progress_ring.visible = True
-    try:
-        progress_ring.update()
-    except Exception:
-        pass
-
-    def _worker() -> None:
-        ok = False
-        error_text = ""
-        try:
-            service = state.facade.build_ollama_service(timeout_seconds=3.0)
-            # Prefer the cheap tags probe — same path ``OllamaService.inspect``
-            # uses first. Avoids kicking off a generation that could block
-            # for tens of seconds on a cold model.
-            response = service.client.get_tags()
-            ok = bool(response.ok)
-            if not ok:
-                error_text = response.error or "Ollama не ответила"
-        except Exception as exc:  # noqa: BLE001
-            ok = False
-            error_text = str(exc)
-
-        progress_ring.visible = False
-        try:
-            progress_ring.update()
-        except Exception:
-            pass
-
-        badge.probe_now()
-        _show_snackbar(
-            state,
-            TEXT["settings.ollama.status.ok"] if ok else f"{TEXT['settings.ollama.status.offline']}: {error_text or '—'}",
-        )
-
-    threading.Thread(target=_worker, daemon=True).start()
-
-
-# ============================================================================
-# Section: Reset
-# ============================================================================
-
-def _build_ollama_section(
-    state: AppState,
-    p: dict[str, str],
-    badge: OllamaStatusBadge,
-    badge_control: ft.Control,
-) -> ft.Control:
-    settings = _current_settings(state)
+    initial_status = _safe_inspect_ollama_bootstrap(state, settings.model)
     enable_switch = ft.Switch(
         label=TEXT["settings.ollama.enabled"],
         value=_is_ollama_enabled(settings),
@@ -893,13 +748,10 @@ def _build_ollama_section(
     model_dropdown = ft.Dropdown(
         label=TEXT["settings.ollama.model"],
         value=settings.model,
-        options=[
-            ft.dropdown.Option(
-                key=model_id,
-                text=f"{label}{' ★ Рекомендовано' if recommended else ''}",
-            )
-            for model_id, label, recommended in _OLLAMA_MODEL_OPTIONS
-        ],
+        options=_build_ollama_dropdown_options(
+            initial_status.available_models if initial_status is not None else [],
+            settings.model,
+        ),
         width=380,
     )
     setup_title = ft.Text(
@@ -929,6 +781,10 @@ def _build_ollama_section(
     def _apply_setup_status(status: OllamaBootstrapStatus | None, *, busy: bool = False) -> None:
         status_holder["value"] = status
         descriptor = _describe_ollama_setup(status, model_dropdown.value or settings.model)
+        model_dropdown.options = _build_ollama_dropdown_options(
+            status.available_models if status is not None else [],
+            model_dropdown.value or settings.model,
+        )
         action_holder["value"] = descriptor.action_kind
         setup_title.value = descriptor.title
         setup_body.value = descriptor.body
@@ -1024,8 +880,9 @@ def _build_ollama_section(
         TEXT["settings.ollama.install_hint"],
         style=text_style("caption", color=p["text_muted"]),
     )
-    _apply_setup_status(None, busy=False)
-    _refresh_setup_status()
+    _apply_setup_status(initial_status, busy=False)
+    if initial_status is None:
+        _refresh_setup_status()
 
     return _section_card(
         p,
@@ -1132,6 +989,66 @@ def _ollama_probe_feedback(status: OllamaBootstrapStatus, preferred_model: str) 
     if status.state == "not_installed":
         return TEXT["settings.ollama.probe.not_installed"]
     return status.error or TEXT["settings.ollama.probe.error"]
+
+
+def _safe_inspect_ollama_bootstrap(state: AppState, preferred_model: str) -> OllamaBootstrapStatus | None:
+    try:
+        return state.facade.inspect_ollama_bootstrap(preferred_model)
+    except Exception:
+        _LOG.exception("Ollama bootstrap inspection failed preferred_model=%s", preferred_model)
+        return None
+
+
+def _build_ollama_dropdown_options(
+    available_models: list[str],
+    selected_model: str,
+) -> list[ft.dropdown.Option]:
+    option_specs = _collect_ollama_model_options(available_models, selected_model)
+    return [
+        ft.dropdown.Option(
+            key=model_id,
+            text=f"{label}{' ★ Рекомендовано' if recommended else ''}",
+        )
+        for model_id, label, recommended in option_specs
+    ]
+
+
+def _collect_ollama_model_options(
+    available_models: list[str],
+    selected_model: str,
+) -> list[tuple[str, str, bool]]:
+    selected = (selected_model or "").strip()
+    options: list[tuple[str, str, bool]] = []
+    seen: set[str] = set()
+
+    def _append(model_id: str, label: str, recommended: bool) -> None:
+        normalized = model_id.strip()
+        if not normalized or normalized in seen:
+            return
+        seen.add(normalized)
+        options.append((normalized, label, recommended))
+
+    for model_name in available_models:
+        normalized = str(model_name or "").strip()
+        if not normalized:
+            continue
+        recommended_meta = next(
+            (item for item in _RECOMMENDED_OLLAMA_MODELS if item[0] == normalized),
+            None,
+        )
+        if recommended_meta is not None:
+            _, description, recommended = recommended_meta
+            _append(normalized, f"{normalized} · установлена локально · {description}", recommended)
+        else:
+            _append(normalized, f"{normalized} · установлена локально", False)
+
+    for model_id, description, recommended in _RECOMMENDED_OLLAMA_MODELS:
+        _append(model_id, f"{model_id} · {description}", recommended)
+
+    if selected and selected not in seen:
+        _append(selected, f"{selected} · сохранена в настройках", False)
+
+    return options
 
 
 def _is_ollama_enabled(settings: OllamaSettings) -> bool:
@@ -1289,8 +1206,7 @@ def _resolve_version_label(state: AppState) -> str:
     try:
         from app.build_info import get_runtime_build_info
 
-        workspace_root: Path = getattr(state.facade, "workspace_root", None)
-        info = get_runtime_build_info(workspace_root)
+        info = get_runtime_build_info()
         return info.release_label
     except Exception:
         pass

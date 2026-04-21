@@ -9,6 +9,7 @@ from ui_flet.components.ollama_fallback_notice import build_ollama_fallback_noti
 from ui_flet.state import AppState
 from ui_flet.views.settings_view import (
     _candidate_gemini_key_from_env,
+    _collect_ollama_model_options,
     _describe_ollama_setup,
     _looks_like_gemini_key,
 )
@@ -47,6 +48,18 @@ def test_describe_ollama_setup_surfaces_ready_fallback_model() -> None:
     assert descriptor.action_kind == "inspect"
     assert "qwen3:4b" in descriptor.body
     assert "/tmp/.ollama" in descriptor.meta
+
+
+def test_collect_ollama_model_options_prefers_installed_models_and_keeps_current() -> None:
+    options = _collect_ollama_model_options(
+        ["llama3.1:8b", "qwen3:4b"],
+        "custom-local:14b",
+    )
+
+    assert options[0][0] == "llama3.1:8b"
+    assert options[1][0] == "qwen3:4b"
+    assert any(model_id == "qwen3:8b" and recommended for model_id, _label, recommended in options)
+    assert any(model_id == "custom-local:14b" for model_id, _label, _recommended in options)
 
 
 class _MockPage:

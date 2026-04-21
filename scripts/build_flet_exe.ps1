@@ -18,7 +18,9 @@
 param(
   [string]$OutputDir = "dist",
   [string]$IconPath = "assets\icon.ico",
-  [switch]$SkipSeedCheck
+  [switch]$SkipSeedCheck,
+  [string]$BuildVersion = "",
+  [string]$BuildCommit = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -97,6 +99,7 @@ $resolvedOutputDir = Resolve-BuilderPath -PathValue $OutputDir
 $stagingOutputDir = Join-Path $ProjectRoot ("build\flet-pack-stage-" + [guid]::NewGuid().ToString("N"))
 $stagingExePath = Join-Path $stagingOutputDir "Tezis.exe"
 $finalExePath = Join-Path $resolvedOutputDir "Tezis.exe"
+$buildInfoPath = Join-Path $ProjectRoot "build\build_info.json"
 
 $iconArgs = @()
 $fullIconPath = Join-Path $ProjectRoot $IconPath
@@ -117,11 +120,15 @@ if ((Test-Path $fontsDir) -and (Get-ChildItem $fontsDir -Filter "*.ttf" -ErrorAc
   $addData += @("--add-data", "ui_flet\theme\fonts\*.ttf;ui_flet\theme\fonts")
 }
 
+python scripts\write_build_info.py --output $buildInfoPath --version $BuildVersion --commit $BuildCommit | Out-Host
+$addData += @("--add-data", "build\build_info.json;.")
+
 # ---- dispatch ----
 Write-Host "=== Building Tezis.exe via flet pack ===" -ForegroundColor Cyan
 Write-Host "  entry point   : $entryPoint"
 Write-Host "  output dir    : $resolvedOutputDir"
 Write-Host "  icon          : $(if ($iconArgs.Count) { $iconArgs[1] } else { '(default)' })"
+Write-Host "  build info    : $buildInfoPath"
 Write-Host "  add-data      : $(if ($addData.Count) { ($addData -join ' ') } else { '(none)' })"
 Write-Host ""
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -172,8 +173,15 @@ def find_missing_installer_assets(repo_root: Path) -> list[str]:
         issues.append("scripts/installer/Tezis-Setup.iss not found")
         return issues
     text = iss.read_text(encoding="utf-8-sig")
-    if text.count("{{") < 1:
-        issues.append("Tezis-Setup.iss: AppId GUID block missing — upgrade chain will break")
+    # In the .iss, AppId is defined via a #define macro with double-brace escaping:
+    # #define AppId "{{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}}"
+    _guid_re = re.compile(
+        r'#define\s+AppId\s+"'
+        r"\{\{[0-9A-Fa-f]{8}-(?:[0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}\}\}"
+        r'"'
+    )
+    if not _guid_re.search(text):
+        issues.append("Tezis-Setup.iss: AppId GUID missing or malformed — upgrade chain will break")
     return issues
 
 

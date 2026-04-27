@@ -79,6 +79,14 @@ def verify_state_exam_seed_database(seed_db: Path, *, settings: OllamaSettings |
             if not tickets:
                 raise RuntimeError("Seed database does not contain state exam tickets")
 
+            tickets_without_atoms = [t for t in tickets if not t.atoms]
+            if tickets_without_atoms:
+                example = tickets_without_atoms[0].ticket_id
+                raise RuntimeError(
+                    f"Seed contains {len(tickets_without_atoms)} ticket(s) with no atoms "
+                    f"(Ключевые узлы would show '—'). Example: {example}"
+                )
+
             snapshot = facade.load_training_snapshot(tickets=tickets)
             if not snapshot.queue_items:
                 raise RuntimeError("Training snapshot queue is empty")

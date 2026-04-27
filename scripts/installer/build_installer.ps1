@@ -21,9 +21,16 @@ if (-not (Test-Path -LiteralPath $exe)) {
 
 if (-not $Version) {
     $metaPath = Join-Path $repoRoot 'app\meta.py'
-    $match    = Select-String -Path $metaPath -Pattern 'APP_VERSION\s*=\s*"([^"]+)"'
-    $Version  = $match.Matches[0].Groups[1].Value
-    if (-not $Version) { throw "Не удалось прочитать APP_VERSION из app\meta.py" }
+    if (-not (Test-Path -LiteralPath $metaPath)) {
+        throw "app\meta.py не найден по пути: $metaPath"
+    }
+    $match = Select-String -Path $metaPath -Pattern 'APP_VERSION\s*=\s*"([^"]+)"'
+    if (-not $match) { throw "Не удалось прочитать APP_VERSION из app\meta.py" }
+    $Version = $match.Matches[0].Groups[1].Value
+}
+
+if (-not (Test-Path -LiteralPath $iss)) {
+    throw "Tezis-Setup.iss не найден: $iss"
 }
 
 Write-Host "Версия: $Version"
@@ -32,7 +39,7 @@ Write-Host "Версия: $Version"
 $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
 if (-not $iscc) {
     $candidate = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
-    if (Test-Path $candidate) { $iscc = $candidate }
+    if (Test-Path -LiteralPath $candidate) { $iscc = $candidate }
     else { throw "ISCC.exe не найден. Установи: choco install innosetup" }
 }
 

@@ -26,6 +26,8 @@ from ui_flet.theme.tokens import RADIUS, SPACE, palette
 
 _LOG = logging.getLogger(__name__)
 
+_CANONICAL_ORDER: list[str] = ["intro", "theory", "practice", "skills", "conclusion", "extra"]
+
 
 def _safe_filename(text: str, fallback: str = "ticket") -> str:
     """Сделать безопасное имя файла из произвольной строки."""
@@ -213,7 +215,13 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
     )
 
     block_cards: list[ft.Control] = []
-    for block in ticket.answer_blocks or []:
+    _sorted_blocks = sorted(
+        ticket.answer_blocks or [],
+        key=lambda b: _CANONICAL_ORDER.index(_block_code_value(b))
+        if _block_code_value(b) in _CANONICAL_ORDER
+        else len(_CANONICAL_ORDER),
+    )
+    for block in _sorted_blocks:
         if getattr(block, "is_missing", False):
             continue
         if not (block.expected_content or "").strip():

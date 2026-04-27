@@ -52,6 +52,16 @@ jobs:
         shell: pwsh
         run: choco install innosetup --version=6.3.3 --no-progress -y
 
+      - name: Assert onefile build (installer requires single dist\Tezis.exe)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath "dist\Tezis.exe")) {
+            throw "dist\Tezis.exe not found — PyInstaller build may have failed"
+          }
+          if (Test-Path -LiteralPath "dist\Tezis") {
+            throw "dist\Tezis\ directory found — installer requires onefile build, not onedir"
+          }
+
       - name: Build Windows installer (Tezis-Setup.exe)
         shell: pwsh
         run: |

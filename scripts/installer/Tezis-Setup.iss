@@ -53,6 +53,8 @@ Name: "desktopicon"; Description: "Создать ярлык на рабочем
 Name: "installollama"; Description: "Установить Ollama для ИИ-рецензирования (опционально, ~3 ГБ)"; GroupDescription: "Дополнительные компоненты:"; Flags: unchecked
 
 [Files]
+; ВАЖНО: assumes --onefile PyInstaller build (single dist\Tezis.exe, no dist\Tezis\ dir).
+; If switching to onedir, update to: Source: "..\..\dist\Tezis\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Source: "..\..\dist\Tezis.exe";                       DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\scripts\install_ollama_wizard.ps1";    DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\..\scripts\setup_ollama_windows.ps1";     DestDir: "{app}\scripts"; Flags: ignoreversion

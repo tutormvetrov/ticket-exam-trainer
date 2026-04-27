@@ -48,6 +48,24 @@ jobs:
         run: |
           powershell -ExecutionPolicy Bypass -File ./scripts/build_flet_exe.ps1
 
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: choco install innosetup --version=6.3.3 --no-progress -y
+
+      - name: Build Windows installer (Tezis-Setup.exe)
+        shell: pwsh
+        run: |
+          $tag     = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          Write-Host "Building installer for version: $version"
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          & $iscc "/DAppVersion=$version" scripts\installer\Tezis-Setup.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed: $LASTEXITCODE" }
+          $setupName = "Tezis-$version-Setup.exe"
+          Rename-Item dist\Tezis-Setup.exe $setupName
+          Write-Host "Built: dist\$setupName"
+          Get-Item "dist\$setupName" | Format-Table Name,Length
+
       - name: Package Windows zip
         shell: pwsh
         run: |
@@ -71,6 +89,13 @@ jobs:
         with:
           name: Tezis-windows
           path: Tezis-*-windows.zip
+          retention-days: 7
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tezis-windows-setup
+          path: dist/Tezis-*-Setup.exe
           retention-days: 7
 
   build-macos:
@@ -152,7 +177,7 @@ jobs:
       - name: Flatten artifact layout
         run: |
           mkdir -p release-files
-          find artifacts -type f -name "Tezis-*.zip" -exec cp {} release-files/ \;
+          find artifacts -type f \( -name "Tezis-*.zip" -o -name "Tezis-*-Setup.exe" \) -exec cp {} release-files/ \;
           ls -la release-files/
 
       - name: Create Release
@@ -166,22 +191,23 @@ jobs:
           fail_on_unmatched_files: false
           files: |
             release-files/*.zip
+            release-files/*.exe
           body: |
-            Автосборка: Windows exe + macOS .app.
+            Автосборка: Windows installer + ZIP + macOS .app.
 
-            **Windows:** распакуй zip, запусти `Tezis.exe`. SmartScreen при
-            первом запуске нажми «Подробнее» -> «Выполнить в любом случае»
-            (приложение не подписано сертификатом).
+            **Windows (рекомендуется):** скачай `Tezis-*-Setup.exe`, запусти,
+            нажми «Установить». Мастер создаст ярлыки и запись в «Программы».
+            SmartScreen при первом запуске: «Подробнее» → «Выполнить в любом
+            случае» (приложение не подписано сертификатом).
 
-            **macOS:** распакуй zip, перетащи `Tezis.app` в папку
-            Applications. Первый запуск: правый клик по приложению ->
-            «Открыть» (обход Gatekeeper для неподписанных приложений).
+            **Windows (portable):** скачай `Tezis-*-windows.zip`, распакуй,
+            запусти `Tezis.exe`.
+
+            **macOS:** распакуй zip, перетащи `Tezis.app` в Applications.
+            Первый запуск: правый клик → «Открыть» (обход Gatekeeper).
 
             **Опциональный ИИ-рецензент (Ollama):**
-            Windows: можно запустить `scripts/install_ollama_wizard.ps1`.
-            macOS: открой `Tezis.app` -> `Настройки` -> `Рецензирование`
-            и пройди встроенный setup-flow. `scripts/` внутри архива
-            остаются только как troubleshooting-артефакт.
+            Windows: при установке отметь галочку «Установить Ollama».
+            macOS: Settings → Рецензирование.
 
-            Полная инструкция для однокурсников — в `README_classmates.md`
-            внутри архива.
+            Инструкция — в `README_classmates.md` внутри архива.

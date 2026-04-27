@@ -194,13 +194,28 @@ def _answer_block_card(palette_map: dict, block) -> ft.Control:
 def build_workspace(state: AppState, ticket) -> ft.Control:
     p = palette(state.is_dark)
 
+    _sorted_blocks = sorted(
+        ticket.answer_blocks or [],
+        key=lambda b: _CANONICAL_ORDER.index(_block_code_value(b))
+        if _block_code_value(b) in _CANONICAL_ORDER
+        else len(_CANONICAL_ORDER),
+    )
+
+    _full_answer_parts = [
+        block.expected_content.strip()
+        for block in _sorted_blocks
+        if not getattr(block, "is_missing", False)
+        and (block.expected_content or "").strip()
+    ]
+    _full_answer_text = "\n\n".join(_full_answer_parts) if _full_answer_parts else (ticket.canonical_answer_summary or "")
+
     summary_control = ft.Container(
         padding=SPACE["md"],
         bgcolor=p["bg_elevated"],
         border_radius=RADIUS["md"],
         border=ft.border.all(1, p["border_soft"]),
         content=ft.Text(
-            ticket.canonical_answer_summary or "",
+            _full_answer_text,
             size=14,
             color=p["text_primary"],
             selectable=True,
@@ -215,12 +230,6 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
     )
 
     block_cards: list[ft.Control] = []
-    _sorted_blocks = sorted(
-        ticket.answer_blocks or [],
-        key=lambda b: _CANONICAL_ORDER.index(_block_code_value(b))
-        if _block_code_value(b) in _CANONICAL_ORDER
-        else len(_CANONICAL_ORDER),
-    )
     for block in _sorted_blocks:
         if getattr(block, "is_missing", False):
             continue

@@ -74,7 +74,7 @@ jobs:
           $scriptsDir = Join-Path $stagingDir "scripts"
           New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
           New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
-          Copy-Item -Recurse -Force "dist/*" -Destination $stagingDir
+          Copy-Item -Recurse -Force "dist/*" -Destination $stagingDir -Exclude "*-Setup.exe"
           Copy-Item -Force "scripts/install_ollama_wizard.ps1" -Destination $scriptsDir
           Copy-Item -Force "scripts/check_ollama.ps1" -Destination $scriptsDir
           Copy-Item -Force "scripts/setup_ollama_windows.ps1" -Destination $scriptsDir

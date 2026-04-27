@@ -50,7 +50,7 @@ Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительно:"; Flags: checkedonce
-Name: "installollama"; Description: "Установить Ollama для ИИ-рецензирования (опционально, ~3 ГБ)"; GroupDescription: "Дополнительные компоненты:"; Flags: unchecked
+Name: "installollama"; Description: "Ollama — ИИ разбирает ошибки в ответах прямо на компьютере, без интернета. Потребует ~3 ГБ."; GroupDescription: "ИИ-рецензирование (рекомендуется):"; Flags: unchecked
 
 [Files]
 ; ВАЖНО: assumes --onefile PyInstaller build (single dist\Tezis.exe, no dist\Tezis\ dir).
@@ -68,7 +68,7 @@ Name: "{group}\{cm:UninstallProgram,{#AppName}}";     Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}";                     Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\install_ollama_wizard.ps1"""; WorkingDir: "{app}"; StatusMsg: "Запуск мастера Ollama..."; Flags: postinstall nowait; Tasks: installollama
+Filename: "powershell.exe"; Description: "Запустить мастер установки Ollama"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\install_ollama_wizard.ps1"""; WorkingDir: "{app}"; StatusMsg: "Запуск мастера Ollama..."; Flags: postinstall nowait skipifsilent unchecked; Tasks: installollama
 
 Filename: "{app}\{#AppExeName}"; Description: "Запустить Тезис"; Flags: nowait postinstall skipifsilent unchecked
 

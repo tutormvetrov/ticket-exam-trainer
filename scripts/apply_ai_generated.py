@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -53,6 +54,121 @@ AI_DOC_TITLE = "МДЭ ИИ и Цифровизация в ГА (2024). Колл
 ANSWER_PROFILE_CODE = "state_exam_public_admin"
 
 BLOCK_ORDER = ("intro", "theory", "practice", "skills", "conclusion", "extra")
+
+# ---------------------------------------------------------------------------
+# Atom extraction — mirrors ImportService rule-based heuristics so that
+# tkt-ai-* tickets get Ключевые узлы populated on every apply run.
+# ---------------------------------------------------------------------------
+
+_ATOM_TYPE_LABELS: dict[str, str] = {
+    "definition":     "Определение",
+    "examples":       "Примеры",
+    "features":       "Особенности",
+    "stages":         "Этапы",
+    "functions":      "Функции",
+    "causes":         "Причины",
+    "consequences":   "Последствия",
+    "classification": "Классификация",
+    "process_step":   "Процесс",
+    "conclusion":     "Вывод",
+}
+
+_ATOM_TYPE_WEIGHTS: dict[str, float] = {
+    "definition": 1.0, "examples": 0.7, "features": 0.9,
+    "stages": 1.1, "functions": 1.0, "causes": 1.0,
+    "consequences": 1.0, "classification": 0.9,
+    "process_step": 1.1, "conclusion": 0.8,
+}
+
+_ATOM_CUES = [
+    ("definition",    ("представляет собой", "это", "понимается как", "определяется как")),
+    ("examples",      ("например", "к таким относятся", "в частности", "примером")),
+    ("features",      ("признаки", "характеризуется", "особенности", "свойства")),
+    ("stages",        ("этапы", "стадии")),
+    ("functions",     ("функции",)),
+    ("causes",        ("причины", "обусловлено")),
+    ("consequences",  ("последствия", "приводит к")),
+    ("classification", ("классификация", "виды", "делится на")),
+    ("process_step",  ("порядок", "последовательность", "цикл", "включает")),
+    ("conclusion",    ("таким образом", "следовательно", "итак", "вывод")),
+]
+
+
+def _split_atom_fragments(text: str) -> list[str]:
+    paragraphs = [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
+    if not paragraphs:
+        paragraphs = [text.strip()]
+    expanded: list[str] = []
+    for para in paragraphs:
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", para) if s.strip()]
+        if len(sentences) >= 2 and len(para) > 120:
+            expanded.extend(sentences)
+        else:
+            expanded.append(para)
+    return expanded
+
+
+def _detect_atom_type(text: str, index: int) -> tuple[str, float]:
+    lowered = text.lower()
+    for atom_type, patterns in _ATOM_CUES:
+        if any(p in lowered for p in patterns):
+            return atom_type, 0.88
+    return ("definition" if index == 1 else "features"), (0.62 if index == 1 else 0.52)
+
+
+def _extract_atom_keywords(text: str, limit: int = 6) -> list[str]:
+    words = re.findall(r"[а-яёА-ЯЁa-zA-Z]{4,}", text)
+    seen: set[str] = set()
+    unique: list[str] = []
+    for w in words:
+        if w.lower() not in seen:
+            seen.add(w.lower())
+            unique.append(w)
+    return unique[:limit]
+
+
+def _upsert_atoms(con: sqlite3.Connection, ticket_id: str, blocks: dict) -> None:
+    source_text = "\n\n".join(
+        (blocks.get(code) or {}).get("content", "").strip()
+        for code in BLOCK_ORDER
+        if (blocks.get(code) or {}).get("content", "").strip()
+    )
+    if not source_text:
+        return
+    fragments = _split_atom_fragments(source_text)
+    if not fragments:
+        return
+
+    con.execute("DELETE FROM atoms WHERE ticket_id = ?", (ticket_id,))
+    cur = con.cursor()
+    previous_id: str | None = None
+    for idx, fragment in enumerate(fragments, start=1):
+        atom_type, confidence = _detect_atom_type(fragment, idx)
+        aid = "atom-" + _sha_hex(f"{ticket_id}-atom-{idx}-{fragment[:40]}", 16)
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO atoms
+                (atom_id, ticket_id, atom_type, label, text,
+                 keywords_json, weight, dependencies_json,
+                 parent_atom_id, confidence, source_excerpt, order_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                aid, ticket_id, atom_type,
+                _ATOM_TYPE_LABELS.get(atom_type, f"Атом {idx}"),
+                fragment,
+                json.dumps(_extract_atom_keywords(fragment), ensure_ascii=False),
+                _ATOM_TYPE_WEIGHTS.get(atom_type, 0.8),
+                json.dumps([previous_id] if previous_id else [], ensure_ascii=False),
+                None,
+                confidence,
+                fragment[:220],
+                idx,
+            ),
+        )
+        previous_id = aid
+
+
 BLOCK_TITLES = {
     "intro": "Введение",
     "theory": "Теоретическая часть",
@@ -281,6 +397,7 @@ def apply_batch(con: sqlite3.Connection, batch: list[dict]) -> dict:
         existed = cur.fetchone() is not None
         ticket_id = _upsert_ticket(con, record, section_id)
         _upsert_blocks(con, ticket_id, record["blocks"])
+        _upsert_atoms(con, ticket_id, record["blocks"])
         if existed:
             updated += 1
         else:

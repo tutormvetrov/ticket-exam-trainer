@@ -237,8 +237,36 @@ function Resolve-SettingsPath {
 }
 
 function Test-OllamaCli {
-    $null = Get-Command ollama -ErrorAction SilentlyContinue
-    return $?
+    # 1. Already in PATH
+    if (Get-Command ollama -ErrorAction SilentlyContinue) { return $true }
+
+    # 2. Refresh PATH from registry — catches apps installed in this same session
+    $machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $userPath    = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+    $env:PATH    = (($machinePath, $userPath | Where-Object { $_ }) -join ';')
+    if (Get-Command ollama -ErrorAction SilentlyContinue) { return $true }
+
+    # 3. Search registry uninstall entries — works for any drive / custom location
+    $regRoots = @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+    )
+    foreach ($root in $regRoots) {
+        if (-not (Test-Path $root)) { continue }
+        $entry = Get-ChildItem $root -ErrorAction SilentlyContinue |
+            Get-ItemProperty -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like '*Ollama*' } |
+            Select-Object -First 1
+        if (-not $entry) { continue }
+        $installDir = $entry.InstallLocation
+        if ($installDir -and (Test-Path -LiteralPath (Join-Path $installDir 'ollama.exe'))) {
+            $env:PATH = "$installDir;$env:PATH"
+            return $true
+        }
+    }
+
+    return $false
 }
 
 function Test-OllamaEndpoint {

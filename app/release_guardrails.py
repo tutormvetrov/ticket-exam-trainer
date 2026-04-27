@@ -42,6 +42,7 @@ class ReleaseGuardrailReport:
     case_collisions: list[tuple[str, ...]] = field(default_factory=list)
     crlf_shell_scripts: list[str] = field(default_factory=list)
     unexpected_tracked_ignored_paths: list[str] = field(default_factory=list)
+    missing_installer_assets: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -50,6 +51,7 @@ class ReleaseGuardrailReport:
             or self.case_collisions
             or self.crlf_shell_scripts
             or self.unexpected_tracked_ignored_paths
+            or self.missing_installer_assets
         )
 
     def render(self) -> str:
@@ -74,6 +76,11 @@ class ReleaseGuardrailReport:
             lines.append("Tracked files still matched by .gitignore:")
             for path in self.unexpected_tracked_ignored_paths:
                 lines.append(f"  - {path}")
+        if self.missing_installer_assets:
+            lines.append("")
+            lines.append("Missing installer assets:")
+            for msg in self.missing_installer_assets:
+                lines.append(f"  - {msg}")
         return "\n".join(lines)
 
 
@@ -158,6 +165,18 @@ def find_crlf_shell_scripts(repo_root: Path, paths: list[str]) -> list[str]:
     return offenders
 
 
+def find_missing_installer_assets(repo_root: Path) -> list[str]:
+    issues: list[str] = []
+    iss = repo_root / "scripts" / "installer" / "Tezis-Setup.iss"
+    if not iss.exists():
+        issues.append("scripts/installer/Tezis-Setup.iss not found")
+        return issues
+    text = iss.read_text(encoding="utf-8-sig")
+    if text.count("{{") < 1:
+        issues.append("Tezis-Setup.iss: AppId GUID block missing — upgrade chain will break")
+    return issues
+
+
 def validate_repository(
     repo_root: Path,
     *,
@@ -177,6 +196,7 @@ def validate_repository(
         unexpected_tracked_ignored_paths=find_unexpected_tracked_ignored_paths(
             ignored_paths
         ),
+        missing_installer_assets=find_missing_installer_assets(repo_root),
     )
 
 

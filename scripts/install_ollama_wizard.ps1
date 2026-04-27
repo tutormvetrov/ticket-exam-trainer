@@ -112,6 +112,30 @@ function Write-FailLine {
     Write-Host "    x $Text" -ForegroundColor Red
 }
 
+function Get-TierDisplayName {
+    param([string]$TierKey)
+    switch ($TierKey) {
+        'light'   { return 'без ИИ' }
+        'default' { return 'обычный' }
+        'premium' { return 'лучший' }
+        default   { return $TierKey }
+    }
+}
+
+function Resolve-DisplayNameToTier {
+    param([string]$Input)
+    switch ($Input.ToLowerInvariant().Trim()) {
+        'без ии'  { return 'light' }
+        'без ai'  { return 'light' }
+        'light'   { return 'light' }
+        'обычный' { return 'default' }
+        'default' { return 'default' }
+        'лучший'  { return 'premium' }
+        'premium' { return 'premium' }
+        default   { return '' }
+    }
+}
+
 function Get-HardwareSnapshot {
     $ram = [math]::Round([double](Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
     $cpuCores = [int](Get-CimInstance Win32_Processor |
@@ -131,6 +155,18 @@ function Get-HardwareSnapshot {
     # truly 4 GB card or a 6/8/12 GB card that got clipped. Warn either way.
     $vramClipped = ($vramReported -ge 3.9)
 
+    # Try to get accurate VRAM from nvidia-smi (avoids the Win32 4 GB ceiling)
+    $vramActual = $vramReported
+    $vramSource = 'Windows API'
+    try {
+        $smiRaw = & nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>$null
+        if ($LASTEXITCODE -eq 0 -and $smiRaw) {
+            $smiMib = [int](($smiRaw -split "`n")[0].Trim())
+            $vramActual = [math]::Round($smiMib / 1024.0, 1)
+            $vramSource = 'nvidia-smi'
+        }
+    } catch {}
+
     [pscustomobject]@{
         RamGB         = $ram
         CpuCores      = $cpuCores
@@ -138,6 +174,8 @@ function Get-HardwareSnapshot {
         GpuName       = if ($topGpu) { $topGpu.Name } else { 'Unknown / integrated' }
         VramGB        = $vramReported
         VramClipped   = $vramClipped
+        VramActualGB  = $vramActual
+        VramSource    = $vramSource
     }
 }
 
@@ -147,30 +185,42 @@ function Select-RecommendedTier {
     if ($Hardware.RamGB -lt 8.0) {
         return 'light'
     }
-    if ($Hardware.RamGB -ge 16.0 -and ($Hardware.VramGB -ge 8.0 -or $Hardware.VramClipped)) {
+    if ($Hardware.RamGB -ge 16.0 -and $Hardware.VramActualGB -ge 8.0) {
         return 'premium'
     }
     return 'default'
 }
 
 function Show-TierTable {
-    Write-Info "Доступные тиры:"
-    Write-Info "  light   — <8 GB RAM                             keyword fallback, без LLM"
-    Write-Info "  default — 8-16 GB RAM (any GPU)                 qwen2.5:7b-instruct-q4_K_M  (~25-45 s CPU)"
-    Write-Info "  premium — >=16 GB RAM и >=8 GB VRAM             vikhr-nemo-12b-instruct      (~35-60 s GPU)"
+    param([string]$RecommendedTier, $Hardware)
+    $ram  = $Hardware.RamGB
+    $vram = $Hardware.VramActualGB
+
+    Write-Info "  без ИИ   — ИИ не используется. Тезис покажет эталонный ответ,"
+    Write-Info "             сравнивай сам. Быстро, но без обратной связи."
+    Write-Info "             Подходит: если RAM меньше 8 ГБ или рецензия не нужна."
+    Write-Info ""
+    Write-Info "  обычный  — ИИ работает на процессоре. Ответ примерно через 30 секунд."
+    Write-Info "             Скачать: ~4 ГБ  ·  Модель: qwen2.5:7b (русский и английский)"
+    Write-Info "             Подходит: если RAM 8–16 ГБ или видеокарта слабая."
+    Write-Info ""
+    Write-Info "  лучший   — ИИ работает на видеокарте. Ответ ~10–15 секунд,"
+    Write-Info "             модель заточена под русский язык."
+    Write-Info "             Скачать: ~8 ГБ  ·  Модель: vikhr-nemo-12b"
+    Write-Info "             Подходит: если RAM 16+ ГБ и VRAM 8+ ГБ."
 }
 
 function Prompt-Tier {
     param([string]$Default)
-    $valid = @('light','default','premium')
+    $displayDefault = Get-TierDisplayName -TierKey $Default
     while ($true) {
-        $prompt = "Тир [light/default/premium] (enter = $Default, q = выход)"
-        $answer = Read-Host $prompt
+        $answer = Read-Host "Режим [без ИИ / обычный / лучший]  Enter = $displayDefault  ·  Q = выход"
         if ([string]::IsNullOrWhiteSpace($answer)) { return $Default }
-        $answer = $answer.ToLowerInvariant().Trim()
-        if ($answer -eq 'q') { return '' }
-        if ($valid -contains $answer) { return $answer }
-        Write-WarnLine "Введите один из: $($valid -join ', ') либо пустую строку для '$Default'."
+        $answer = $answer.Trim()
+        if ($answer -eq 'q' -or $answer -eq 'Q') { return '' }
+        $resolved = Resolve-DisplayNameToTier -Input $answer
+        if ($resolved) { return $resolved }
+        Write-WarnLine "Введи: без ИИ, обычный или лучший (или пустую строку для '$displayDefault')."
     }
 }
 
@@ -454,20 +504,27 @@ function Save-SettingsChoice {
 # Main flow
 # -----------------------------------------------------------------------------
 
-Write-Step "Шаг 1: сбор характеристик железа"
+Write-Step "Шаг 1: смотрю, что у тебя за компьютер"
 $hardware = Get-HardwareSnapshot
-Write-Info "RAM: $($hardware.RamGB) GB"
-Write-Info "CPU: $($hardware.CpuCores) ядер ($($hardware.CpuLogical) потоков)"
-Write-Info "GPU: $($hardware.GpuName)"
+Write-Info "RAM: $($hardware.RamGB) ГБ  ·  CPU: $($hardware.CpuCores) ядер  ·  GPU: $($hardware.GpuName)"
+Write-Info ""
+if ($hardware.GpuName -notlike '*Unknown*' -and $hardware.GpuName -notlike '*integrated*') {
+    Write-Info "Видеокарта есть — это хорошо, ИИ на GPU работает быстрее."
+    Write-Info ""
+}
 if ($hardware.VramClipped) {
-    Write-Info "VRAM (reported): $($hardware.VramGB) GB"
-    Write-WarnLine "AdapterRAM Windows API вернул ~4 GB — это 32-битный потолок. На GPU может быть больше памяти."
-    Write-WarnLine "Для точного значения: nvidia-smi  либо  dxdiag → Display → Display Memory."
+    Write-Info "Windows сообщает только $($hardware.VramGB) ГБ видеопамяти, но это ограничение API:"
+    Write-Info "он не умеет считать больше 4 ГБ. На самом деле памяти может быть больше."
+    if ($hardware.VramSource -eq 'nvidia-smi') {
+        Write-OkLine "Проверил через nvidia-smi → $($hardware.VramActualGB) ГБ VRAM (точное значение)."
+    } else {
+        Write-WarnLine "Проверить точное значение: nvidia-smi  или  dxdiag → Display → Display Memory."
+    }
 } else {
-    Write-Info "VRAM: $($hardware.VramGB) GB"
+    Write-Info "VRAM: $($hardware.VramActualGB) ГБ"
 }
 
-Write-Step "Шаг 2: рекомендация тира"
+Write-Step "Шаг 2: подбираю подходящий режим рецензирования"
 $autoTier = Select-RecommendedTier -Hardware $hardware
 $selectedTier = $null
 
@@ -478,28 +535,43 @@ switch ($Tier.ToLowerInvariant()) {
         if ($script:TierCatalog.ContainsKey($Tier)) {
             $selectedTier = $Tier
         } else {
-            Write-WarnLine "Неизвестный тир '$Tier', fallback на auto."
+            Write-WarnLine "Неизвестный режим '$Tier', использую авторекомендацию."
             $selectedTier = $autoTier
         }
     }
 }
 
 $tierInfo = $script:TierCatalog[$selectedTier]
-Write-Info "У вас $($hardware.RamGB) GB RAM и $($hardware.VramGB) GB VRAM → рекомендую '$selectedTier' (латентность $($tierInfo.Latency))."
-if ($tierInfo.Notes) { Write-Note $tierInfo.Notes }
+$displaySelected = Get-TierDisplayName -TierKey $selectedTier
+
+Write-Info "Рецензирование — это когда ты пишешь ответ на билет, а ИИ"
+Write-Info "читает его и говорит: что упустил, где ошибся, насколько полно"
+Write-Info "раскрыл тему. Всё работает на твоём компьютере, без интернета."
+Write-Info ""
+Write-Info "Три режима на выбор:"
+Write-Info ""
 
 if (-not $Yes) {
-    Show-TierTable
+    Show-TierTable -RecommendedTier $selectedTier -Hardware $hardware
+    Write-Info ""
+    Write-Info "Рекомендую: $displaySelected"
+    $reasonRam  = "$($hardware.RamGB) ГБ RAM"
+    $reasonVram = "$($hardware.VramActualGB) ГБ VRAM"
+    Write-Note "($reasonRam + $reasonVram — всё сходится)"
+    Write-Info ""
     $override = Prompt-Tier -Default $selectedTier
     if (-not $override) {
         Write-WarnLine "Отмена по запросу пользователя."
         exit 2
     }
     if ($override -ne $selectedTier) {
-        Write-Info "Переопределяю тир на '$override' по запросу пользователя."
         $selectedTier = $override
         $tierInfo = $script:TierCatalog[$selectedTier]
+        $displaySelected = Get-TierDisplayName -TierKey $selectedTier
+        Write-Info "Хорошо, использую режим: $displaySelected"
     }
+} else {
+    Write-Info "Выбранный режим: $displaySelected ($reasonRam + $reasonVram)"
 }
 
 Write-Step "Шаг 3: установка Ollama (если нужна)"
@@ -553,13 +625,14 @@ Save-SettingsChoice `
 
 Write-Host ""
 Write-Host "Готово." -ForegroundColor Green
-Write-Info "Выбранный тир: $selectedTier"
+$displayFinal = Get-TierDisplayName -TierKey $selectedTier
+Write-Info "Режим рецензирования: $displayFinal"
 if ($modelForSettings) {
     Write-Info "Модель: $modelForSettings"
 } else {
-    Write-Info "Режим: keyword fallback (без LLM)"
+    Write-Info "ИИ не используется — Тезис будет показывать эталонные ответы."
 }
-Write-Info "Settings: $settingsFile"
+Write-Info "Настройки сохранены в: $settingsFile"
 if ($DryRun) {
-    Write-Note "Был DryRun — в систему ничего не писал, никакой модели не скачивал."
+    Write-Note "(DryRun — ничего не устанавливалось и не записывалось)"
 }

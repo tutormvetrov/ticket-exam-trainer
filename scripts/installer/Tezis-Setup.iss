@@ -41,6 +41,9 @@ ShowLanguageDialog=no
 CloseApplications=force
 RestartApplications=no
 MinVersion=10.0.17763
+VersionInfoVersion={#AppVersion}
+VersionInfoProductName={#AppName}
+VersionInfoCompany=tutormvetrov
 
 [Languages]
 Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"
@@ -55,7 +58,7 @@ Source: "..\..\scripts\install_ollama_wizard.ps1";    DestDir: "{app}\scripts"; 
 Source: "..\..\scripts\setup_ollama_windows.ps1";     DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\..\scripts\check_ollama.ps1";             DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\..\assets\icon.ico";                      DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\README_classmates.md";                  DestDir: "{app}"; Flags: ignoreversion isreadme
+Source: "..\..\README_classmates.md";                  DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}";                           Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\icon.ico"
@@ -63,12 +66,10 @@ Name: "{group}\{cm:UninstallProgram,{#AppName}}";     Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}";                     Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\install_ollama_wizard.ps1"""; WorkingDir: "{app}"; StatusMsg: "Запуск мастера Ollama..."; Flags: postinstall waituntilterminated; Tasks: installollama
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\install_ollama_wizard.ps1"""; WorkingDir: "{app}"; StatusMsg: "Запуск мастера Ollama..."; Flags: postinstall nowait; Tasks: installollama
 
 Filename: "{app}\{#AppExeName}"; Description: "Запустить Тезис"; Flags: nowait postinstall skipifsilent unchecked
 
-[UninstallDelete]
-Type: filesandordirs; Name: "{app}\scripts"
-Type: files;          Name: "{app}\{#AppExeName}"
-Type: files;          Name: "{app}\README_classmates.md"
-Type: files;          Name: "{app}\icon.ico"
+; Note: Inno Setup automatically removes all [Files] entries on uninstall.
+; User data at %LOCALAPPDATA%\Tezis\app_data\ is NOT touched — it lives outside {app}.
+; No [UninstallDelete] section needed.

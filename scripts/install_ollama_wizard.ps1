@@ -123,8 +123,8 @@ function Get-TierDisplayName {
 }
 
 function Resolve-DisplayNameToTier {
-    param([string]$Input)
-    switch ($Input.ToLowerInvariant().Trim()) {
+    param([string]$DisplayName)
+    switch ($DisplayName.ToLowerInvariant().Trim()) {
         'без ии'  { return 'light' }
         'без ai'  { return 'light' }
         'light'   { return 'light' }
@@ -153,9 +153,7 @@ function Get-HardwareSnapshot {
     # AdapterRAM is reported via a UInt32 surface on Win32_VideoController —
     # ~4 GB is the ceiling. Any value at/above that is suspicious: could be a
     # truly 4 GB card or a 6/8/12 GB card that got clipped. Warn either way.
-    $vramClipped = ($vramReported -ge 3.9)
-
-    # Try to get accurate VRAM from nvidia-smi (avoids the Win32 4 GB ceiling)
+    # Try to get accurate VRAM from nvidia-smi (avoids the Win32 4 GB ceiling on UInt32 surface)
     $vramActual = $vramReported
     $vramSource = 'Windows API'
     try {
@@ -168,14 +166,13 @@ function Get-HardwareSnapshot {
     } catch {}
 
     [pscustomobject]@{
-        RamGB         = $ram
-        CpuCores      = $cpuCores
-        CpuLogical    = $cpuLogical
-        GpuName       = if ($topGpu) { $topGpu.Name } else { 'Unknown / integrated' }
-        VramGB        = $vramReported
-        VramClipped   = $vramClipped
-        VramActualGB  = $vramActual
-        VramSource    = $vramSource
+        RamGB        = $ram
+        CpuCores     = $cpuCores
+        CpuLogical   = $cpuLogical
+        GpuName      = if ($topGpu) { $topGpu.Name } else { 'Unknown / integrated' }
+        VramGB       = $vramReported
+        VramActualGB = $vramActual
+        VramSource   = $vramSource
     }
 }
 
@@ -218,7 +215,7 @@ function Prompt-Tier {
         if ([string]::IsNullOrWhiteSpace($answer)) { return $Default }
         $answer = $answer.Trim()
         if ($answer -eq 'q' -or $answer -eq 'Q') { return '' }
-        $resolved = Resolve-DisplayNameToTier -Input $answer
+        $resolved = Resolve-DisplayNameToTier -DisplayName $answer
         if ($resolved) { return $resolved }
         Write-WarnLine "Введи: без ИИ, обычный или лучший (или пустую строку для '$displayDefault')."
     }
@@ -512,15 +509,9 @@ if ($hardware.GpuName -notlike '*Unknown*' -and $hardware.GpuName -notlike '*int
     Write-Info "Видеокарта есть — это хорошо, ИИ на GPU работает быстрее."
     Write-Info ""
 }
-if ($hardware.VramClipped) {
-    Write-Info "Windows сообщает только $($hardware.VramGB) ГБ видеопамяти, но это ограничение API:"
-    Write-Info "он не умеет считать больше 4 ГБ. На самом деле памяти может быть больше."
-    if ($hardware.VramSource -eq 'nvidia-smi') {
-        Write-OkLine "Проверил через nvidia-smi → $($hardware.VramActualGB) ГБ VRAM (точное значение)."
-    } else {
-        Write-WarnLine "Проверить точное значение: nvidia-smi  или  dxdiag → Display → Display Memory."
-    }
-} else {
+if ($hardware.VramSource -eq 'nvidia-smi' -and $hardware.VramActualGB -gt $hardware.VramGB + 0.5) {
+    Write-Info "VRAM: $($hardware.VramActualGB) ГБ (nvidia-smi; Windows API сообщал $($hardware.VramGB) ГБ)"
+} elseif ($hardware.VramActualGB -gt 0) {
     Write-Info "VRAM: $($hardware.VramActualGB) ГБ"
 }
 

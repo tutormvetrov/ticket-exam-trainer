@@ -138,11 +138,29 @@ if [[ -n "$SIGN_IDENTITY" ]]; then
   codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$STAGING_DIR/$APP_NAME.app"
 fi
 
+SOURCE_SIZE_KB="$(du -sk "$STAGING_DIR" | awk '{print $1}')"
+SOURCE_SIZE_MB=$(( (SOURCE_SIZE_KB + 1023) / 1024 ))
+DMG_SIZE_MB=$(( SOURCE_SIZE_MB + 512 ))
+if [[ "$DMG_SIZE_MB" -lt 1024 ]]; then
+  DMG_SIZE_MB=1024
+fi
+
+FREE_SPACE_KB="$(df -Pk "$RELEASE_DIR" | awk 'NR == 2 {print $4}')"
+REQUIRED_SPACE_KB=$(( (DMG_SIZE_MB * 1024) + SOURCE_SIZE_KB ))
+if [[ "$FREE_SPACE_KB" -lt "$REQUIRED_SPACE_KB" ]]; then
+  echo "Not enough free space for DMG packaging." >&2
+  echo "Available: ${FREE_SPACE_KB} KB; required at least: ${REQUIRED_SPACE_KB} KB." >&2
+  exit 1
+fi
+
 rm -f "$DMG_PATH"
 echo "Creating DMG: $DMG_PATH"
+echo "Staging size: ${SOURCE_SIZE_MB} MB; DMG filesystem capacity: ${DMG_SIZE_MB} MB"
 hdiutil create \
   -volname "Tezis $APP_VERSION" \
   -srcfolder "$STAGING_DIR" \
+  -size "${DMG_SIZE_MB}m" \
+  -fs HFS+ \
   -ov \
   -format UDZO \
   "$DMG_PATH"

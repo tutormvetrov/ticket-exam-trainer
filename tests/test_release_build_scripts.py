@@ -55,6 +55,9 @@ def test_macos_dmg_packaging_script_uses_release_tree_and_checksums() -> None:
     assert 'RELEASE_ROOT="$ROOT/dist/release/v$PACKAGE_VERSION"' in script
     assert 'DMG_NAME="Tezis-v$PACKAGE_VERSION-macos-$ARCH-portable.dmg"' in script
     assert "hdiutil create" in script
+    assert 'DMG_SIZE_MB=$(( SOURCE_SIZE_MB + 512 ))' in script
+    assert '-size "${DMG_SIZE_MB}m"' in script
+    assert "-fs HFS+" in script
     assert 'ln -s /Applications "$STAGING_DIR/Applications"' in script
     assert 'CHECKSUMS_PATH="$RELEASE_ROOT/checksums-v$PACKAGE_VERSION.txt"' in script
     assert "shasum -a 256" in script

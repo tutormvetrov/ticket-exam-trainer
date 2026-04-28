@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 import sqlite3
@@ -19,6 +20,7 @@ from application.readiness import ReadinessService
 from application.scoring import MicroSkillScoringService
 from application.settings import OllamaSettings
 from application.settings_store import SettingsStore
+from application.ticket_reference import compose_reference_answer
 from application.ui_data import (
     DialogueResult,
     DialogueSessionState,
@@ -32,7 +34,15 @@ from application.ui_data import (
 )
 from application.ui_query_service import UiQueryService
 from domain.answer_profile import AnswerProfileCode, TicketBlockMasteryProfile
-from domain.knowledge import Exam, ExerciseType, ReviewMode, Section, TicketKnowledgeMap, TicketMasteryProfile
+from domain.knowledge import (
+    Exam,
+    ExerciseInstance,
+    ExerciseType,
+    ReviewMode,
+    Section,
+    TicketKnowledgeMap,
+    TicketMasteryProfile,
+)
 from domain.models import DocumentData, SubjectData
 from infrastructure.db import DefenseRepository, DialogueRepository, KnowledgeRepository
 from infrastructure.db.transaction import atomic
@@ -83,9 +93,7 @@ class AppFacade:
         # Раздельные таймауты: короткий на диагностику (tags/ping), длинный на
         # генерацию. Override `timeout_seconds` по-прежнему уважается: он
         # применяется только к генерации, inspect остаётся быстрым.
-        resolved_generation = float(
-            self._settings.timeout_seconds if timeout_seconds is None else timeout_seconds
-        )
+        resolved_generation = float(self._settings.timeout_seconds if timeout_seconds is None else timeout_seconds)
         return OllamaService(
             self._settings.base_url,
             models_path=self._settings.models_path,
@@ -93,7 +101,9 @@ class AppFacade:
             generation_timeout_seconds=resolved_generation,
         )
 
-    def build_import_ollama_service(self, generation_timeout_seconds: float | None | object = _USE_SETTINGS_TIMEOUT) -> OllamaService:
+    def build_import_ollama_service(
+        self, generation_timeout_seconds: float | None | object = _USE_SETTINGS_TIMEOUT
+    ) -> OllamaService:
         resolved_generation = (
             float(self._settings.timeout_seconds)
             if generation_timeout_seconds is _USE_SETTINGS_TIMEOUT
@@ -204,7 +214,7 @@ class AppFacade:
         if parts <= 1:
             return [items[:]]
         batch_size = max(1, (len(items) + parts - 1) // parts)
-        return [items[index:index + batch_size] for index in range(0, len(items), batch_size)]
+        return [items[index : index + batch_size] for index in range(0, len(items), batch_size)]
 
     @staticmethod
     def _import_progress_counts(result: ImportExecutionResult) -> tuple[int, int, int, int]:
@@ -514,7 +524,9 @@ class AppFacade:
             session.turns,
             opening=False,
         )
-        assistant_text = self._dialogue_message_text(turn_result.payload.feedback_text, turn_result.payload.next_question)
+        assistant_text = self._dialogue_message_text(
+            turn_result.payload.feedback_text, turn_result.payload.next_question
+        )
         if not assistant_text:
             assistant_text = self._dialogue_followup_fallback(session)
         turn_now = datetime.now().isoformat()
@@ -554,7 +566,12 @@ class AppFacade:
 
         user_answer = "\n\n".join(turn.text for turn in session.turns if turn.speaker == "user").strip()
         if not user_answer:
-            return DialogueResult(False, session_id=session_id, ticket_id=session.ticket.ticket_id, error="Диалог не содержит пользовательских ответов.")
+            return DialogueResult(
+                False,
+                session_id=session_id,
+                ticket_id=session.ticket.ticket_id,
+                error="Диалог не содержит пользовательских ответов.",
+            )
 
         evaluation = self.evaluate_answer(
             session.ticket.ticket_id,
@@ -600,17 +617,14 @@ class AppFacade:
     ):
         profile = get_answer_profile(ticket.answer_profile_code)
         weak_points = self._dialogue_weak_points(ticket.ticket_id, turns=turns, seed_focus=seed_focus)
-        transcript = [
-            DialogueTranscriptLine(turn.speaker, turn.text)
-            for turn in turns[-8:]
-        ]
+        transcript = [DialogueTranscriptLine(turn.speaker, turn.text) for turn in turns[-8:]]
         if opening and not transcript:
             transcript = []
         context = DialogueTurnContext(
             session_id=session_id,
             ticket_id=ticket.ticket_id,
             ticket_title=ticket.title,
-            ticket_summary=ticket.canonical_answer_summary,
+            ticket_summary=compose_reference_answer(ticket),
             persona_kind=persona_kind,
             turn_index=(turns[-1].turn_index + 1) if turns else 1,
             transcript=transcript,
@@ -644,7 +658,11 @@ class AppFacade:
             weak_points=weak_points,
         )
         session_row = None if opening else self.dialogue_repository.load_session_row(session_id)
-        resolved_model = session_row["resolved_model"] if session_row is not None and session_row["resolved_model"] else self._settings.model
+        resolved_model = (
+            session_row["resolved_model"]
+            if session_row is not None and session_row["resolved_model"]
+            else self._settings.model
+        )
         return self.build_ollama_service().generate_dialogue_turn(context, resolved_model)
 
     def _dialogue_weak_points(self, ticket_id: str, *, turns, seed_focus: str | None = None) -> list[str]:
@@ -747,15 +765,21 @@ class AppFacade:
         )
 
     def load_readiness_score(self, tickets=None, mastery=None, exam_id: str | None = None):
-        resolved_tickets = (
-            tickets if tickets is not None
-            else self.load_ticket_maps(exam_id=exam_id)
-        )
+        resolved_tickets = tickets if tickets is not None else self.load_ticket_maps(exam_id=exam_id)
         resolved_mastery = mastery if mastery is not None else self.load_mastery_breakdowns()
         return ReadinessService().calculate(resolved_tickets, resolved_mastery)
 
-    def load_training_snapshot(self, tickets: list[TicketKnowledgeMap] | None = None) -> TrainingSnapshot:
-        snapshot = self.queries.load_training_snapshot(limit=self._settings.training_queue_size, tickets=tickets)
+    def load_training_snapshot(
+        self,
+        tickets: list[TicketKnowledgeMap] | None = None,
+        *,
+        exam_id: str | None = None,
+    ) -> TrainingSnapshot:
+        snapshot = self.queries.load_training_snapshot(
+            limit=self._settings.training_queue_size,
+            tickets=tickets,
+            exam_id=exam_id,
+        )
         if snapshot.queue_items:
             return snapshot
         loaded_tickets = snapshot.tickets
@@ -769,7 +793,11 @@ class AppFacade:
             mode=self._resolve_review_mode(),
         )
         self.repository.save_review_queue("local-user", queue)
-        return self.queries.load_training_snapshot(limit=self._settings.training_queue_size, tickets=loaded_tickets)
+        return self.queries.load_training_snapshot(
+            limit=self._settings.training_queue_size,
+            tickets=loaded_tickets,
+            exam_id=exam_id,
+        )
 
     def import_document(
         self,
@@ -804,8 +832,7 @@ class AppFacade:
         exam = Exam(
             exam_id=exam_id or "local-exam",
             title=exam_title or "Локальная база билетов",
-            description=exam_description or
-                "Автоматически созданный контейнер для импортированных материалов.",
+            description=exam_description or "Автоматически созданный контейнер для импортированных материалов.",
             total_tickets=0,
             subject_area="exam-training",
         )
@@ -830,7 +857,9 @@ class AppFacade:
         except Exception as exc:  # noqa: BLE001
             return ImportExecutionResult(False, error=str(exc))
 
-        queue_items = service.create_import_queue_items(prepared.candidates, prepared.source_document.document_id, "imported-section")
+        queue_items = service.create_import_queue_items(
+            prepared.candidates, prepared.source_document.document_id, "imported-section"
+        )
         candidate_batches = self._partition_import_items(prepared.candidates)
         queue_batches = self._partition_import_items(queue_items)
         part_total = max(len(candidate_batches), 1)
@@ -839,7 +868,9 @@ class AppFacade:
 
         if progress_callback is not None:
             progress_callback(29, "План обработки", f"Найдено билетов: {len(queue_items)} • частей: {part_total}")
-            progress_callback(30, "Сохранение каркаса импорта", "Фиксируем документ, фрагменты и очередь билетов в SQLite")
+            progress_callback(
+                30, "Сохранение каркаса импорта", "Фиксируем документ, фрагменты и очередь билетов в SQLite"
+            )
         # Скелет импорта — одна транзакция: иначе крах между save_exam и
         # save_import_queue оставит БД в рассинхронизированном состоянии
         # (документ есть, а очередь пустая → UI показывает «0 билетов»).
@@ -867,7 +898,9 @@ class AppFacade:
         build_start = 34
         build_end = 78
         processed_candidates = 0
-        for part_index, (candidate_batch, queue_batch) in enumerate(zip(candidate_batches, queue_batches, strict=True), start=1):
+        for part_index, (candidate_batch, queue_batch) in enumerate(
+            zip(candidate_batches, queue_batches, strict=True), start=1
+        ):
             for candidate, queue_item in zip(candidate_batch, queue_batch, strict=True):
                 processed_candidates += 1
                 detail = (
@@ -1341,18 +1374,22 @@ class AppFacade:
         if needs_followups and ollama_service is not None:
             llm_result = ollama_service.generate_followup_questions(
                 ticket.title,
-                ticket.canonical_answer_summary,
+                compose_reference_answer(ticket),
                 weak_titles,
                 active_ollama_model,
                 count=2,
             )
             if llm_result.ok and llm_result.content:
-                followups = [line.removeprefix("- ").strip() for line in llm_result.content.splitlines() if line.strip()]
+                followups = [
+                    line.removeprefix("- ").strip() for line in llm_result.content.splitlines() if line.strip()
+                ]
 
         review_verdict = None
         if needs_review_verdict:
             review_verdict = self.scoring.build_review_verdict(
-                ticket, mode_key, answer,
+                ticket,
+                mode_key,
+                answer,
                 ollama_service=ollama_service,
                 model=active_ollama_model if ollama_service is not None else "",
             )
@@ -1382,16 +1419,57 @@ class AppFacade:
             "review": ExerciseType.ORAL_FULL,
         }
         target_type = type_map.get(mode_key, ExerciseType.ATOM_RECALL)
-        for template in ticket.exercise_templates:
-            if template.exercise_type is target_type:
-                from application.exercise_generation import ExerciseGenerator
-
-                for instance in ExerciseGenerator().generate(ticket):
-                    if instance.template_id == template.template_id:
-                        return instance
         from application.exercise_generation import ExerciseGenerator
 
-        return ExerciseGenerator().generate(ticket)[0]
+        instances = ExerciseGenerator().generate(ticket)
+        for instance in instances:
+            if instance.exercise_type is target_type:
+                return instance
+        if instances:
+            return instances[0]
+        return self._fallback_exercise(ticket, target_type)
+
+    def _fallback_exercise(self, ticket, exercise_type: ExerciseType) -> ExerciseInstance:
+        expected_answer = compose_reference_answer(ticket)
+        if not expected_answer:
+            expected_answer = "\n\n".join(atom.text.strip() for atom in ticket.atoms if atom.text.strip())
+        prompt = f"Раскройте билет '{ticket.title}' по эталонной структуре ответа."
+        if exercise_type is ExerciseType.STRUCTURE_RECONSTRUCTION:
+            prompt = f"Восстановите план ответа по билету '{ticket.title}'."
+        elif exercise_type is ExerciseType.SEMANTIC_CLOZE:
+            prompt = f"Заполните пропуски в ключевых тезисах билета '{ticket.title}'."
+        template_id = f"fallback-{ticket.ticket_id}-{exercise_type.value}"
+        target_atom_ids = [atom.atom_id for atom in ticket.atoms[:8]]
+        self.connection.execute(
+            """
+            INSERT INTO exercise_templates (
+                template_id, ticket_id, exercise_type, title, instructions,
+                target_atom_ids_json, target_skill_codes_json, llm_required,
+                rule_based_available, difficulty_delta
+            )
+            VALUES (?, ?, ?, ?, ?, ?, '[]', 0, 1, 0)
+            ON CONFLICT(template_id) DO NOTHING
+            """,
+            (
+                template_id,
+                ticket.ticket_id,
+                exercise_type.value,
+                "Автоматический fallback",
+                prompt,
+                json.dumps(target_atom_ids, ensure_ascii=False),
+            ),
+        )
+        return ExerciseInstance(
+            exercise_id=f"exercise-{uuid4().hex[:12]}",
+            ticket_id=ticket.ticket_id,
+            template_id=template_id,
+            exercise_type=exercise_type,
+            prompt_text=prompt,
+            expected_answer=expected_answer,
+            target_atom_ids=target_atom_ids,
+            target_skill_codes=[],
+            used_llm=False,
+        )
 
     def _load_profile(self, ticket_id: str) -> TicketMasteryProfile | None:
         row = self.connection.execute(
@@ -1541,17 +1619,21 @@ class AppFacade:
             self.connection.execute(
                 "SELECT COUNT(*) AS total FROM tickets WHERE source_document_id = ?",
                 (document_id,),
-            ).fetchone()["total"] or 0
+            ).fetchone()["total"]
+            or 0
         )
         queue_ticket_total = done + pending + fallback + failed
         source_ticket_total = int(source_row["ticket_total"] or 0) if source_row is not None else 0
         ticket_total = max(actual_ticket_total, queue_ticket_total, source_ticket_total)
-        profile_code = source_row["answer_profile_code"] if source_row is not None else AnswerProfileCode.STANDARD_TICKET.value
+        profile_code = (
+            source_row["answer_profile_code"] if source_row is not None else AnswerProfileCode.STANDARD_TICKET.value
+        )
         section_total = int(
             self.connection.execute(
                 "SELECT COUNT(DISTINCT section_id) AS total FROM tickets WHERE source_document_id = ?",
                 (document_id,),
-            ).fetchone()["total"] or 0
+            ).fetchone()["total"]
+            or 0
         )
         self.repository.update_document_import_state(
             document_id,
@@ -1592,7 +1674,7 @@ class AppFacade:
         ticket = self.queries.load_ticket_map(ticket_id)
         parts = [atom.text.strip() for atom in ticket.atoms if atom.text.strip()]
         if not parts:
-            return ticket.canonical_answer_summary
+            return compose_reference_answer(ticket)
         return "\n\n".join(parts)
 
     def _backfill_legacy_import_queue(self, document_id: str) -> None:

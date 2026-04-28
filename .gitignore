@@ -31,6 +31,7 @@ llm_inbox_*/
 /backups/
 /audit/screens/
 /Tezis.spec
+/ticket_review.html
 smoke-*.png
 logomark-*.png
 mainwin-*.png

@@ -124,9 +124,79 @@ def _stale_release_exam_ids(connection: sqlite3.Connection) -> list[str]:
     return [
         exam_id
         for exam_id in RELEASE_EXAM_IDS
-        if _count_tickets_for_exam_in_schema(connection, "main", exam_id)
-        < _count_tickets_for_exam_in_schema(connection, "seed", exam_id)
+        if _release_exam_content_is_stale(connection, exam_id)
     ]
+
+
+def _release_exam_content_is_stale(connection: sqlite3.Connection, exam_id: str) -> bool:
+    if _count_tickets_for_exam_in_schema(connection, "main", exam_id) < _count_tickets_for_exam_in_schema(
+        connection, "seed", exam_id
+    ):
+        return True
+
+    ticket_diff = connection.execute(
+        """
+        SELECT 1
+        FROM seed.tickets AS seed_ticket
+        LEFT JOIN main.tickets AS main_ticket
+               ON main_ticket.ticket_id = seed_ticket.ticket_id
+        WHERE seed_ticket.exam_id = ?
+          AND (
+              main_ticket.ticket_id IS NULL
+              OR COALESCE(main_ticket.title, '') <> COALESCE(seed_ticket.title, '')
+              OR COALESCE(main_ticket.canonical_answer_summary, '') <> COALESCE(seed_ticket.canonical_answer_summary, '')
+              OR COALESCE(main_ticket.answer_profile_code, '') <> COALESCE(seed_ticket.answer_profile_code, '')
+          )
+        LIMIT 1
+        """,
+        (exam_id,),
+    ).fetchone()
+    if ticket_diff is not None:
+        return True
+
+    block_diff = connection.execute(
+        """
+        SELECT 1
+        FROM seed.ticket_answer_blocks AS seed_block
+        JOIN seed.tickets AS seed_ticket
+             ON seed_ticket.ticket_id = seed_block.ticket_id
+        LEFT JOIN main.ticket_answer_blocks AS main_block
+               ON main_block.ticket_id = seed_block.ticket_id
+              AND main_block.block_code = seed_block.block_code
+        WHERE seed_ticket.exam_id = ?
+          AND (
+              main_block.ticket_id IS NULL
+              OR COALESCE(main_block.title, '') <> COALESCE(seed_block.title, '')
+              OR COALESCE(main_block.expected_content, '') <> COALESCE(seed_block.expected_content, '')
+              OR COALESCE(main_block.is_missing, 0) <> COALESCE(seed_block.is_missing, 0)
+          )
+        LIMIT 1
+        """,
+        (exam_id,),
+    ).fetchone()
+    if block_diff is not None:
+        return True
+
+    atom_diff = connection.execute(
+        """
+        SELECT 1
+        FROM seed.atoms AS seed_atom
+        JOIN seed.tickets AS seed_ticket
+             ON seed_ticket.ticket_id = seed_atom.ticket_id
+        LEFT JOIN main.atoms AS main_atom
+               ON main_atom.atom_id = seed_atom.atom_id
+        WHERE seed_ticket.exam_id = ?
+          AND (
+              main_atom.atom_id IS NULL
+              OR COALESCE(main_atom.label, '') <> COALESCE(seed_atom.label, '')
+              OR COALESCE(main_atom.text, '') <> COALESCE(seed_atom.text, '')
+              OR COALESCE(main_atom.atom_type, '') <> COALESCE(seed_atom.atom_type, '')
+          )
+        LIMIT 1
+        """,
+        (exam_id,),
+    ).fetchone()
+    return atom_diff is not None
 
 
 def _shared_table_columns(connection: sqlite3.Connection, table_name: str) -> list[str]:

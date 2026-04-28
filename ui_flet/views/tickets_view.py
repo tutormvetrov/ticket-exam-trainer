@@ -31,6 +31,7 @@ from typing import Any
 
 import flet as ft
 
+from application.ticket_reference import reference_answer_preview
 from ui_flet.components.empty_state import build_empty_state, build_error_card, build_error_state
 from ui_flet.components.ticket_card import TicketCard
 from ui_flet.components.top_bar import build_top_bar
@@ -134,13 +135,6 @@ def _ticket_has_warning(ticket: Any) -> bool:
         return "source_missing_in_conspect" in warnings
     except TypeError:
         return False
-
-
-def _truncate(text: str, limit: int) -> str:
-    text = text or ""
-    if len(text) <= limit:
-        return text
-    return text[: limit - 1].rstrip() + "…"
 
 
 def _build_filters_block(
@@ -393,7 +387,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
         meta_row = ft.Row(meta_items, spacing=SPACE["sm"], wrap=True)
 
         # Summary
-        summary_text = _truncate(getattr(ticket, "canonical_answer_summary", "") or "", 500)
+        summary_text = reference_answer_preview(ticket, limit=500)
         summary_block = ft.Container(
             content=ft.Column(
                 [
@@ -546,7 +540,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
     def _refresh_progress() -> None:
         pp = palette(state.is_dark)
         try:
-            snapshot = state.facade.load_training_snapshot(tickets=tickets)
+            snapshot = state.facade.load_training_snapshot(tickets=tickets, exam_id=state.active_exam_id)
             queue_items = list(snapshot.queue_items)
         except Exception:
             _LOG.exception("Tickets: load training snapshot failed exam_id=%s", state.active_exam_id)
@@ -572,6 +566,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
         # `datetime` on the domain SpacedReviewItem — items list stays small
         # (<=12 used in the pane below) but we count the full snapshot here.
         from datetime import datetime, timedelta
+
         today_cutoff = datetime.now() + timedelta(hours=18)
         due_today = 0
         for it in queue_items:
@@ -595,8 +590,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
                         style=text_style("display", color=pp["accent"] if due_today else pp["text_muted"]),
                     ),
                     ft.Text(
-                        TEXT["tickets.progress.today.hint"] if due_today
-                        else TEXT["tickets.progress.today.clear"],
+                        TEXT["tickets.progress.today.hint"] if due_today else TEXT["tickets.progress.today.clear"],
                         style=text_style("caption", color=pp["text_secondary"]),
                     ),
                 ],
@@ -801,7 +795,7 @@ def build_tickets_view(state: AppState) -> ft.Control:
                     spacing=0,
                     tight=True,
                 ),
-                *( [meta_warning] if meta_warning is not None else [] ),
+                *([meta_warning] if meta_warning is not None else []),
                 filters_block,
                 counter_label,
                 ft.Container(content=list_container, expand=True, bgcolor=p["bg_base"]),

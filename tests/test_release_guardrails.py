@@ -69,6 +69,12 @@ def test_validate_repository_returns_clean_report_for_safe_tree(tmp_path) -> Non
     shell_script = tmp_path / "scripts" / "build_mac_app.sh"
     shell_script.parent.mkdir()
     shell_script.write_bytes(b"#!/usr/bin/env bash\necho ok\n")
+    installer_script = tmp_path / "scripts" / "installer" / "Tezis-Setup.iss"
+    installer_script.parent.mkdir()
+    installer_script.write_text(
+        '#define AppId "{{11111111-2222-3333-4444-555555555555}}"\n',
+        encoding="utf-8",
+    )
 
     report = validate_repository(
         tmp_path,

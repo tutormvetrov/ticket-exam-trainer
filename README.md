@@ -62,6 +62,14 @@ macOS:
 bash scripts/build_mac_app.sh python3 data/state_exam_public_admin_demo.db
 ```
 
+macOS portable DMG (запускать на macOS после сборки `.app` или с `--build`):
+
+```bash
+bash scripts/package_macos_dmg.sh --build --python python3 --arch arm64 --version vX.Y.Z
+```
+
+Артефакт появится в `dist/release/vX.Y.Z/macos/<arch>/`, общий SHA256-файл — в `dist/release/vX.Y.Z/checksums-vX.Y.Z.txt`.
+
 ## Тесты
 
 ```powershell

@@ -17,11 +17,11 @@ from infrastructure.db.migrations import (
 from infrastructure.db.schema import initialize_schema
 
 
-def test_empty_db_is_initialized_at_baseline_version(tmp_path: Path) -> None:
+def test_empty_db_is_initialized_at_latest_version(tmp_path: Path) -> None:
     db_path = get_database_path(tmp_path)
     connection = connect_initialized(db_path)
     try:
-        assert current_schema_version(connection) == SCHEMA_BASELINE_VERSION
+        assert current_schema_version(connection) == latest_schema_version()
     finally:
         connection.close()
 
@@ -32,7 +32,7 @@ def test_initializing_existing_db_is_idempotent(tmp_path: Path) -> None:
     first.close()
     second = connect_initialized(db_path)
     try:
-        assert current_schema_version(second) == SCHEMA_BASELINE_VERSION
+        assert current_schema_version(second) == latest_schema_version()
     finally:
         second.close()
 
@@ -59,21 +59,23 @@ def test_run_pending_migrations_applies_registered_migrations(tmp_path: Path, mo
 
     calls: list[int] = []
 
-    def migration_7(conn: sqlite3.Connection) -> None:
-        calls.append(7)
+    next_version = latest_schema_version() + 1
+
+    def migration_next(conn: sqlite3.Connection) -> None:
+        calls.append(next_version)
         conn.execute(
             "CREATE TABLE IF NOT EXISTS migration_probe (value TEXT NOT NULL)"
         )
-        conn.execute("INSERT INTO migration_probe (value) VALUES ('v7')")
+        conn.execute("INSERT INTO migration_probe (value) VALUES ('next')")
 
-    monkeypatch.setitem(MIGRATIONS, SCHEMA_BASELINE_VERSION + 1, migration_7)
+    monkeypatch.setitem(MIGRATIONS, next_version, migration_next)
 
     applied = run_pending_migrations(connection)
-    assert applied == [SCHEMA_BASELINE_VERSION + 1]
-    assert calls == [7]
-    assert current_schema_version(connection) == SCHEMA_BASELINE_VERSION + 1
+    assert applied == [next_version]
+    assert calls == [next_version]
+    assert current_schema_version(connection) == next_version
     rows = connection.execute("SELECT value FROM migration_probe").fetchall()
-    assert [row[0] for row in rows] == ["v7"]
+    assert [row[0] for row in rows] == ["next"]
 
     # Повторный запуск — no-op.
     calls.clear()

@@ -37,33 +37,23 @@ from reportlab.platypus import (
     Spacer,
 )
 
+from application.ticket_reference import BLOCK_LABELS, BLOCK_ORDER, normalize_reference_text, reference_answer_blocks
 from domain.knowledge import TicketKnowledgeMap
 
 _LOG = logging.getLogger(__name__)
 
-# Соответствие методички МДЭ: единый порядок и подписи блоков.
-_BLOCK_ORDER = ("intro", "theory", "practice", "skills", "conclusion", "extra")
-_BLOCK_LABELS = {
-    "intro":      "Введение",
-    "theory":     "Теоретическая часть",
-    "practice":   "Практическая часть",
-    "skills":     "Навыки",
-    "conclusion": "Заключение",
-    "extra":      "Дополнительные элементы",
-}
-
 # Палитра — Ар-деко / Old Money / летняя свежесть.
-_C_BG = colors.HexColor("#FBF6E9")        # ivory cream — летняя бумага
-_C_TEXT = colors.HexColor("#1F2A2A")      # deep ink с тёплым отливом
-_C_MUTED = colors.HexColor("#5A6566")     # slate
-_C_ACCENT = colors.HexColor("#1F4F47")    # deep forest green — Old Money classic
-_C_BORDER = colors.HexColor("#B8A36D")    # antique brass
+_C_BG = colors.HexColor("#FBF6E9")  # ivory cream — летняя бумага
+_C_TEXT = colors.HexColor("#1F2A2A")  # deep ink с тёплым отливом
+_C_MUTED = colors.HexColor("#5A6566")  # slate
+_C_ACCENT = colors.HexColor("#1F4F47")  # deep forest green — Old Money classic
+_C_BORDER = colors.HexColor("#B8A36D")  # antique brass
 _C_BORDER_SOFT = colors.HexColor("#E5DCB8")  # aged paper
 
-_FONT_REGULAR = "Body"        # Cambria — олд-мани читаемость
-_FONT_BOLD = "Body-Bold"      # Cambria Bold
+_FONT_REGULAR = "Body"  # Cambria — олд-мани читаемость
+_FONT_BOLD = "Body-Bold"  # Cambria Bold
 _FONT_ITALIC = "Body-Italic"  # Cambria Italic
-_FONT_HEAD = "Head-Engr"      # Engravers MT — настоящий ар-деко font
+_FONT_HEAD = "Head-Engr"  # Engravers MT — настоящий ар-деко font
 
 
 def _register_fonts() -> None:
@@ -76,12 +66,12 @@ def _register_fonts() -> None:
     fonts_dir = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
     candidates = {
         _FONT_REGULAR: ["cambria.ttc", "BOOKOS.TTF", "georgia.ttf", "times.ttf"],
-        _FONT_BOLD:    ["cambriab.ttf", "BOOKOSB.TTF", "georgiab.ttf", "timesbd.ttf"],
-        _FONT_ITALIC:  ["cambriai.ttf", "BOOKOSI.TTF", "georgiai.ttf", "timesi.ttf"],
+        _FONT_BOLD: ["cambriab.ttf", "BOOKOSB.TTF", "georgiab.ttf", "timesbd.ttf"],
+        _FONT_ITALIC: ["cambriai.ttf", "BOOKOSI.TTF", "georgiai.ttf", "timesi.ttf"],
         # HEAD: нужен шрифт с поддержкой кириллицы. Engravers MT (ENGR.TTF) был бы
         # эталоном ар-деко, но он only-Latin. Для русских заголовков
         # ставим Cambria Bold + разрядку букв — близкий ар-деко эффект.
-        _FONT_HEAD:    ["cambriab.ttf", "georgiab.ttf", "timesbd.ttf"],
+        _FONT_HEAD: ["cambriab.ttf", "georgiab.ttf", "timesbd.ttf"],
     }
     for alias, files in candidates.items():
         for fname in files:
@@ -97,55 +87,97 @@ def _styles() -> dict[str, ParagraphStyle]:
     base = getSampleStyleSheet()["Normal"]
     return {
         "ticket_number": ParagraphStyle(
-            "ticket_number", parent=base,
-            fontName=_FONT_HEAD, fontSize=11, textColor=_C_ACCENT,
-            spaceAfter=2 * mm, alignment=TA_LEFT,
+            "ticket_number",
+            parent=base,
+            fontName=_FONT_HEAD,
+            fontSize=11,
+            textColor=_C_ACCENT,
+            spaceAfter=2 * mm,
+            alignment=TA_LEFT,
         ),
         "title": ParagraphStyle(
-            "title", parent=base,
-            fontName=_FONT_BOLD, fontSize=20, leading=24, textColor=_C_TEXT,
+            "title",
+            parent=base,
+            fontName=_FONT_BOLD,
+            fontSize=20,
+            leading=24,
+            textColor=_C_TEXT,
             spaceAfter=4 * mm,
         ),
         "meta": ParagraphStyle(
-            "meta", parent=base,
-            fontName=_FONT_ITALIC, fontSize=10, textColor=_C_MUTED,
+            "meta",
+            parent=base,
+            fontName=_FONT_ITALIC,
+            fontSize=10,
+            textColor=_C_MUTED,
             spaceAfter=2 * mm,
         ),
         "block_label": ParagraphStyle(
-            "block_label", parent=base,
-            fontName=_FONT_HEAD, fontSize=10, textColor=_C_ACCENT,
-            spaceBefore=4 * mm, spaceAfter=1 * mm,
+            "block_label",
+            parent=base,
+            fontName=_FONT_HEAD,
+            fontSize=10,
+            textColor=_C_ACCENT,
+            spaceBefore=4 * mm,
+            spaceAfter=1 * mm,
             leading=12,
         ),
         "block_title": ParagraphStyle(
-            "block_title", parent=base,
-            fontName=_FONT_BOLD, fontSize=14, textColor=_C_TEXT,
-            spaceAfter=2 * mm, leading=17,
+            "block_title",
+            parent=base,
+            fontName=_FONT_BOLD,
+            fontSize=14,
+            textColor=_C_TEXT,
+            spaceAfter=2 * mm,
+            leading=17,
         ),
         "block_body": ParagraphStyle(
-            "block_body", parent=base,
-            fontName=_FONT_REGULAR, fontSize=11, textColor=_C_TEXT,
-            spaceAfter=3 * mm, leading=15, alignment=TA_JUSTIFY,
+            "block_body",
+            parent=base,
+            fontName=_FONT_REGULAR,
+            fontSize=11,
+            textColor=_C_TEXT,
+            spaceAfter=3 * mm,
+            leading=15,
+            alignment=TA_JUSTIFY,
         ),
         "summary": ParagraphStyle(
-            "summary", parent=base,
-            fontName=_FONT_ITALIC, fontSize=11, textColor=_C_MUTED,
-            spaceAfter=4 * mm, leading=14, alignment=TA_JUSTIFY,
-            leftIndent=4 * mm, rightIndent=4 * mm,
+            "summary",
+            parent=base,
+            fontName=_FONT_ITALIC,
+            fontSize=11,
+            textColor=_C_MUTED,
+            spaceAfter=4 * mm,
+            leading=14,
+            alignment=TA_JUSTIFY,
+            leftIndent=4 * mm,
+            rightIndent=4 * mm,
         ),
         "ornament": ParagraphStyle(
-            "ornament", parent=base,
-            fontName=_FONT_REGULAR, fontSize=10, textColor=_C_BORDER,
-            alignment=TA_CENTER, spaceBefore=2 * mm, spaceAfter=4 * mm,
+            "ornament",
+            parent=base,
+            fontName=_FONT_REGULAR,
+            fontSize=10,
+            textColor=_C_BORDER,
+            alignment=TA_CENTER,
+            spaceBefore=2 * mm,
+            spaceAfter=4 * mm,
         ),
         "section_title": ParagraphStyle(
-            "section_title", parent=base,
-            fontName=_FONT_HEAD, fontSize=10, textColor=_C_ACCENT,
-            alignment=TA_CENTER, spaceBefore=2 * mm,
+            "section_title",
+            parent=base,
+            fontName=_FONT_HEAD,
+            fontSize=10,
+            textColor=_C_ACCENT,
+            alignment=TA_CENTER,
+            spaceBefore=2 * mm,
         ),
         "footer": ParagraphStyle(
-            "footer", parent=base,
-            fontName=_FONT_REGULAR, fontSize=8, textColor=_C_MUTED,
+            "footer",
+            parent=base,
+            fontName=_FONT_REGULAR,
+            fontSize=8,
+            textColor=_C_MUTED,
             alignment=TA_CENTER,
         ),
     }
@@ -166,23 +198,8 @@ def _spaced(text: str) -> str:
 
 def _para(text: str, style: ParagraphStyle) -> Paragraph:
     """Параграф с safe-escape для XML, переносы строк → <br/>."""
-    safe = (
-        (text or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\n", "<br/>")
-    )
+    safe = (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
     return Paragraph(safe, style)
-
-
-def _ticket_blocks_by_code(ticket: TicketKnowledgeMap) -> dict[str, object]:
-    out: dict[str, object] = {}
-    for block in ticket.answer_blocks or []:
-        raw = getattr(block, "block_code", "")
-        code = str(raw.value if hasattr(raw, "value") else raw).lower().split(".")[-1]
-        out[code] = block
-    return out
 
 
 def _render_one_ticket(
@@ -207,26 +224,22 @@ def _render_one_ticket(
 
     flow.append(_ornament())
 
-    if ticket.canonical_answer_summary:
-        flow.append(_para(ticket.canonical_answer_summary, s["summary"]))
+    reference_blocks = reference_answer_blocks(ticket)
+    if not reference_blocks and ticket.canonical_answer_summary:
+        flow.append(_para(normalize_reference_text(ticket.canonical_answer_summary), s["summary"]))
         flow.append(_ornament())
 
-    blocks_by_code = _ticket_blocks_by_code(ticket)
-    for code in _BLOCK_ORDER:
-        block = blocks_by_code.get(code)
+    reference_blocks_by_code = {block.code: block for block in reference_blocks}
+    for code in BLOCK_ORDER:
+        block = reference_blocks_by_code.get(code)
         if block is None:
             continue
-        if getattr(block, "is_missing", False):
-            continue
-        content = (block.expected_content or "").strip()
-        if not content:
-            continue
-        label = _BLOCK_LABELS.get(code, code).upper()
-        title = block.title or _BLOCK_LABELS.get(code, code)
+        label = BLOCK_LABELS.get(code, code).upper()
+        title = block.title or BLOCK_LABELS.get(code, code)
         flow.append(_para(_spaced(label), s["block_label"]))
-        if title and title.lower() != _BLOCK_LABELS.get(code, "").lower():
+        if title and title.lower() != BLOCK_LABELS.get(code, "").lower():
             flow.append(_para(title, s["block_title"]))
-        flow.append(_para(content, s["block_body"]))
+        flow.append(_para(block.content, s["block_body"]))
 
     return flow
 
@@ -253,9 +266,14 @@ def _make_doc(out_path: Path, ticket_count: int) -> BaseDocTemplate:
         author="Тезис · подготовка к МДЭ ГМУ",
     )
     frame = Frame(
-        doc.leftMargin, doc.bottomMargin,
-        doc.width, doc.height,
-        leftPadding=0, bottomPadding=0, rightPadding=0, topPadding=0,
+        doc.leftMargin,
+        doc.bottomMargin,
+        doc.width,
+        doc.height,
+        leftPadding=0,
+        bottomPadding=0,
+        rightPadding=0,
+        topPadding=0,
     )
 
     stamp = datetime.now().strftime("%d.%m.%Y")
@@ -301,16 +319,17 @@ def _make_doc(out_path: Path, ticket_count: int) -> BaseDocTemplate:
         canvas.setFont(_FONT_REGULAR, 8)
         canvas.setFillColor(_C_MUTED)
         canvas.drawCentredString(
-            A4[0] / 2, y_bot,
+            A4[0] / 2,
+            y_bot,
             f"Тезис · подготовка к МДЭ ГМУ · {stamp} · стр. {_doc.page}",
         )
         # Декоративные уголки только на 1-й странице (обложка/титул).
         if _doc.page == 1:
             margin = 12 * mm
-            _draw_corner(canvas, margin, A4[1] - margin, +1, -1)            # верх-лево
-            _draw_corner(canvas, A4[0] - margin, A4[1] - margin, -1, -1)    # верх-право
-            _draw_corner(canvas, margin, margin, +1, +1)                    # низ-лево
-            _draw_corner(canvas, A4[0] - margin, margin, -1, +1)            # низ-право
+            _draw_corner(canvas, margin, A4[1] - margin, +1, -1)  # верх-лево
+            _draw_corner(canvas, A4[0] - margin, A4[1] - margin, -1, -1)  # верх-право
+            _draw_corner(canvas, margin, margin, +1, +1)  # низ-лево
+            _draw_corner(canvas, A4[0] - margin, margin, -1, +1)  # низ-право
         canvas.restoreState()
 
     doc.addPageTemplates([PageTemplate(id="main", frames=[frame], onPage=_on_page)])
@@ -329,8 +348,11 @@ def generate_ticket_pdf(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     doc = _make_doc(out_path, ticket_count=1)
     flow = _render_one_ticket(
-        ticket, idx=None, total=None,
-        section_title=section_title, lecturer=lecturer,
+        ticket,
+        idx=None,
+        total=None,
+        section_title=section_title,
+        lecturer=lecturer,
     )
     doc.build(flow)
     _LOG.info("PDF written: %s (%d bytes)", out_path, out_path.stat().st_size)
@@ -359,28 +381,55 @@ def generate_collection_pdf(
 
     # Обложка.
     flow.append(Spacer(1, 55 * mm))
-    flow.append(_para(_spaced("ТЕЗИС"), ParagraphStyle(
-        "cover_brand", fontName=_FONT_HEAD, fontSize=14, textColor=_C_ACCENT,
-        alignment=TA_CENTER, spaceAfter=8 * mm,
-    )))
+    flow.append(
+        _para(
+            _spaced("ТЕЗИС"),
+            ParagraphStyle(
+                "cover_brand",
+                fontName=_FONT_HEAD,
+                fontSize=14,
+                textColor=_C_ACCENT,
+                alignment=TA_CENTER,
+                spaceAfter=8 * mm,
+            ),
+        )
+    )
     flow.append(_ornament())
-    flow.append(_para("Карманный конспект", ParagraphStyle(
-        "cover_title", fontName=_FONT_BOLD, fontSize=30, leading=38,
-        textColor=_C_TEXT, alignment=TA_CENTER, spaceAfter=10 * mm,
-    )))
-    flow.append(_para(
-        f"{len(tickets)} билетов МДЭ ГМУ",
-        ParagraphStyle(
-            "cover_sub", fontName=_FONT_ITALIC, fontSize=12, leading=16,
-            textColor=_C_MUTED, alignment=TA_CENTER, spaceAfter=20 * mm,
-        ),
-    ))
+    flow.append(
+        _para(
+            "Карманный конспект",
+            ParagraphStyle(
+                "cover_title",
+                fontName=_FONT_BOLD,
+                fontSize=30,
+                leading=38,
+                textColor=_C_TEXT,
+                alignment=TA_CENTER,
+                spaceAfter=10 * mm,
+            ),
+        )
+    )
+    flow.append(
+        _para(
+            f"{len(tickets)} билетов МДЭ ГМУ",
+            ParagraphStyle(
+                "cover_sub",
+                fontName=_FONT_ITALIC,
+                fontSize=12,
+                leading=16,
+                textColor=_C_MUTED,
+                alignment=TA_CENTER,
+                spaceAfter=20 * mm,
+            ),
+        )
+    )
     flow.append(_ornament())
-    flow.append(_para(
-        datetime.now().strftime("%d.%m.%Y"),
-        ParagraphStyle("cover_date", fontName=_FONT_REGULAR, fontSize=10,
-                       textColor=_C_MUTED, alignment=TA_CENTER),
-    ))
+    flow.append(
+        _para(
+            datetime.now().strftime("%d.%m.%Y"),
+            ParagraphStyle("cover_date", fontName=_FONT_REGULAR, fontSize=10, textColor=_C_MUTED, alignment=TA_CENTER),
+        )
+    )
     flow.append(PageBreak())
 
     # Билеты.
@@ -393,14 +442,18 @@ def generate_collection_pdf(
             flow.append(_para(_spaced(section_title.upper()), s["section_title"]))
             flow.append(_ornament())
             seen_section = section_title
-        flow.extend(_render_one_ticket(
-            ticket, idx=i, total=len(tickets),
-            section_title=section_title, lecturer=lecturer,
-        ))
+        flow.extend(
+            _render_one_ticket(
+                ticket,
+                idx=i,
+                total=len(tickets),
+                section_title=section_title,
+                lecturer=lecturer,
+            )
+        )
         if i < len(tickets):
             flow.append(PageBreak())
 
     doc.build(flow)
-    _LOG.info("Collection PDF written: %s (%d bytes, %d tickets)",
-              out_path, out_path.stat().st_size, len(tickets))
+    _LOG.info("Collection PDF written: %s (%d bytes, %d tickets)", out_path, out_path.stat().st_size, len(tickets))
     return out_path

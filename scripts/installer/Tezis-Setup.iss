@@ -1,6 +1,6 @@
 ﻿; Tezis-Setup.iss — Inno Setup 6
 ; Локальная сборка:
-;   ISCC.exe /DAppVersion=2.5.2 scripts\installer\Tezis-Setup.iss
+;   ISCC.exe /DAppVersion=2.5.3 scripts\installer\Tezis-Setup.iss
 ; Вывод: dist\Tezis-Setup.exe
 ;
 ; ВАЖНО: AppId — замороженный GUID. Не менять. Он связывает upgrade и uninstall.

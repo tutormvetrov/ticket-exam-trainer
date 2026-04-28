@@ -46,3 +46,31 @@ def test_macos_release_script_uses_non_build_workpath_for_build_info() -> None:
     assert 'BUILD_INFO_PATH="$ROOT/build/build_info.json"' not in script
     for module_name in EXPECTED_EXCLUDES:
         assert f'"{module_name}"' in script
+
+
+def test_macos_dmg_packaging_script_uses_release_tree_and_checksums() -> None:
+    script = (REPO_ROOT / "scripts" / "package_macos_dmg.sh").read_text(encoding="utf-8")
+
+    assert 'PACKAGE_VERSION="${VERSION_RAW:-$APP_VERSION}"' in script
+    assert 'RELEASE_ROOT="$ROOT/dist/release/v$PACKAGE_VERSION"' in script
+    assert 'DMG_NAME="Tezis-v$PACKAGE_VERSION-macos-$ARCH-portable.dmg"' in script
+    assert "hdiutil create" in script
+    assert 'ln -s /Applications "$STAGING_DIR/Applications"' in script
+    assert 'CHECKSUMS_PATH="$RELEASE_ROOT/checksums-v$PACKAGE_VERSION.txt"' in script
+    assert "shasum -a 256" in script
+    assert 'bash "$ROOT/scripts/build_mac_app.sh" "$PYTHON_EXE" "$SEED_DB"' in script
+
+
+def test_release_workflow_publishes_named_installers_portables_and_checksums() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    assert 'Tezis-Setup-$tag-windows-x64.exe' in workflow
+    assert 'Tezis-$tag-windows-x64-portable.zip' in workflow
+    assert 'Tezis-*-macos-${{ matrix.arch }}-portable.dmg' in workflow
+    assert 'runner: macos-15' in workflow
+    assert 'runner: macos-15-intel' in workflow
+    assert 'package_macos_dmg.sh --build --python python3 --arch "${{ matrix.arch }}" --version "${{ github.ref_name }}"' in workflow
+    assert 'sha256sum Tezis-* > "checksums-$tag.txt"' in workflow
+    assert "fail_on_unmatched_files: true" in workflow
+    assert "release-files/*.dmg" in workflow
+    assert "release-files/checksums-*.txt" in workflow

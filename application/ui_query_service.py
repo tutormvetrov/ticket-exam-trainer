@@ -527,22 +527,42 @@ class UiQueryService:
         self,
         limit: int = 8,
         tickets: list[TicketKnowledgeMap] | None = None,
+        exam_id: str | None = None,
     ) -> TrainingSnapshot:
-        queue_rows = self.connection.execute(
-            """
-            SELECT spaced_review_queue.ticket_id AS ticket_id,
-                   tickets.title AS title,
-                   spaced_review_queue.reference_type AS reference_type,
-                   spaced_review_queue.reference_id AS reference_id,
-                   spaced_review_queue.priority AS priority,
-                   spaced_review_queue.due_at AS due_at
-            FROM spaced_review_queue
-            JOIN tickets ON tickets.ticket_id = spaced_review_queue.ticket_id
-            ORDER BY spaced_review_queue.priority DESC, spaced_review_queue.due_at
-            LIMIT ?
-            """,
-            (max(1, min(limit, 24)),),
-        ).fetchall()
+        resolved_limit = max(1, min(limit, 24))
+        if exam_id:
+            queue_rows = self.connection.execute(
+                """
+                SELECT spaced_review_queue.ticket_id AS ticket_id,
+                       tickets.title AS title,
+                       spaced_review_queue.reference_type AS reference_type,
+                       spaced_review_queue.reference_id AS reference_id,
+                       spaced_review_queue.priority AS priority,
+                       spaced_review_queue.due_at AS due_at
+                FROM spaced_review_queue
+                JOIN tickets ON tickets.ticket_id = spaced_review_queue.ticket_id
+                WHERE tickets.exam_id = ?
+                ORDER BY spaced_review_queue.priority DESC, spaced_review_queue.due_at
+                LIMIT ?
+                """,
+                (exam_id, resolved_limit),
+            ).fetchall()
+        else:
+            queue_rows = self.connection.execute(
+                """
+                SELECT spaced_review_queue.ticket_id AS ticket_id,
+                       tickets.title AS title,
+                       spaced_review_queue.reference_type AS reference_type,
+                       spaced_review_queue.reference_id AS reference_id,
+                       spaced_review_queue.priority AS priority,
+                       spaced_review_queue.due_at AS due_at
+                FROM spaced_review_queue
+                JOIN tickets ON tickets.ticket_id = spaced_review_queue.ticket_id
+                ORDER BY spaced_review_queue.priority DESC, spaced_review_queue.due_at
+                LIMIT ?
+                """,
+                (resolved_limit,),
+            ).fetchall()
         queue = [
             TrainingQueueItem(
                 ticket_id=row["ticket_id"],
@@ -554,7 +574,10 @@ class UiQueryService:
             )
             for row in queue_rows
         ]
-        return TrainingSnapshot(queue_items=queue, tickets=tickets if tickets is not None else self.load_ticket_maps())
+        return TrainingSnapshot(
+            queue_items=queue,
+            tickets=tickets if tickets is not None else self.load_ticket_maps(exam_id=exam_id),
+        )
 
     def load_dialogue_sessions(
         self,

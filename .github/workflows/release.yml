@@ -1,7 +1,7 @@
 name: Release
 
 # Триггер: пуш тега вида `v1.2.3` или `v1.2.3-rc1`. Workflow собирает
-# Windows exe и macOS .app, упаковывает в zip, заливает в GitHub Release.
+# Windows installer, Windows portable ZIP и macOS portable DMG для x64/arm64.
 
 on:
   push:
@@ -71,7 +71,7 @@ jobs:
           $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
           & $iscc "/DAppVersion=$version" scripts\installer\Tezis-Setup.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed: $LASTEXITCODE" }
-          $setupName = "Tezis-$version-Setup.exe"
+          $setupName = "Tezis-Setup-$tag-windows-x64.exe"
           Rename-Item dist\Tezis-Setup.exe $setupName
           Write-Host "Built: dist\$setupName"
           Get-Item "dist\$setupName" | Format-Table Name,Length
@@ -79,18 +79,18 @@ jobs:
       - name: Package Windows zip
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}"
+          $tag = "${{ github.ref_name }}"
           $stagingDir = "release-staging-windows"
           $scriptsDir = Join-Path $stagingDir "scripts"
           New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
           New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
-          Copy-Item -Recurse -Force "dist/*" -Destination $stagingDir -Exclude "*-Setup.exe"
+          Copy-Item -Recurse -Force "dist/*" -Destination $stagingDir -Exclude "*Setup*.exe"
           Copy-Item -Force "scripts/install_ollama_wizard.ps1" -Destination $scriptsDir
           Copy-Item -Force "scripts/check_ollama.ps1" -Destination $scriptsDir
           Copy-Item -Force "scripts/setup_ollama_windows.ps1" -Destination $scriptsDir
           Copy-Item -Recurse -Force "data" -Destination $stagingDir
           Copy-Item -Force "README_classmates.md" -Destination $stagingDir
-          $zipName = "Tezis-$version-windows.zip"
+          $zipName = "Tezis-$tag-windows-x64-portable.zip"
           Compress-Archive -Path "$stagingDir/*" -DestinationPath $zipName -Force
           Write-Host "Zipped: $zipName"
 
@@ -98,18 +98,29 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Tezis-windows
-          path: Tezis-*-windows.zip
+          path: Tezis-*-windows-x64-portable.zip
           retention-days: 7
 
       - name: Upload Windows installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: Tezis-windows-setup
-          path: dist/Tezis-*-Setup.exe
+          path: dist/Tezis-Setup-*-windows-x64.exe
           retention-days: 7
 
   build-macos:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macos-15 is the standard Apple Silicon runner; macos-15-intel is the
+          # current explicit Intel runner. Avoid macos-latest so runner migration
+          # does not silently flip architectures.
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
 
@@ -144,38 +155,21 @@ jobs:
             tests/test_facade_review_fastfail.py \
             tests/test_settings_view_helpers.py
 
-      - name: Build macOS app
+      - name: Package macOS portable DMG
         run: |
-          chmod +x scripts/build_mac_app.sh
-          ./scripts/build_mac_app.sh python3 data/state_exam_public_admin_demo.db
-
-      - name: Package macOS zip
-        run: |
-          VERSION="${{ github.ref_name }}"
-          STAGING="release-staging-macos"
-          SCRIPTS_DIR="$STAGING/scripts"
-          mkdir -p "$STAGING"
-          mkdir -p "$SCRIPTS_DIR"
-          cp -R dist/*.app "$STAGING/" 2>/dev/null || cp -R dist/* "$STAGING/"
-          cp scripts/check_ollama_macos.sh "$SCRIPTS_DIR/"
-          cp scripts/setup_ollama_macos.sh "$SCRIPTS_DIR/"
-          cp -R data "$STAGING/"
-          cp README_classmates.md "$STAGING/"
-          ZIP="Tezis-$VERSION-macos.zip"
-          ditto -c -k --sequesterRsrc --keepParent "$STAGING" "$ZIP"
-          echo "Zipped: $ZIP"
+          chmod +x scripts/build_mac_app.sh scripts/package_macos_dmg.sh
+          ./scripts/package_macos_dmg.sh --build --python python3 --arch "${{ matrix.arch }}" --version "${{ github.ref_name }}"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Tezis-macos
-          path: Tezis-*-macos.zip
+          name: Tezis-macos-${{ matrix.arch }}
+          path: dist/release/v*/macos/${{ matrix.arch }}/Tezis-*-macos-${{ matrix.arch }}-portable.dmg
           retention-days: 7
 
   publish-release:
     needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
-    if: always()
     steps:
       - uses: actions/checkout@v6
 
@@ -187,8 +181,20 @@ jobs:
       - name: Flatten artifact layout
         run: |
           mkdir -p release-files
-          find artifacts -type f \( -name "Tezis-*.zip" -o -name "Tezis-*-Setup.exe" \) -exec cp {} release-files/ \;
+          find artifacts -type f \( -name "Tezis-*.zip" -o -name "Tezis-*.exe" -o -name "Tezis-*.dmg" \) -exec cp {} release-files/ \;
+          test -n "$(find release-files -maxdepth 1 -type f -name 'Tezis-*.zip' -print -quit)"
+          test -n "$(find release-files -maxdepth 1 -type f -name 'Tezis-*.exe' -print -quit)"
+          test -n "$(find release-files -maxdepth 1 -type f -name 'Tezis-*.dmg' -print -quit)"
           ls -la release-files/
+
+      - name: Generate checksums
+        run: |
+          tag="${{ github.ref_name }}"
+          (
+            cd release-files
+            sha256sum Tezis-* > "checksums-$tag.txt"
+          )
+          cat "release-files/checksums-$tag.txt"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -198,23 +204,29 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
           generate_release_notes: true
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
           files: |
             release-files/*.zip
             release-files/*.exe
+            release-files/*.dmg
+            release-files/checksums-*.txt
           body: |
-            Автосборка: Windows installer + ZIP + macOS .app.
+            Автосборка: Windows installer + Windows portable ZIP + macOS portable DMG.
 
-            **Windows (рекомендуется):** скачай `Tezis-*-Setup.exe`, запусти,
-            нажми «Установить». Мастер создаст ярлыки и запись в «Программы».
+            **Windows (рекомендуется):** скачай `Tezis-Setup-*-windows-x64.exe`,
+            запусти, нажми «Установить». Мастер создаст ярлыки и запись в «Программы».
             SmartScreen при первом запуске: «Подробнее» → «Выполнить в любом
             случае» (приложение не подписано сертификатом).
 
-            **Windows (portable):** скачай `Tezis-*-windows.zip`, распакуй,
+            **Windows (portable):** скачай `Tezis-*-windows-x64-portable.zip`, распакуй,
             запусти `Tezis.exe`.
 
-            **macOS:** распакуй zip, перетащи `Tezis.app` в Applications.
-            Первый запуск: правый клик → «Открыть» (обход Gatekeeper).
+            **macOS (portable):** скачай `Tezis-*-macos-arm64-portable.dmg`
+            для Apple Silicon или `Tezis-*-macos-x64-portable.dmg` для Intel,
+            открой DMG и перетащи `Tezis.app` в Applications. Первый запуск:
+            правый клик → «Открыть» (обход Gatekeeper).
+
+            **Проверка файлов:** SHA256 лежат в `checksums-${{ github.ref_name }}.txt`.
 
             **Опциональный ИИ-рецензент (Ollama):**
             Windows: при установке отметь галочку «Установить Ollama».

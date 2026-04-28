@@ -5,6 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$hadCleanupWarnings = $false
 
 Write-Host "Default clean removes only transient build/cache artifacts."
 if ($FullClean) {
@@ -13,8 +14,11 @@ if ($FullClean) {
 
 $dirsToRemove = @(
     (Join-Path $root ".pytest_cache"),
+    (Join-Path $root ".ruff_cache"),
     (Join-Path $root "__pycache__"),
-    (Join-Path $root "build")
+    (Join-Path $root "build"),
+    (Join-Path $root "tmp-build-metadata"),
+    (Join-Path $root "tmp-build-run")
 )
 
 if ($FullClean) {
@@ -26,6 +30,9 @@ $dirsToRemove += Get-ChildItem -Path $root -Recurse -Directory -Force |
     Select-Object -ExpandProperty FullName
 
 $filesToRemove = @(
+    "Tezis.spec",
+    "ticket_review.html",
+    "data\tickets.db",
     "library-check.png",
     "library-final-check.png",
     "library-postfix-check.png",
@@ -60,18 +67,32 @@ $filesToRemove = @(
 
 foreach ($dir in $dirsToRemove | Select-Object -Unique) {
     if (Test-Path -LiteralPath $dir) {
-        Remove-Item -LiteralPath $dir -Recurse -Force
+        try {
+            Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            $hadCleanupWarnings = $true
+            Write-Warning "Could not remove '$dir': $($_.Exception.Message)"
+        }
     }
 }
 
 foreach ($name in $filesToRemove) {
     $path = Join-Path $root $name
     if (Test-Path -LiteralPath $path) {
-        Remove-Item -LiteralPath $path -Force
+        try {
+            Remove-Item -LiteralPath $path -Force -ErrorAction Stop
+        }
+        catch {
+            $hadCleanupWarnings = $true
+            Write-Warning "Could not remove '$path': $($_.Exception.Message)"
+        }
     }
 }
 
 Write-Host "Project cleanup completed."
-if ($FullClean) {
+if ($FullClean -and -not $hadCleanupWarnings) {
     Write-Host "Full clean also removed dist output."
+} elseif ($FullClean) {
+    Write-Host "Full clean removed available dist output. Close locked apps and rerun to finish."
 }

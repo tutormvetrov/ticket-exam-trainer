@@ -128,7 +128,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                 size=14,
                 color=p["text_secondary"],
             ),
-            *([ft.Text(feedback, size=13, color=p["text_secondary"], selectable=True)] if feedback else []),
+            *([ft.Markdown(feedback, selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_FLAVORED)] if feedback else []),
             *(
                 [
                     ft.Text(TEXT["result.weak_points"], size=13, weight=ft.FontWeight.W_600, color=p["text_primary"]),
@@ -245,7 +245,7 @@ def _row_card(
     ]
     if excerpt:
         text_block.append(
-            ft.Text(excerpt, size=12, color=palette_map["text_secondary"], selectable=True)
+            ft.Markdown(excerpt, selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_FLAVORED)
         )
 
     return ft.Container(

@@ -204,7 +204,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
             calibration.render_reply(score_percent),
         ]
         if feedback:
-            controls.append(ft.Text(feedback, size=13, color=p["text_secondary"], selectable=True))
+            controls.append(ft.Markdown(feedback, selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_FLAVORED))
         if error:
             controls.append(ft.Text(error, size=13, color=p["danger"], selectable=True))
 

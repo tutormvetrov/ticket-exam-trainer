@@ -371,7 +371,7 @@ def build_dashboard_view(state: AppState) -> ft.Control:
 
     snapshot_error = None
     try:
-        snapshot = state.facade.load_training_snapshot(tickets=tickets)
+        snapshot = state.facade.load_training_snapshot(tickets=tickets, exam_id=eid)
         queue_items = list(getattr(snapshot, "queue_items", []) or [])
     except Exception as exc:
         _LOG.exception("Dashboard: load training snapshot failed exam_id=%s", eid)

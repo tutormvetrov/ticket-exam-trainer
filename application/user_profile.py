@@ -103,10 +103,38 @@ def validate_name(raw: str) -> tuple[bool, str]:
     return True, ""
 
 
+def validate_exam_date(raw: str | None) -> tuple[bool, str]:
+    """Validate optional exam date in ISO ``YYYY-MM-DD`` format."""
+    cleaned = (raw or "").strip()
+    if not cleaned:
+        return True, ""
+    try:
+        datetime.strptime(cleaned, "%Y-%m-%d")
+    except ValueError:
+        return False, "Формат даты: ГГГГ-ММ-ДД, например 2026-06-15."
+    return True, ""
+
+
+def validate_reminder_time(raw: str | None) -> tuple[bool, str]:
+    """Validate local reminder time in ``HH:MM`` 24-hour format."""
+    cleaned = (raw or "").strip()
+    if not cleaned:
+        return False, "Формат времени: ЧЧ:ММ, например 10:00."
+    try:
+        datetime.strptime(cleaned, "%H:%M")
+    except ValueError:
+        return False, "Формат времени: ЧЧ:ММ, например 10:00."
+    return True, ""
+
+
 def build_profile(
     name: str,
     avatar_emoji: str,
     active_exam_id: str = DEFAULT_EXAM_ID,
+    *,
+    exam_date: str | None = None,
+    reminder_enabled: bool = False,
+    reminder_time: str = "10:00",
 ) -> UserProfile:
     """Собирает профиль с текущим timestamp. Предполагает валидный вход."""
     return UserProfile(
@@ -114,4 +142,7 @@ def build_profile(
         avatar_emoji=avatar_emoji,
         created_at=datetime.now().isoformat(timespec="seconds"),
         active_exam_id=active_exam_id,
+        exam_date=(exam_date or "").strip() or None,
+        reminder_enabled=bool(reminder_enabled),
+        reminder_time=(reminder_time or "10:00").strip() or "10:00",
     )

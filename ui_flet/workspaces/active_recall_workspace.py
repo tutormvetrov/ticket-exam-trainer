@@ -108,7 +108,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
         ]
         if feedback:
             controls.append(
-                ft.Text(feedback, size=13, color=p["text_secondary"], selectable=True)
+                ft.Markdown(feedback, selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_FLAVORED)
             )
         if error:
             controls.append(

@@ -244,7 +244,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                 size=13,
                 color=p["text_secondary"],
             ),
-            *([ft.Text(feedback, size=13, color=p["text_secondary"], selectable=True)] if feedback else []),
+            *([ft.Markdown(feedback, selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_FLAVORED)] if feedback else []),
         ]
         result_box.visible = True
         safe_update(result_box)

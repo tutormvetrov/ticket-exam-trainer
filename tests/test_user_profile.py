@@ -8,7 +8,9 @@ from application.user_profile import (
     AVATAR_CHOICES,
     ProfileStore,
     build_profile,
+    validate_exam_date,
     validate_name,
+    validate_reminder_time,
 )
 
 
@@ -40,6 +42,43 @@ def test_build_profile_sets_timestamp_and_trims() -> None:
     assert profile.name == "Миша"
     assert profile.avatar_emoji == "🦉"
     assert profile.created_at  # ISO-8601 string
+
+
+def test_validate_exam_date_accepts_empty_and_iso_date() -> None:
+    assert validate_exam_date("") == (True, "")
+    assert validate_exam_date("2026-06-15") == (True, "")
+
+
+def test_validate_exam_date_rejects_bad_format() -> None:
+    ok, err = validate_exam_date("15.06.2026")
+    assert not ok
+    assert "ГГГГ-ММ-ДД" in err
+
+
+def test_validate_reminder_time_accepts_hh_mm() -> None:
+    assert validate_reminder_time("10:00") == (True, "")
+
+
+def test_validate_reminder_time_rejects_invalid_values() -> None:
+    for value in ("25:00", "утро"):
+        ok, err = validate_reminder_time(value)
+        assert not ok
+        assert "ЧЧ:ММ" in err
+
+
+def test_build_profile_saves_exam_date_and_reminder() -> None:
+    profile = build_profile(
+        "Миша",
+        "🦉",
+        active_exam_id="exam-state-mde-ai-2024",
+        exam_date="2026-06-15",
+        reminder_enabled=True,
+        reminder_time="09:30",
+    )
+    assert profile.active_exam_id == "exam-state-mde-ai-2024"
+    assert profile.exam_date == "2026-06-15"
+    assert profile.reminder_enabled is True
+    assert profile.reminder_time == "09:30"
 
 
 def test_profile_store_round_trip(tmp_path: Path) -> None:

@@ -18,6 +18,13 @@ from pathlib import Path
 import flet as ft
 
 from application.pdf_export import generate_ticket_pdf
+from application.ticket_reference import (
+    block_code_value,
+    compose_reference_answer,
+    normalize_reference_text,
+    reference_answer_blocks,
+    truncate_reference_text,
+)
 from ui_flet.components.ask_etalon_panel import open_ask_etalon_dialog
 from ui_flet.components.training_workspace_base import build_workspace_frame
 from ui_flet.i18n.ru import TEXT
@@ -25,8 +32,6 @@ from ui_flet.state import AppState
 from ui_flet.theme.tokens import RADIUS, SPACE, palette
 
 _LOG = logging.getLogger(__name__)
-
-_CANONICAL_ORDER: list[str] = ["intro", "theory", "practice", "skills", "conclusion", "extra"]
 
 
 def _safe_filename(text: str, fallback: str = "ticket") -> str:
@@ -63,16 +68,16 @@ def _ticket_section_meta(state: AppState, section_id: str) -> tuple[str, str]:
 
 # Stable colour hints per atom_type — falls back to `accent` for unknown types.
 _ATOM_TYPE_ACCENT = {
-    "definition":   "info",
-    "features":     "success",
-    "examples":     "warning",
-    "stages":       "accent",
-    "functions":    "info",
-    "causes":       "danger",
+    "definition": "info",
+    "features": "success",
+    "examples": "warning",
+    "stages": "accent",
+    "functions": "info",
+    "causes": "danger",
     "consequences": "danger",
     "classification": "success",
     "process_step": "accent",
-    "conclusion":   "success",
+    "conclusion": "success",
 }
 
 
@@ -85,10 +90,7 @@ def _atom_type_value(atom) -> str:
 
 
 def _block_code_value(block) -> str:
-    raw = getattr(block, "block_code", "")
-    if hasattr(raw, "value"):
-        return str(raw.value)
-    return str(raw).lower().split(".")[-1]
+    return block_code_value(getattr(block, "block_code", ""))
 
 
 def _atom_card(palette_map: dict, atom) -> ft.Control:
@@ -96,6 +98,7 @@ def _atom_card(palette_map: dict, atom) -> ft.Control:
     accent_key = _ATOM_TYPE_ACCENT.get(atom_type_value, "accent")
     accent_colour = palette_map.get(accent_key, palette_map["accent"])
     type_label = TEXT.get(f"atom.type.{atom_type_value}", atom_type_value.replace("_", " "))
+    display_label = truncate_reference_text(atom.label or type_label, limit=88)
 
     header_row: list[ft.Control] = [
         ft.Container(
@@ -104,7 +107,7 @@ def _atom_card(palette_map: dict, atom) -> ft.Control:
             border_radius=RADIUS["sm"],
         ),
         ft.Text(
-            atom.label or type_label,
+            display_label or type_label,
             size=14,
             weight=ft.FontWeight.W_600,
             color=palette_map["text_primary"],
@@ -126,10 +129,11 @@ def _atom_card(palette_map: dict, atom) -> ft.Control:
             spacing=SPACE["sm"],
         ),
     ]
-    if atom.text:
+    atom_text = normalize_reference_text(atom.text)
+    if atom_text:
         controls.append(
             ft.Text(
-                atom.text,
+                atom_text,
                 size=13,
                 color=palette_map["text_secondary"],
                 selectable=True,
@@ -166,6 +170,7 @@ def _atom_card(palette_map: dict, atom) -> ft.Control:
 def _answer_block_card(palette_map: dict, block) -> ft.Control:
     code = _block_code_value(block)
     fallback_title = TEXT.get(f"block.{code}", code.replace("_", " "))
+    content = normalize_reference_text(block.expected_content or "")
     return ft.Container(
         padding=SPACE["md"],
         bgcolor=palette_map["bg_surface"],
@@ -180,11 +185,10 @@ def _answer_block_card(palette_map: dict, block) -> ft.Control:
                     weight=ft.FontWeight.W_600,
                     color=palette_map["text_primary"],
                 ),
-                ft.Text(
-                    block.expected_content,
-                    size=13,
-                    color=palette_map["text_secondary"],
+                ft.Markdown(
+                    content,
                     selectable=True,
+                    extension_set=ft.MarkdownExtensionSet.GITHUB_FLAVORED,
                 ),
             ],
         ),
@@ -194,52 +198,34 @@ def _answer_block_card(palette_map: dict, block) -> ft.Control:
 def build_workspace(state: AppState, ticket) -> ft.Control:
     p = palette(state.is_dark)
 
-    _sorted_blocks = sorted(
-        ticket.answer_blocks or [],
-        key=lambda b: _CANONICAL_ORDER.index(_block_code_value(b))
-        if _block_code_value(b) in _CANONICAL_ORDER
-        else len(_CANONICAL_ORDER),
-    )
-
-    _full_answer_parts = [
-        block.expected_content.strip()
-        for block in _sorted_blocks
-        if not getattr(block, "is_missing", False)
-        and (block.expected_content or "").strip()
-    ]
-    _full_answer_text = "\n\n".join(_full_answer_parts) if _full_answer_parts else (ticket.canonical_answer_summary or "")
+    _reference_blocks = reference_answer_blocks(ticket)
+    _full_answer_text = compose_reference_answer(ticket, include_headings=True, heading_level=3)
 
     summary_control = ft.Container(
         padding=SPACE["md"],
         bgcolor=p["bg_elevated"],
         border_radius=RADIUS["md"],
         border=ft.border.all(1, p["border_soft"]),
-        content=ft.Text(
+        content=ft.Markdown(
             _full_answer_text,
-            size=14,
-            color=p["text_primary"],
             selectable=True,
+            extension_set=ft.MarkdownExtensionSet.GITHUB_FLAVORED,
         ),
     )
 
     atom_cards = [_atom_card(p, atom) for atom in (ticket.atoms or [])]
     atoms_section = (
-        ft.Column(spacing=SPACE["sm"], controls=atom_cards)
-        if atom_cards
-        else ft.Text("—", color=p["text_muted"])
+        ft.Column(spacing=SPACE["sm"], controls=atom_cards) if atom_cards else ft.Text("—", color=p["text_muted"])
     )
 
     block_cards: list[ft.Control] = []
-    for block in _sorted_blocks:
-        if getattr(block, "is_missing", False):
-            continue
-        if not (block.expected_content or "").strip():
-            continue
-        block_cards.append(_answer_block_card(p, block))
+    blocks_by_code = {_block_code_value(block): block for block in (ticket.answer_blocks or [])}
+    for reference_block in _reference_blocks:
+        block = blocks_by_code.get(reference_block.code)
+        if block is not None:
+            block_cards.append(_answer_block_card(p, block))
     blocks_section = (
-        ft.Column(spacing=SPACE["sm"], controls=block_cards)
-        if block_cards
-        else ft.Text("—", color=p["text_muted"])
+        ft.Column(spacing=SPACE["sm"], controls=block_cards) if block_cards else ft.Text("—", color=p["text_muted"])
     )
 
     body = ft.Column(
@@ -251,16 +237,20 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
             summary_control,
             ft.Text(TEXT["reading.atoms"], size=15, weight=ft.FontWeight.W_600, color=p["text_primary"]),
             atoms_section,
-            ft.Text(TEXT["reading.blocks"], size=15, weight=ft.FontWeight.W_600, color=p["text_primary"]),
-            blocks_section,
+            *(
+                [
+                    ft.Text(TEXT["reading.blocks"], size=15, weight=ft.FontWeight.W_600, color=p["text_primary"]),
+                    blocks_section,
+                ]
+                if block_cards
+                else []
+            ),
         ],
     )
 
     # PDF-экспорт текущего билета.
     section_title, lecturer = _ticket_section_meta(state, ticket.section_id)
-    default_name = _safe_filename(
-        f"Тезис — Билет {ticket.title}", fallback=f"ticket-{ticket.ticket_id}"
-    )
+    default_name = _safe_filename(f"Тезис — Билет {ticket.title}", fallback=f"ticket-{ticket.ticket_id}")
 
     def _on_pdf_save(e: ft.FilePickerResultEvent) -> None:
         if not e.path:
@@ -270,7 +260,8 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
             out = out.with_suffix(".pdf")
         try:
             generate_ticket_pdf(
-                ticket, out,
+                ticket,
+                out,
                 section_title=section_title or None,
                 lecturer=lecturer or None,
             )

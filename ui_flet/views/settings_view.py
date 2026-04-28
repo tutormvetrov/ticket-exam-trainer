@@ -32,6 +32,7 @@ import flet as ft
 from app.platform import is_macos
 from application.pdf_export import generate_collection_pdf
 from application.settings import DEFAULT_OLLAMA_SETTINGS, OllamaSettings
+from application.user_profile import validate_exam_date, validate_reminder_time
 from infrastructure.ollama.runtime import OllamaBootstrapStatus
 from ui_flet.components.ollama_status_badge import OllamaStatusBadge
 from ui_flet.i18n.ru import TEXT
@@ -333,11 +334,9 @@ def _build_preparation_section(state: AppState, p: dict[str, str]) -> ft.Control
             _save_profile_patch(state, exam_date=None)
             date_status.value = TEXT["settings.prep.exam_date.cleared"]
         else:
-            try:
-                from datetime import datetime as _dt
-                _dt.strptime(raw, "%Y-%m-%d")
-            except ValueError:
-                date_status.value = TEXT["settings.prep.exam_date.invalid"]
+            ok, message = validate_exam_date(raw)
+            if not ok:
+                date_status.value = message or TEXT["settings.prep.exam_date.invalid"]
                 date_status.color = p["danger"]
                 date_status.update()
                 return
@@ -381,11 +380,9 @@ def _build_preparation_section(state: AppState, p: dict[str, str]) -> ft.Control
     def _on_reminder_save(_e: ft.ControlEvent) -> None:
         enabled = bool(reminder_switch.value)
         time_raw = (reminder_time_field.value or "10:00").strip() or "10:00"
-        try:
-            from datetime import datetime as _dt
-            _dt.strptime(time_raw, "%H:%M")
-        except ValueError:
-            reminder_status.value = TEXT["settings.prep.reminder_time.invalid"]
+        ok, message = validate_reminder_time(time_raw)
+        if not ok:
+            reminder_status.value = message or TEXT["settings.prep.reminder_time.invalid"]
             reminder_status.color = p["danger"]
             reminder_status.update()
             return

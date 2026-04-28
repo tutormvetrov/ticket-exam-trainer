@@ -1,26 +1,4 @@
-"""Onboarding view — первый запуск, создание локального профиля.
-
-Макет (display-first, warm-minimal):
-    ┌───────────────────────────────┐
-    │        Тезис (display)        │   brand-mark
-    │ caption muted subtitle        │
-    │           • • •               │   ornamental divider
-    │ Привет. Давай познакомимся.   │   welcome (display)
-    │ body subtitle                 │
-    │                               │
-    │ [ Как к тебе обращаться? __ ] │   name field
-    │                               │
-    │ Выбери аватар (h3)            │
-    │ caption muted hint            │
-    │ 🦉 🐺 🦊 🐻 🦁 🐢             │   12 avatars 2×6
-    │ 🦅 🐉 🌲 🌊 🔥 ⚡              │
-    │                               │
-    │         [ Начнём ]            │   primary button
-    └───────────────────────────────┘
-
-Card: bg_surface на bg_base, raised elevation, padding-2xl, width=560.
-Fade-in 200ms если не compact breakpoint.
-"""
+"""Onboarding view — first launch profile and preparation setup."""
 
 from __future__ import annotations
 
@@ -35,10 +13,13 @@ from application.user_profile import (
     DEFAULT_EXAM_ID,
     ProfileStore,
     build_profile,
+    validate_exam_date,
     validate_name,
+    validate_reminder_time,
 )
 from ui_flet.components.decorative import divider as decorative_divider
 from ui_flet.components.decorative import sunburst_badge
+from ui_flet.first_step import go_to_first_training_step, resolve_first_training_step
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.buttons import primary_button
@@ -57,8 +38,9 @@ def build_onboarding_view(state: AppState) -> ft.Control:
     p = palette(state.is_dark)
     store = ProfileStore(_profile_path(state))
     course_ticket_counts = _load_course_ticket_counts(state)
+    compact = state.breakpoint == "compact"
 
-    picked_avatar: dict[str, str | None] = {"value": None}
+    picked_avatar: dict[str, str | None] = {"value": AVATAR_CHOICES[0] if AVATAR_CHOICES else None}
     picked_course: dict[str, str] = {"value": DEFAULT_EXAM_ID}
 
     name_field = ft.TextField(
@@ -69,7 +51,33 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         border_color=p["border_medium"],
         focused_border_color=p["accent"],
         text_size=14,
-        width=460,
+        width=None if compact else 360,
+    )
+    exam_date_field = ft.TextField(
+        label=TEXT["onboarding.exam_date_label"],
+        hint_text=TEXT["onboarding.exam_date_hint"],
+        border_radius=RADIUS["md"],
+        border_color=p["border_medium"],
+        focused_border_color=p["accent"],
+        text_size=14,
+        width=None if compact else 170,
+        dense=True,
+    )
+    reminder_switch = ft.Switch(
+        label=TEXT["onboarding.reminder_label"],
+        value=False,
+    )
+    reminder_time_field = ft.TextField(
+        label=TEXT["onboarding.reminder_time"],
+        value="10:00",
+        hint_text="ЧЧ:ММ",
+        border_radius=RADIUS["md"],
+        border_color=p["border_medium"],
+        focused_border_color=p["accent"],
+        text_size=14,
+        width=None if compact else 120,
+        dense=True,
+        disabled=True,
     )
 
     error_text = ft.Text(
@@ -78,11 +86,27 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         visible=False,
     )
 
+    def _set_error(message: str) -> None:
+        error_text.value = message
+        error_text.visible = True
+        error_text.update()
+
+    def _clear_error() -> None:
+        if error_text.visible:
+            error_text.visible = False
+            error_text.update()
+
+    def _on_reminder_change(_evt: ft.ControlEvent) -> None:
+        reminder_time_field.disabled = not bool(reminder_switch.value)
+        reminder_time_field.update()
+
+    reminder_switch.on_change = _on_reminder_change
+
     avatar_row = ft.Row(
         [],
         spacing=SPACE["sm"],
         wrap=True,
-        alignment=ft.MainAxisAlignment.CENTER,
+        alignment=ft.MainAxisAlignment.START,
     )
 
     def _rebuild_avatars() -> None:
@@ -96,19 +120,41 @@ def build_onboarding_view(state: AppState) -> ft.Control:
     def _on_pick_avatar(avatar: str) -> None:
         picked_avatar["value"] = avatar
         _rebuild_avatars()
-        if error_text.visible and "аватар" in (error_text.value or "").lower():
-            error_text.visible = False
-            error_text.update()
+        _clear_error()
 
     _rebuild_avatars()
 
     # ---------- course picker ----------
     course_row = ft.Row(
         [],
-        spacing=SPACE["md"],
+        spacing=SPACE["sm"],
         wrap=True,
-        alignment=ft.MainAxisAlignment.CENTER,
+        alignment=ft.MainAxisAlignment.START,
     )
+
+    first_step_title = ft.Text(
+        "",
+        style=text_style("body_strong", color=p["text_primary"]),
+        max_lines=2,
+        overflow=ft.TextOverflow.ELLIPSIS,
+    )
+    first_step_hint = ft.Text(
+        "",
+        style=text_style("caption", color=p["text_muted"]),
+    )
+
+    def _refresh_first_step_preview() -> None:
+        step = resolve_first_training_step(state, exam_id=picked_course["value"])
+        if step.has_ticket:
+            first_step_title.value = step.ticket_title
+            first_step_hint.value = TEXT["onboarding.first_step.ready"]
+        else:
+            first_step_title.value = TEXT["onboarding.first_step.empty"]
+            first_step_hint.value = ""
+        if first_step_title.page:
+            first_step_title.update()
+        if first_step_hint.page:
+            first_step_hint.update()
 
     def _rebuild_courses() -> None:
         course_row.controls = [
@@ -127,40 +173,53 @@ def build_onboarding_view(state: AppState) -> ft.Control:
     def _on_pick_course(exam_id: str) -> None:
         picked_course["value"] = exam_id
         _rebuild_courses()
+        _refresh_first_step_preview()
+        _clear_error()
 
     _rebuild_courses()
+    _refresh_first_step_preview()
 
     def _on_start(_evt: ft.ControlEvent) -> None:
         raw_name = name_field.value or ""
         ok, err_msg = validate_name(raw_name)
         if not ok:
-            error_text.value = err_msg
-            error_text.visible = True
-            error_text.update()
+            _set_error(err_msg)
             return
         if not picked_avatar["value"]:
-            error_text.value = TEXT["onboarding.avatar_not_picked"]
-            error_text.visible = True
-            error_text.update()
+            _set_error(TEXT["onboarding.avatar_not_picked"])
+            return
+
+        exam_date = (exam_date_field.value or "").strip()
+        ok, err_msg = validate_exam_date(exam_date)
+        if not ok:
+            _set_error(err_msg)
+            return
+
+        reminder_enabled = bool(reminder_switch.value)
+        reminder_time = (reminder_time_field.value or "10:00").strip() or "10:00"
+        ok, err_msg = validate_reminder_time(reminder_time)
+        if not ok:
+            _set_error(err_msg)
             return
 
         profile = build_profile(
             raw_name,
             picked_avatar["value"],
             active_exam_id=picked_course["value"],
+            exam_date=exam_date or None,
+            reminder_enabled=reminder_enabled,
+            reminder_time=reminder_time,
         )
         try:
             store.save(profile)
         except Exception:
             _LOG.exception("Profile save failed")
-            error_text.value = "Не удалось сохранить профиль. Проверь права на папку приложения."
-            error_text.visible = True
-            error_text.update()
+            _set_error("Не удалось сохранить профиль. Проверь права на папку приложения.")
             return
 
         _LOG.info("Profile created name=%s avatar=%s", profile.name, profile.avatar_emoji)
         state.user_profile = profile
-        state.go("/journal")
+        go_to_first_training_step(state, exam_id=profile.active_exam_id)
 
     # ---------- sections ----------
     brand_title = ft.Text(
@@ -186,6 +245,15 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         spacing=SPACE["xs"],
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
     )
+    kicker = ft.Text(
+        TEXT["onboarding.kicker"].upper(),
+        style=ft.TextStyle(
+            font_family="Golos Text",
+            size=11,
+            weight=ft.FontWeight.W_600,
+            color=p["text_muted"],
+        ),
+    )
 
     welcome = ft.Text(
         TEXT["onboarding.welcome"],
@@ -195,6 +263,30 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         TEXT["onboarding.subtitle"],
         style=text_style("body", color=p["text_secondary"]),
         max_lines=3,
+    )
+    first_step_block = ft.Container(
+        content=ft.Column(
+            [
+                ft.Row(
+                    [
+                        sunburst_badge(state, size=24),
+                        ft.Text(
+                            TEXT["onboarding.first_step.title"],
+                            style=text_style("h3", color=p["text_primary"]),
+                        ),
+                    ],
+                    spacing=SPACE["sm"],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    tight=True,
+                ),
+                first_step_title,
+                first_step_hint,
+            ],
+            spacing=SPACE["xs"],
+            tight=True,
+        ),
+        padding=ft.padding.only(left=SPACE["md"]),
+        border=ft.border.only(left=ft.BorderSide(3, p["accent"])),
     )
 
     avatar_label = ft.Text(
@@ -222,10 +314,58 @@ def build_onboarding_view(state: AppState) -> ft.Control:
     )
     action_row = ft.Row(
         [start_button],
-        alignment=ft.MainAxisAlignment.CENTER,
+        alignment=ft.MainAxisAlignment.START,
     )
 
-    content = ft.Column(
+    preparation_fields: ft.Control
+    if compact:
+        preparation_fields = ft.Column(
+            [
+                name_field,
+                exam_date_field,
+                reminder_switch,
+                reminder_time_field,
+            ],
+            spacing=SPACE["sm"],
+        )
+    else:
+        preparation_fields = ft.Column(
+            [
+                name_field,
+                ft.Row(
+                    [exam_date_field, reminder_time_field],
+                    spacing=SPACE["sm"],
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+                reminder_switch,
+            ],
+            spacing=SPACE["sm"],
+        )
+
+    form_column = ft.Column(
+        [
+            course_label,
+            course_hint,
+            course_row,
+            ft.Container(height=SPACE["xs"]),
+            preparation_fields,
+            ft.Text(
+                TEXT["onboarding.reminder_hint"],
+                style=text_style("caption", color=p["text_muted"]),
+            ),
+            ft.Container(height=SPACE["xs"]),
+            avatar_label,
+            avatar_hint,
+            avatar_row,
+            ft.Container(height=SPACE["md"]),
+            error_text,
+            action_row,
+        ],
+        spacing=SPACE["sm"],
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+    )
+
+    intro_column = ft.Column(
         [
             brand_block,
             ft.Container(
@@ -233,35 +373,39 @@ def build_onboarding_view(state: AppState) -> ft.Control:
                 padding=ft.padding.symmetric(vertical=SPACE["md"]),
                 alignment=ft.alignment.center,
             ),
+            kicker,
             welcome,
             subtitle,
-            ft.Container(height=SPACE["lg"]),
-            ft.Row([name_field], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=SPACE["md"]),
-            course_label,
-            course_hint,
-            ft.Container(height=SPACE["sm"]),
-            course_row,
-            ft.Container(height=SPACE["md"]),
-            avatar_label,
-            avatar_hint,
-            ft.Container(height=SPACE["sm"]),
-            avatar_row,
-            ft.Container(height=SPACE["xl"]),
-            error_text,
-            action_row,
+            first_step_block,
         ],
         spacing=SPACE["sm"],
-        alignment=ft.MainAxisAlignment.CENTER,
         horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
     )
+
+    if compact:
+        content = ft.Column(
+            [intro_column, form_column],
+            spacing=SPACE["xl"],
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        )
+    else:
+        content = ft.Row(
+            [
+                ft.Container(content=intro_column, width=360),
+                ft.Container(width=1, bgcolor=p["border_soft"], height=460),
+                ft.Container(content=form_column, width=420),
+            ],
+            spacing=SPACE["2xl"],
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        )
 
     card = ft.Container(
         content=content,
         padding=ft.padding.all(SPACE["2xl"]),
         bgcolor=p["bg_surface"],
         border_radius=RADIUS["lg"],
-        width=560,
+        width=560 if compact else 900,
         shadow=apply_elevation("raised", state.is_dark),
     )
 
@@ -270,7 +414,12 @@ def build_onboarding_view(state: AppState) -> ft.Control:
         expand=True,
         bgcolor=p["bg_base"],
         alignment=ft.alignment.center,
-        content=card,
+        content=ft.Column(
+            [ft.Row([card], alignment=ft.MainAxisAlignment.CENTER)],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+            alignment=ft.MainAxisAlignment.CENTER,
+        ),
         opacity=0 if animate_fade else 1,
         animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_OUT) if animate_fade else None,
     )

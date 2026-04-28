@@ -18,9 +18,11 @@ from datetime import date, datetime
 import flet as ft
 
 from application.daily_digest import DailyDigest, compute_daily_digest
+from application.user_profile import COURSE_CATALOG
 from ui_flet.components.attempt_card import build_attempt_card
 from ui_flet.components.ornamental_divider import build_ornamental_divider
 from ui_flet.components.top_bar import build_top_bar
+from ui_flet.first_step import go_to_first_training_step, resolve_first_training_step
 from ui_flet.i18n.ru import TEXT
 from ui_flet.state import AppState
 from ui_flet.theme.buttons import ghost_button, primary_button
@@ -154,6 +156,7 @@ def _build_morning(state: AppState, digest: DailyDigest, p: dict) -> ft.Control:
     profile = state.user_profile
     name = profile.name if profile else ""
     avatar = profile.avatar_emoji if profile else ""
+    first_step = resolve_first_training_step(state, exam_id=state.active_exam_id)
 
     date_line = ft.Text(
         _ru_date_today(),
@@ -170,39 +173,42 @@ def _build_morning(state: AppState, digest: DailyDigest, p: dict) -> ft.Control:
         style=text_style("display", color=p["text_primary"]),
     )
 
-    if digest.queue_due_today == 0 and digest.queue_new == 0:
-        queue_control = ft.Text(
-            TEXT["journal.morning.queue_empty"],
-            style=text_style("body", color=p["text_secondary"]),
+    meta_lines: list[ft.Control] = [
+        _rust_bullet_row(
+            p,
+            TEXT["journal.morning.course"].format(course=_course_short_title(state.active_exam_id)),
         )
-    else:
-        lines: list[ft.Control] = []
-        if digest.queue_due_today:
-            lines.append(
-                _rust_bullet_row(
-                    p,
-                    TEXT["journal.morning.queue_review"].format(count=digest.queue_due_today),
-                )
-            )
-        if digest.queue_new:
-            lines.append(
-                _rust_bullet_row(
-                    p,
-                    TEXT["journal.morning.queue_new"].format(count=digest.queue_new),
-                )
-            )
-        lines.append(
+    ]
+    if profile and profile.exam_date:
+        meta_lines.append(
             _rust_bullet_row(
                 p,
-                TEXT["journal.morning.queue_time"].format(minutes=digest.queue_estimate_minutes),
+                TEXT["journal.morning.exam_date"].format(date=_format_exam_date(profile.exam_date)),
             )
         )
-        queue_control = ft.Column(lines, spacing=SPACE["xs"])
+    if profile and profile.reminder_enabled:
+        meta_lines.append(
+            _rust_bullet_row(
+                p,
+                TEXT["journal.morning.reminder"].format(time=profile.reminder_time or "10:00"),
+            )
+        )
+    meta_control = ft.Column(meta_lines, spacing=SPACE["xs"])
 
     start_button = ft.ElevatedButton(
         text=TEXT["journal.morning.start"],
-        on_click=lambda _e: state.go("/tickets"),
+        on_click=lambda _e: go_to_first_training_step(state),
         style=primary_button(state.is_dark),
+    )
+    catalog_button = ft.TextButton(
+        text=TEXT["journal.morning.open_catalog"],
+        on_click=lambda _e: state.go("/tickets"),
+        style=ghost_button(state.is_dark),
+    )
+    plan_button = ft.TextButton(
+        text=TEXT["journal.morning.open_plan"],
+        on_click=lambda _e: state.go("/dashboard"),
+        style=ghost_button(state.is_dark),
     )
 
     card_content = ft.Column(
@@ -210,14 +216,67 @@ def _build_morning(state: AppState, digest: DailyDigest, p: dict) -> ft.Control:
             date_line,
             greeting,
             build_ornamental_divider(state),
-            queue_control,
-            ft.Container(height=SPACE["xl"]),
-            ft.Row([start_button], alignment=ft.MainAxisAlignment.START),
+            _first_step_panel(state, p, first_step.ticket_title if first_step.has_ticket else ""),
+            meta_control,
+            ft.Container(height=SPACE["lg"]),
+            ft.Row(
+                [start_button, catalog_button, plan_button],
+                spacing=SPACE["sm"],
+                wrap=True,
+                alignment=ft.MainAxisAlignment.START,
+            ),
         ],
-        spacing=SPACE["sm"],
+        spacing=SPACE["md"],
         horizontal_alignment=ft.CrossAxisAlignment.START,
     )
-    return _center_card(state, card_content, elevation_level="flat")
+    return _center_card(state, card_content, elevation_level="flat", wide=True)
+
+
+def _course_short_title(active_exam_id: str) -> str:
+    for course in COURSE_CATALOG:
+        if course.get("exam_id") == active_exam_id:
+            return course.get("short_title", "Госэкзамен")
+    return "Госэкзамен"
+
+
+def _format_exam_date(raw: str) -> str:
+    try:
+        parsed = datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        return raw
+    return f"{parsed.day} {_RU_MONTHS_GEN[parsed.month - 1]} {parsed.year}"
+
+
+def _first_step_panel(state: AppState, p: dict, ticket_title: str) -> ft.Control:
+    title_text = ticket_title or TEXT["journal.morning.focus.empty"]
+    return ft.Container(
+        content=ft.Column(
+            [
+                ft.Text(
+                    TEXT["journal.morning.focus.title"],
+                    style=text_style("h3", color=p["text_primary"]),
+                ),
+                ft.Text(
+                    title_text,
+                    style=text_style("body_strong", color=p["text_primary"]),
+                    max_lines=2,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                ),
+                ft.Text(
+                    TEXT["journal.morning.focus.body"],
+                    style=text_style("body", color=p["text_secondary"]),
+                    max_lines=3,
+                ),
+            ],
+            spacing=SPACE["xs"],
+        ),
+        padding=ft.padding.all(SPACE["lg"]),
+        bgcolor=p["bg_elevated"],
+        border=ft.border.all(1, p["border_soft"]),
+        border_radius=RADIUS["md"],
+        on_click=lambda _e: go_to_first_training_step(state),
+        ink=True,
+    )
 
 
 # ---------- During day ----------

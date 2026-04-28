@@ -100,7 +100,7 @@ def build_workspace(state: AppState, ticket) -> ft.Control:
                                 weight=ft.FontWeight.W_600,
                                 color=p["text_primary"],
                             ),
-                            *([ft.Text(feedback, size=13, color=p["text_secondary"], selectable=True)] if feedback else []),
+                            *([ft.Markdown(feedback, selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_FLAVORED)] if feedback else []),
                             ft.Text(TEXT["result.review_fallback"], size=12, color=p["text_muted"]),
                         ],
                     ),
